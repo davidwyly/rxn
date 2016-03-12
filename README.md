@@ -15,19 +15,19 @@ The philosophy behind RXN is simple:
 
 Some of the features that RXN currently offers (or aims to offer):
 
-- [X] Simple workflow with an existing database schema (just create models and controllers -- that's it!)
-- [X] Database abstraction and security (using PDO and prepared statements)
-- [X] Robust error handling (just throw Exceptions and RXN handles the rest)
-- [X] Fantastic debugging utilities (you have to see them to believe them)
-- [X] Support for versioned controllers and versioned actions (saving you API maintenance hassle down the road)
+- [X] Simple workflow with an existing database schema *(just create models and controllers -- that's it!)*
+- [X] Database abstraction and security *(using PDO and prepared statements)*
+- [X] Robust error handling *(just throw an exception anywhere and RXN handles the rest)*
+- [X] Fantastic debugging utilities *(you have to see them to believe them)*
+- [X] Support for versioned controllers and versioned actions *(saving you API maintenance hassles down the road)*
 - [X] Database caching
 - [ ] Optional, modular plug-ins for more advanced funtionality
 - [ ] Support for multiple authentication standards
-- [ ] Generated API documentation (via an optional Angular admin frontend)
-- [ ] Database schema migrations (via an optional Angular admin frontend)
+- [ ] Generated API documentation *(via an optional Angular admin frontend)*
+- [ ] Database schema migrations *(via an optional Angular admin frontend)*
 - [ ] An advanced ORM where model relationships are derived from database structure and foreign keys
 - [ ] CRUD operations on any database record or relation table using the RXN ORM
 - [ ] Automated validation of API requests using existing (or generated) API contracts
 - [ ] Event logging on RXN Record CRUD operations
 - [ ] File caching
-- [ ] Speed improvements (with an eye on compiled extensions)
+- [ ] Speed improvements *(with an eye on compiled extensions)*
