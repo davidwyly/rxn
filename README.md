@@ -7,12 +7,14 @@
 Reaction, or RXN for short, is a framework designed to cut out the complexity and clutter of PHP-generated views -- offloading views to whatever frontend that suits your fancy.
 
 The philosophy behind RXN is simple:
+
 1. The backend should only be accessible using APIs
 2. The backend should only render responses using JSON
 3. The frontend should exclusively generate views
 4. Through strict backend / frontend decoupling, amazing things can happen
 
 Some of the features that RXN currently offers (or aims to offer):
+
 - [X] Simple workflow with an existing database schema (just create models and controllers -- that's it!)
 - [X] Database abstraction and security (using PDO and prepared statements)
 - [X] Robust error handling (just throw Exceptions and RXN handles the rest)
