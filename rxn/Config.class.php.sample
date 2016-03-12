@@ -1,0 +1,46 @@
+<?php
+
+namespace Rxn;
+
+use \Rxn\Data\Database;
+
+class Config
+{
+    static public $root;
+    static public $appFolder = 'rxn';
+    static public $vendorFolder = 'vendor'; // TODO: validate
+    static public $vendorNamespace = '\\Vendor\\Product';
+
+    static public $applicationKey = "2cKhyoP8E280xS962MV70eB0vbYw7NMn";
+    static public $relativeRoot = "/../";
+    static public $databaseDefaultSettings = [
+        'host'     => 'localhost',
+        'name'     => 'name',
+        'username' => 'user',
+        'password' => 'secret',
+        'charset'  => 'utf8',
+    ];
+
+    static public $databaseCacheSettings = [
+        'table'           => '_cache',
+        'timestampColumn' => 'timestamp',
+        'expiresColumn'   => 'expires',
+        'sqlColumn'       => 'sql_md5',
+        'paramColumn'     => 'param_md5',
+        'typeColumn'      => 'query_type',
+        'packageColumn'   => 'package',
+        'elapsedColumn'   => 'elapsed',
+    ];
+
+    static public $endpointParameters = [
+        "version",
+        "controller",
+        "action",
+    ];
+
+    static public $timezone = 'America/Denver';
+
+    public function __construct() {
+        self::$root = realpath(__DIR__ . self::$relativeRoot);
+    }
+}
