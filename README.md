@@ -1,8 +1,8 @@
-# Reaction
+# Reaction (RXN)
 
-**A PHP micro-framework that responds to API requests with JSON, ensuring that your backend is completely separated from your front-end**
+####A PHP micro-framework that responds to API requests with JSON, ensuring that your backend is completely separated from your front-end
 
-**please note: RXN is currently under active development and is still considered alpha
+##### Please note: RXN is currently under active development and is still considered alpha
 
 Reaction, or RXN for short, is a framework designed to cut out the complexity and clutter of PHP-generated views -- offloading views to whatever frontend that suits your fancy.
 
@@ -21,7 +21,7 @@ Some of the features that RXN currently offers:
 * Database caching
 
 Some of the features that are currently on the horizon:
-* Modular plug-ins
+* Optional, modular plug-ins for more advanced funtionality
 * Support for multiple authentication standards
 * Generated API documentation (via an optional Angular admin frontend)
 * Database schema migrations (via an optional Angular admin frontend)
@@ -30,3 +30,4 @@ Some of the features that are currently on the horizon:
 * Automated validation of API requests using existing (or generated) API contracts
 * Event logging on RXN Record CRUD operations
 * File caching
+* Speed improvements (with an eye on compiled extensions)
