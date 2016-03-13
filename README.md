@@ -13,7 +13,7 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
 3. *Only* the **frontend** should be responsible for interpreting JSON responses
 4. *Only* the **frontend** should be responsible for generating user views
 5. Through strict **backend / frontend decoupling**, amazing things can happen
-  *  Both the **backend** and **frontend** *can be simultaneously developed separately*, using versioned API contracts as reference
+  *  Both the **backend** and **frontend** *can be simultaneously developed*, completely separately, using versioned API contracts as the key
   *  Both the **backend** and **frontend** *have less entangling complexity*, giving you a simple and clean workflow
   *  Either the **backend** or **frontend** *can be swapped out entirely* with a completely different solution, giving you greater flexibility if needed
 
