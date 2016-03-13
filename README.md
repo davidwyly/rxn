@@ -25,6 +25,8 @@ Some of the features that RXN currently offers (or aims to offer):
 - [X] Fantastic debugging utilities *(you have to see them to believe them)*
 - [X] Support for versioned controllers and versioned actions *(saving you API maintenance hassles down the road)*
 - [X] Database caching
+- [X] Routing using Apache2
+- [ ] Routing using NGINX
 - [ ] Optional, modular plug-ins for more advanced funtionality
 - [ ] Support for multiple authentication standards
 - [ ] Generated API documentation *(via an optional Angular admin frontend)*
