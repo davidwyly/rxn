@@ -1,6 +1,6 @@
 # Reaction (RXN)
 
-####A PHP micro-framework that responds to API requests with JSON, ensuring that your backend is completely separated from your front-end
+####A PHP API micro-framework that responds to API requests with JSON, ensuring that your backend is completely separated from your front-end
 
 ##### Please note: RXN is currently under active development and is still considered alpha
 
