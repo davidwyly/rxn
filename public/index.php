@@ -1,46 +1,39 @@
 <?php
 
-namespace Rxn;
-
-
-
+use \Rxn\Config;
+use \Rxn\Application;
 use \Rxn\Utility\Debug;
+use \Rxn\Router\Collector;
 use \Rxn\Api\Controller;
+use \Rxn\Api\Controller\Response;
+
+require_once('../bootstrap.php');
 
 try {
-    $response = runApplication();
+    $responseToRender = runApplication();
 } catch (\Exception $e) {
     renderFailure($e);
     exit();
 }
-renderSuccess($response);
+renderAndDie($responseToRender);
 
 function runApplication()
 {
     // load the application
-    require_once('../bootstrap.php');
     $config = new Config();
     $app = new Application($config);
     $controller = $app->api->getController($app->router->collector);
     /** @var $controller Controller $response */
-    $controller->trigger();
-    return $controller->response;
+    $responseToRender = $controller->trigger();
+    return $responseToRender;
 }
 
-function renderFailure(\Exception $e)
+function renderFailure(Exception $e)
 {
-    $response = [
-        'error' => $e->getMessage(),
-        'file' => $e->getFile(),
-        'line' => $e->getLine(),
-        'backtrace' => $e->getTrace(),
-    ];
-    renderAndDie($response);
-}
-
-function renderSuccess($response)
-{
-    renderAndDie($response);
+    $collector = new Collector();
+    $response = new Response($collector);
+    $responseToRender = $response->getFailure($e);
+    renderAndDie($responseToRender);
 }
 
 function renderAndDie($response)
@@ -52,7 +45,7 @@ function renderAndDie($response)
         die();
     }
     header('content-type: application/json');
-    die($json);
+    echo($json);
 }
 
 function isJson($json) {

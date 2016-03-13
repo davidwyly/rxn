@@ -84,7 +84,6 @@ class Application
 
         if ($root != Config::$appFolder) {
             if ($root != Config::$vendorFolder) {
-                Debug::dump(debug_backtrace());
                 throw new \Exception("Root path '$root' in reference '$classReference' not defined in config");
             }
         }
@@ -104,8 +103,7 @@ class Application
         $classPath = implode("/",$pathArray);
         $loadPath = __DIR__ . "/../" . $root . "/" . $classPath . $extension;
         if (!file_exists($loadPath)) {
-            Debug::dump(debug_backtrace());
-            throw new \Exception("Load path '$loadPath' does not exist");
+            throw new \Exception("Load path '$loadPath' does not exist",501);
         }
         $loadPath = realpath($loadPath);
 

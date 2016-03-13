@@ -5,6 +5,7 @@ namespace Rxn\Api;
 use \Rxn\Config;
 use \Rxn\Application;
 use \Rxn\Router\Collector;
+use \Rxn\Api\Controller\Response;
 use \Rxn\Service\Api;
 use \Rxn\Utility\Debug;
 
@@ -28,90 +29,48 @@ class Controller
         $this->actionVersion = self::getActionVersion($collector);
     }
 
+    public function initialize(Collector $collector) {
+
+    }
+
+    private function validateParams() {
+        if (is_null($this->controllerVersion)
+            || is_null($this->actionVersion)) {
+                throw new \Exception("Version must be in API request URL");
+        }
+        if (is_null($this->controllerName)) {
+            throw new \Exception("Controller must be in API request URL");
+        }
+        if (is_null($this->actionName)) {
+            throw new \Exception("Controller action must be in API request URL");
+        }
+    }
+
     public function trigger() {
+        $this->validateParams();
         $this->triggered = true;
+        $response = new Response($this->collector);
         try {
             $this->actionMethod = $this->getActionMethod($this->actionName, $this->actionVersion);
         } catch (\Exception $e) {
-            $this->renderFailure($e);
-            return false;
+            $responseLeader = $response->getFailure($e);
+            $responseToRender = $responseLeader;
+            return $responseToRender;
         }
         try {
-            $response = $this->{$this->actionMethod}();
-            $this->renderSuccess($response);
-            return true;
+            $actionResponse = $this->{$this->actionMethod}();
+            $responseLeader = $response->getSuccess();
+            $responseToRender = $responseLeader + $actionResponse;
+            return $responseToRender;
         } catch (\Exception $e) {
-            $this->renderFailure($e);
-            return false;
+            $responseLeader = $response->getFailure($e);
+            $responseToRender = $responseLeader;
+            return $responseToRender;
         }
     }
 
     private function stopTimer() {
         $this->timeElapsed = round(microtime(true) - Application::$timeStart,4);
-    }
-
-    private function generateResponseLeader($success = true, $code, $message = null, $trace = null) {
-        $result = Api::getResponseCodeResult($code);
-        $received = $this->collector;
-        $elapsed = $this->timeElapsed;
-        return [
-            '_response' => [
-                'success' => $success,
-                'code' => $code,
-                'result' => $result,
-                'message' => $message,
-                'trace' => $trace,
-                'received' => $received,
-                'elapsed' => $elapsed,
-            ],
-        ];
-    }
-
-    private function renderSuccess($response) {
-        $this->stopTimer();
-        $success = true;
-        $code = 200;
-        $responseLeader = $this->generateResponseLeader((bool)$success,(int)$code);
-        $this->response = $responseLeader + $response;
-    }
-
-    private function renderFailure(\Exception $e) {
-        $this->stopTimer();
-        $success = false;
-        $code = $this->getErrorCode($e);
-        $message = $e->getMessage();
-        $trace = $this->getErrorTrace($e);
-        $responseLeader = $this->generateResponseLeader($success,$code,$message,$trace);
-        $this->response = $responseLeader;
-    }
-
-    private function getErrorCode(\Exception $e) {
-        $code = $e->getCode();
-        if (empty($code)) {
-            $code = '500';
-        }
-        return $code;
-    }
-
-    private function getErrorTrace(\Exception $e) {
-        $fullTrace = $e->getTrace();
-        $allowedDebugKeys = ['file','line','function','class'];
-        $trace = array();
-        foreach ($allowedDebugKeys as $allowedKey) {
-            foreach ($fullTrace as $traceKey=>$traceGroup) {
-                if (isset($traceGroup[$allowedKey])) {
-                    $trace[$traceKey][$allowedKey] = $traceGroup[$allowedKey];
-                }
-            }
-        }
-        foreach ($trace as $key=>$traceGroup) {
-            if (isset($traceGroup['file'])) {
-                $regex = '^.+\/';
-                $trimmedFile = preg_replace("#$regex#",'',$traceGroup['file']);
-                $trace[$key]['file'] = $trimmedFile;
-            }
-        }
-        return $trace;
     }
 
     private function getActionMethod($actionName, $actionVersion) {
@@ -127,7 +86,11 @@ class Controller
 
     static public function getControllerVersion(Collector $collector)
     {
-        $fullVersion = $collector->getUrlParam('version');
+        try {
+            $fullVersion = $collector->getUrlParam('version');
+        } catch (\Exception $e) {
+            return null;
+        }
         $periodPosition = mb_strpos($fullVersion,".");
         $controllerVersion= mb_substr($fullVersion,0,$periodPosition);
         return $controllerVersion;
@@ -135,7 +98,11 @@ class Controller
 
     static public function getActionVersion(Collector $collector)
     {
-        $fullVersion = $collector->getUrlParam('version');
+        try {
+            $fullVersion = $collector->getUrlParam('version');
+        } catch (\Exception $e) {
+            return null;
+        }
         $periodPosition = mb_strpos($fullVersion,".");
         $actionVersionNumber = mb_substr($fullVersion,$periodPosition + 1);
         $actionVersion = "v$actionVersionNumber";
@@ -144,12 +111,22 @@ class Controller
 
     static public function getControllerName(Collector $collector)
     {
-        return $collector->getUrlParam('controller');
+        try {
+            $controllerName = $collector->getUrlParam('controller');
+        } catch (\Exception $e) {
+            return null;
+        }
+        return $controllerName;
     }
 
     static public function getActionName(Collector $collector)
     {
-        return $collector->getUrlParam('action');
+        try {
+            $actionName = $collector->getUrlParam('action');
+        } catch (\Exception $e) {
+            return null;
+        }
+        return $actionName;
     }
 
     static public function getRef(Collector $collector) {

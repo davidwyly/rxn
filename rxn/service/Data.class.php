@@ -18,9 +18,9 @@ class Data
     public function __construct(Database $database)
     {
         $this->database = $database;
-        $this->cache = new Cache();
-        $this->map = new Map(Database::getName());
-        $this->cache->objectPattern('\\Rxn\\Data\\Map',[Database::getName()]);
+        //$this->cache = new Cache();
+        //$this->map = new Map(Database::getName());
+        //$this->cache->objectPattern('\\Rxn\\Data\\Map',[Database::getName()]);
         //$this->chain = new Chain($this->map);
         //$this->mold = new Mold($this->map);
     }
