@@ -106,7 +106,11 @@ class Application
         $loadPath = $loadPathRoot . $loadPathClass;
 
         if (!file_exists($loadPath)) {
-            // only throw the partial path for security purposes
+            // 400 level error if the controller is incorrect
+            if (mb_strpos($classPath,'controller')) {
+                throw new \Exception("Controller '$classReference' does not exist",400);
+            }
+            // 500 level error otherwise; only throw the partial path for security purposes
             throw new \Exception("Load path '$loadPathClass' does not exist",501);
         }
         $loadPath = realpath($loadPath);
