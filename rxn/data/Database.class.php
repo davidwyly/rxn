@@ -26,8 +26,8 @@ class Database {
         'elapsedColumn' => null,
     ];
 
+    static public $allowCaching = false;
     static private $defaultCacheTimeout = 5;
-
     static private $cacheLookups;
     static private $connection; // PDO connection
     static private $executionCount = 0;
@@ -41,6 +41,7 @@ class Database {
     {
         self::setDefaultSettings(Config::$databaseDefaultSettings);
         self::setCacheSettings(Config::$databaseCacheSettings);
+        self::$allowCaching = Config::$allowCaching;
     }
 
     static public function getHost() {
@@ -281,6 +282,11 @@ class Database {
 
     static public function query($rawSql, array $varsToPrepare = array(), $queryType = 'query', $useCaching = false, $cacheTimeout = null)
     {
+        // check global caching settings
+        if (self::$allowCaching === false) {
+            $useCaching = false;
+        }
+        
         // check if an existing connection exists
         if (!self::$connection) {
             // connect to the default connection settings if necessary

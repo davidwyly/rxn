@@ -38,6 +38,7 @@ class Config
         "action",
     ];
 
+    static public $allowCaching = false;
     static public $timezone = 'America/Denver';
 
     public function __construct() {

@@ -36,12 +36,12 @@ function renderFailure(Exception $e)
     renderAndDie($responseToRender);
 }
 
-function renderAndDie($response)
+function renderAndDie($responseToRender)
 {
     //ob_start('ob_gzhandler');
-    $json = json_encode((object)$response,JSON_PRETTY_PRINT);
+    $json = json_encode((object)$responseToRender,JSON_PRETTY_PRINT);
     if (!isJson($json)) {
-        Debug::dump($response);
+        Debug::dump($responseToRender);
         die();
     }
     header('content-type: application/json');
