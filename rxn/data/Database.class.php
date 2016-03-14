@@ -286,7 +286,7 @@ class Database {
         if (self::$allowCaching === false) {
             $useCaching = false;
         }
-        
+
         // check if an existing connection exists
         if (!self::$connection) {
             // connect to the default connection settings if necessary

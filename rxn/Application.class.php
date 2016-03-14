@@ -101,9 +101,13 @@ class Application
 
         // convert back into a string for directory reference
         $classPath = implode("/",$pathArray);
-        $loadPath = __DIR__ . "/../" . $root . "/" . $classPath . $extension;
+        $loadPathRoot = realpath(__DIR__ . "/../");
+        $loadPathClass = "/" . $root . "/" . $classPath . $extension;
+        $loadPath = $loadPathRoot . $loadPathClass;
+
         if (!file_exists($loadPath)) {
-            throw new \Exception("Load path '$loadPath' does not exist",501);
+            // only throw the partial path for security purposes
+            throw new \Exception("Load path '$loadPathClass' does not exist",501);
         }
         $loadPath = realpath($loadPath);
 
