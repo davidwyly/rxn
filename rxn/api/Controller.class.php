@@ -46,20 +46,16 @@ class Controller
         try {
             $this->actionMethod = $this->getActionMethod($this->actionName, $this->actionVersion);
         } catch (\Exception $e) {
-            return (array)$response->getFailure($e);
+            return $response->getFailure($e);
         }
 
         // trigger the action method on the controller
         try {
             $actionResponse = $this->{$this->actionMethod}();
-            return (array)$response->getSuccess() + $actionResponse;
+            return $response->getSuccess() + $actionResponse;
         } catch (\Exception $e) {
             return $response->getFailure($e);
         }
-    }
-
-    private function stopTimer() {
-        $this->timeElapsed = round(microtime(true) - Application::$timeStart,4);
     }
 
     private function getActionMethod($actionName, $actionVersion) {

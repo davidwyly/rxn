@@ -2,6 +2,7 @@
 
 namespace Rxn\Api\Controller;
 
+use \Rxn\Application;
 use \Rxn\Router\Collector;
 use \Rxn\Utility\Debug;
 
@@ -89,6 +90,7 @@ class Response
         $this->code = self::DEFAULT_SUCCESS_CODE;
         $this->result = self::getResponseCodeResult($this->code);
         $this->rendered = true;
+        $this->stopTimer();
         return [self::LEADER_KEY => $this];
     }
 
@@ -99,6 +101,7 @@ class Response
         $this->message = $e->getMessage();
         $this->trace = self::getErrorTrace($e);
         $this->rendered = true;
+        $this->stopTimer();
         return [self::LEADER_KEY => $this];
     }
 
@@ -137,5 +140,9 @@ class Response
             return 'Unsupported Response Code';
         }
         return self::$responseCodes[$code];
+    }
+
+    private function stopTimer() {
+        $this->elapsed = round(microtime(true) - Application::$timeStart,4);
     }
 }
