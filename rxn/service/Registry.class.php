@@ -2,6 +2,7 @@
 
 namespace Rxn\Service;
 
+use \Rxn\Config;
 use \Rxn\Data\Database;
 use \Rxn\Api\Controller;
 use \Rxn\Utility\Debug;
@@ -18,8 +19,8 @@ class Registry
         //
     }
 
-    public function initialize(\Rxn\Config $config) {
-        $this->fetchTables('aperture');
+    public function initialize(Config $config) {
+        $this->fetchTables(Database::getName());
     }
 
     public function registerClass($classReference) {

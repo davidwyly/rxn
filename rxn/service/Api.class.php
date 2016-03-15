@@ -21,25 +21,18 @@ class Api
         Registry::registerController($controllerName, $controllerVersion);
     }
 
-
-    public function getController(Collector $collector)
-    {
-        $this->validateCollector($collector);
-        $controller = $this->invokeController($collector);
-        return $controller;
-    }
-
     private function validateCollector($collector) {
         if (!isset($collector->get['controller'])) {
             throw new \Exception("Controller not defined in API request URL");
         }
     }
 
-
-    private function invokeController(Collector $collector)
+    public function invokeController(Collector $collector)
     {
+        $this->validateCollector($collector);
         $controllerRef = Controller::getRef($collector);
         $controller = new $controllerRef($collector);
+        $this->controller = $controller;
         return $controller;
     }
 }
