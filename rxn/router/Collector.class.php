@@ -58,12 +58,6 @@ class Collector
     }
 
     static private function processParams($params) {
-        $requiredUrlParameters = Config::$endpointParameters;
-        $requiredCount = count($requiredUrlParameters);
-        if (count($params) < $requiredCount) {
-            $requiredString = implode(",",$requiredUrlParameters);
-            throw new \Exception("The following parameters are required: $requiredString",400);
-        }
 
         // assign version, controller, and action
         $processedParams = array();
@@ -74,17 +68,19 @@ class Collector
         // check to see if there are remaining params
         $paramCount = count($params);
         if ($paramCount > 0) {
-            if (self::isOdd($paramCount)) {
-                throw new \Exception("Odd number of parameter keys and values",400);
-            }
 
             // split params into key-value pairs
             foreach ($params as $key=>$value) {
                 if (self::isEven($key)) {
                     $pairedKey = $value;
                     $nextKey = $key + 1;
-                    $pairedValue = $params[$nextKey];
-                    $processedParams[$pairedKey] = $pairedValue;
+                    if (isset($params[$nextKey])) {
+                        $pairedValue = $params[$nextKey];
+                        $processedParams[$pairedKey] = $pairedValue;
+                    } else {
+                        $processedParams[$pairedKey] = null;
+                    }
+
                 }
             }
         }

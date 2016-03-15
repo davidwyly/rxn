@@ -20,8 +20,10 @@ class Controller
     public $triggered = false;
     public $timeElapsed;
     public $response;
+    static public $endpointParameters;
 
     public function __construct(Collector $collector) {
+        $this->validateRequiredParams($collector, Config::$endpointParameters);
         $this->collector = $collector;
         $this->controllerVersion = self::getControllerVersion($collector);
         $this->controllerName = self::getControllerName($collector);
@@ -29,21 +31,15 @@ class Controller
         $this->actionVersion = self::getActionVersion($collector);
     }
 
-    private function validateParams() {
-        if (is_null($this->controllerVersion)
-            || is_null($this->actionVersion)) {
-                throw new \Exception("Version must be in API request URL");
-        }
-        if (is_null($this->controllerName)) {
-            throw new \Exception("Controller must be in API request URL");
-        }
-        if (is_null($this->actionName)) {
-            throw new \Exception("Controller action must be in API request URL");
+    private function validateRequiredParams(Collector $collector, array $parameters) {
+        foreach ($parameters as $parameter) {
+            if (!isset($collector->get[$parameter])) {
+                throw new \Exception("Required parameter '$parameter' not defined in API request URL",400);
+            }
         }
     }
 
     public function trigger(Response $response) {
-        $this->validateParams();
         $this->triggered = true;
 
         // determine the action method on the controller to trigger
