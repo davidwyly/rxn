@@ -32,13 +32,11 @@ class Application
     public function __construct(Config $config)
     {
         self::$timeStart = microtime(true);
-        self::$config = $config;
-        $database = new Database;
-        $registry = new Service\Registry;
-        $this->initialize($database, $registry);
+        $this->setConfig($config);
+        $this->initialize(new Service\Registry);
         $this->api = new Service\Api();
         $this->auth = new Service\Auth();
-        $this->data = new Service\Data($database);
+        $this->data = new Service\Data();
         $this->model = new Service\Model();
         $this->router = new Service\Router();
         $this->stats = new Service\Stats();
@@ -46,7 +44,11 @@ class Application
         $this->finalize($this->registry);
     }
 
-    private function initialize(Database $database, Service\Registry $registry)
+    private function setConfig(Config $config) {
+        self::$config = $config;
+    }
+
+    private function initialize(Service\Registry $registry)
     {
         // read from config
         date_default_timezone_set(Config::$timezone);
@@ -68,6 +70,11 @@ class Application
         spl_autoload_register(array($this, 'load'));
     }
 
+    /**
+     * @param string $classReference
+     * @param string $extension
+     * @return void
+     */
     private function load($classReference, $extension = '.class.php')
     {
         // determine the file path of the class reference
@@ -85,6 +92,12 @@ class Application
         return $registry->registerClass($classReference);
     }
 
+    /**
+     * @param string $classReference
+     * @param string $extension
+     * @return string
+     * @throws \Exception
+     */
     private function getClassPathByClassReference($classReference, $extension)
     {
         // break the class namespace into an array

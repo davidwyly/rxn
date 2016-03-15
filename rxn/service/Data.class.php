@@ -26,9 +26,9 @@ class Data
     public $chain;
     public $mold;
 
-    public function __construct(Database $database)
+    public function __construct()
     {
-        $this->database = $database;
+        //$this->database = $database;
         //$this->cache = new Cache();
         //$this->map = new Map(Database::getName());
         //$this->cache->objectPattern('\\Rxn\\Data\\Map',[Database::getName()]);
