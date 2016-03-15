@@ -35,7 +35,7 @@ class Application
         $this->finalize($this->registry);
     }
 
-    private function initialize(\Rxn\Data\Database $database, Service\Registry $registry)
+    private function initialize(Database $database, Service\Registry $registry)
     {
         // read from config
         date_default_timezone_set(Config::$timezone);

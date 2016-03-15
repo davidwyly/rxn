@@ -23,9 +23,10 @@ function runApplication()
     $config = new Config();
     $app = new Application($config);
     $collector = $app->router->collector;
+    $response = new Response($collector);
     $controller = $app->api->invokeController($collector);
     /** @var $controller Controller $response */
-    $responseToRender = $controller->trigger();
+    $responseToRender = $controller->trigger($response);
     return $responseToRender;
 }
 

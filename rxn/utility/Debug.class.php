@@ -12,21 +12,6 @@ class Debug {
     static public $expandFirst = true;
     static public $then;
 
-    protected function __construct()
-    {
-        // __construct is set protected so the class cannot be instantiated using 'new'
-    }
-
-    private function __clone()
-    {
-        // __clone is set private so the class cannot be instantiated through cloning
-    }
-
-    /** @noinspection PhpUnusedPrivateMethodInspection */
-    private function __wakeup()
-    {
-        // __wakeup is set private so the class cannot be instantiated through de-serialization
-    }
 
     /**
      * @param      $var
@@ -72,12 +57,10 @@ class Debug {
         $backtrace = debug_backtrace();
         $depth = self::$depth;
         if (!$backtrace[$depth]) {
-            $uniqueId = uniqid();
             throw new \Exception("Debug depth '$depth' gives inconsistent results");
         }
         $vLine = file( $backtrace[$depth]['file'] );
         $fLine = $vLine[ $backtrace[$depth]['line'] - 1 ];
-        $varType = gettype($var);
 
         // get current class name without namespace
         $thisClass = substr(__CLASS__, strrpos(__CLASS__, '\\') + 1);
@@ -433,8 +416,7 @@ class Debug {
         if (!is_object($object)) {
             throw new \Exception("Trying to inspect an object that isn't an object");
         }
-        $class = get_class($object); // identify the class type
-        $reflection = new \ReflectionClass("$class");
+        $reflection = new \ReflectionObject($object);
         $reflectionProperties = $reflection->getProperties(
             \ReflectionProperty::IS_PROTECTED
             |\ReflectionProperty::IS_PUBLIC
@@ -442,7 +424,7 @@ class Debug {
             |\ReflectionProperty::IS_PRIVATE
         );
 
-        // RARELY, reflection->getProperties fails, so we need an exception array...
+        // RARELY, reflection->getProperties fails (e.g., \DateTime), so we need an exception array
         $objectArray = get_object_vars($object);
         $reflectionArray = array();
         foreach ($reflectionProperties as $key=>$reflectionProperty) {
@@ -484,6 +466,7 @@ class Debug {
             $array[$exceptionKey] = $exceptionValue;
         }
 
+        $class = get_class($object);
         $specialArray = array();
         foreach ($array as $key=>$value) {
             if (mb_strpos('<span',$key)) {
@@ -493,7 +476,6 @@ class Debug {
         }
         ksort($specialArray);
         $array = $array + $specialArray;
-
         $array["<em style='color: darkgray;'>::methods</em>"] = self::getMethods($class);
 
         foreach ($array as $key=>$value) {

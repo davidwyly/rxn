@@ -29,10 +29,6 @@ class Controller
         $this->actionVersion = self::getActionVersion($collector);
     }
 
-    public function initialize(Collector $collector) {
-
-    }
-
     private function validateParams() {
         if (is_null($this->controllerVersion)
             || is_null($this->actionVersion)) {
@@ -46,26 +42,23 @@ class Controller
         }
     }
 
-    public function trigger() {
+    public function trigger(Response $response) {
         $this->validateParams();
         $this->triggered = true;
-        $response = new Response($this->collector);
+
+        // determine the action method on the controller to trigger
         try {
             $this->actionMethod = $this->getActionMethod($this->actionName, $this->actionVersion);
         } catch (\Exception $e) {
-            $responseLeader = $response->getFailure($e);
-            $responseToRender = $responseLeader;
-            return $responseToRender;
+            return (array)$response->getFailure($e);
         }
+
+        // trigger the action method on the controller
         try {
             $actionResponse = $this->{$this->actionMethod}();
-            $responseLeader = $response->getSuccess();
-            $responseToRender = $responseLeader + $actionResponse;
-            return $responseToRender;
+            return (array)$response->getSuccess() + $actionResponse;
         } catch (\Exception $e) {
-            $responseLeader = $response->getFailure($e);
-            $responseToRender = $responseLeader;
-            return $responseToRender;
+            return $response->getFailure($e);
         }
     }
 

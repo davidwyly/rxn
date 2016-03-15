@@ -2,8 +2,6 @@
 
 namespace Rxn;
 
-use \Rxn\Data\Database;
-
 class Config
 {
     static public $root;
