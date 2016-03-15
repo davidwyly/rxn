@@ -29,6 +29,7 @@ Some of the features that RXN currently offers (or aims to offer):
 - [ ] Routing using NGINX
 - [ ] Optional, modular plug-ins for more advanced funtionality
 - [ ] Support for multiple authentication standards, including OAUTH2
+- [ ] Support for multiple database model access
 - [ ] Generated API documentation *(via an optional Angular admin frontend)*
 - [ ] Database schema migrations *(via an optional Angular admin frontend)*
 - [ ] An advanced ORM where model relationships are derived from database structure and foreign keys
