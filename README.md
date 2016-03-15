@@ -2,7 +2,7 @@
 
 ####A fast, lightweight PHP API framework that responds to API requests with JSON, ensuring that your backend is completely separated from your front-end
 
-##### Please note: RXN is currently under active development and is still considered alpha
+##### Please note: RXN is currently under active development and is still considered *early* alpha
 
 Reaction, or RXN for short, is a framework designed to cut out the complexity and clutter of PHP-generated views -- offloading views to whatever frontend that suits your fancy.
 
