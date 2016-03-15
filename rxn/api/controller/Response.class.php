@@ -1,4 +1,16 @@
 <?php
+/**
+ *
+ * This file is part of Reaction (RXN).
+ *
+ * @license MIT License (MIT)
+ *
+ * For full copyright and license information, please see the docs/CREDITS.txt file.
+ *
+ * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ *
+ */
+
 
 namespace Rxn\Api\Controller;
 
@@ -144,5 +156,7 @@ class Response
 
     private function stopTimer() {
         $this->elapsed = round(microtime(true) - Application::$timeStart,4);
+        $this->peakMemory = memory_get_peak_usage(true);
+        $this->requestsPerSecond = round(1 / $this->elapsed);
     }
 }
