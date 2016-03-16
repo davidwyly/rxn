@@ -37,4 +37,5 @@ Some of the features that RXN currently offers (or aims to offer):
 - [ ] Automated validation of API requests using existing (or generated) API contracts
 - [ ] Event logging on RXN Record CRUD operations
 - [ ] File caching
+- [ ] Dependency injection autowiring
 - [ ] Speed improvements *(with an eye on compiled extensions)*
