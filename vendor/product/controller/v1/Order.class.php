@@ -3,7 +3,7 @@
 namespace Vendor\Product\Controller\v1;
 
 use \Rxn\Utility\Debug;
-use \StudiesWeekly\Aperture\Model\Order AS OrderModel;
+use \Vendor\Product\Model\Order AS OrderModel;
 
 class Order extends \Rxn\Api\Controller
 {
