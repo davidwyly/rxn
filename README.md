@@ -23,6 +23,7 @@ Some of the features that RXN currently offers (or aims to offer):
 - [X] Database abstraction and security
    - [X] PDO
    - [X] Prepared statements
+   - [ ] Support for multiple database connections
 - [X] Robust error handling *(throw an exception anywhere and RXN handles the rest)*
 - [X] Fantastic debugging utilities *(you have to see them to believe them)*
 - [X] Support for versioned controllers and versioned actions *(saving you API maintenance hassles down the road)*
@@ -35,7 +36,6 @@ Some of the features that RXN currently offers (or aims to offer):
      - [ ] OAUTH2
      - [ ] OpenId
      - [ ] SAML 
-- [ ] Support for multiple database connections
 - [ ] Angular admin frontend
   - [ ] API documentation
   - [ ] Cron process manager
