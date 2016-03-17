@@ -35,8 +35,9 @@ Some of the features that RXN currently offers (or aims to offer):
    - [ ] OpenId
    - [ ] SAML
 - [ ] Support for multiple database connections
-- [ ] Optional Angular admin front-end
-  - [ ] Generated API documentation
+- [ ] Angular admin front-end
+  - [ ] API documentation
+  - [ ] Integration tests
   - [ ] Database schema migrations
 - [ ] Object Relational Mapping (ORM)
    - [ ] RXN-ORM
