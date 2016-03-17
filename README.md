@@ -35,10 +35,12 @@ Some of the features that RXN currently offers (or aims to offer):
    - [ ] OpenId
    - [ ] SAML
 - [ ] Support for multiple database connections
-- [ ] Angular admin front-end
+- [ ] Angular admin frontend
   - [ ] API documentation
+  - [ ] Cron process manager
   - [ ] Integration test interface
   - [ ] Database schema migrations
+- [ ] Sample angular frontend templates 
 - [X] Object Relational Mapping (ORM)
    - [X] RXN-ORM
       - [ ] CRUD operations on any database record or relation table
@@ -46,6 +48,7 @@ Some of the features that RXN currently offers (or aims to offer):
    - [ ] Support for third-party ORMs 
 - [ ] Automated validation of API requests using existing (or generated) API contracts
 - [ ] Event logging
+- [ ] Mailer
 - [X] Dependency injection (DI) container
    - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
 - [X] Speed improvements
