@@ -32,6 +32,8 @@ Some of the features that RXN currently offers (or aims to offer):
 - [ ] Optional, modular plug-ins for more advanced funtionality
 - [ ] Support for authentication standards
    - [ ] OAUTH2
+   - [ ] OpenId
+   - [ ] SAML
 - [ ] Support for multiple database connections
 - [ ] Optional Angular admin front-end
   - [ ] Generated API documentation
