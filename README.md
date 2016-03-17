@@ -31,7 +31,7 @@ Some of the features that RXN currently offers (or aims to offer):
    - [ ] using NGINX
 - [ ] Optional, modular plug-ins for more advanced funtionality
 - [ ] Authentication  
-   - [ ] Support for third-party Auth libraries
+   - [ ] Support for third-party libraries
      - [ ] OAUTH2
      - [ ] OpenId
      - [ ] SAML 
