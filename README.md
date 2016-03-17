@@ -39,8 +39,8 @@ Some of the features that RXN currently offers (or aims to offer):
   - [ ] API documentation
   - [ ] Integration test interface
   - [ ] Database schema migrations
-- [ ] Object Relational Mapping (ORM)
-   - [ ] RXN-ORM
+- [X] Object Relational Mapping (ORM)
+   - [X] RXN-ORM
       - [ ] CRUD operations on any database record or relation table
       - [X] ORM autowiring *(relationships derived from database structure and foreign keys)*
    - [ ] Support for third-party ORMs 
@@ -48,8 +48,8 @@ Some of the features that RXN currently offers (or aims to offer):
 - [ ] Event logging
 - [ ] Dependency injection container
    - [ ] DI autowiring *(constructor parameters automatically injected using type-hinting)*
-- [ ] Speed improvements
-   - [ ] Caching mechanisms
+- [X] Speed improvements
+   - [X] Caching mechanisms
        - [X] Database caching
        - [ ] File caching
    - [ ] Compiled extensions
