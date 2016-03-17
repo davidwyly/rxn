@@ -32,10 +32,11 @@ Some of the features that RXN currently offers (or aims to offer):
 - [ ] Multiple database connections
 - [ ] Generated API documentation *(via an optional Angular admin frontend)*
 - [ ] Database schema migrations *(via an optional Angular admin frontend)*
-- [ ] An advanced ORM where model relationships are derived from database structure and foreign keys
+- [ ] An advanced ORM 
 - [ ] CRUD operations on any database record or relation table using the RXN ORM
 - [ ] Automated validation of API requests using existing (or generated) API contracts
 - [ ] Event logging on RXN Record CRUD operations
 - [ ] File caching
-- [ ] Dependency injection autowiring
+- [ ] ORM autowiring *(where relationships are derived from database structure and foreign keys)*
+- [ ] Dependency injection autowiring *(where constructor parameters are injected using type-hinting)*
 - [ ] Speed improvements *(with an eye on compiled extensions)*
