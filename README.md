@@ -17,8 +17,7 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
   *  Both the **backend** and **frontend** *have less entangling complexity*, providing a simple and clean workflow
   *  Either the **backend** or **frontend** *can be swapped out entirely* with a completely different solution, giving you greater flexibility if needed
 
-Some of the features that RXN currently offers in alpha (or aims to offer by beta):
-
+##### Some of the features that RXN currently offers in alpha (or aims to offer by beta):
 - [X] Simple workflow with an existing database schema *(just create models and controllers -- that's it!)*
 - [X] Database abstraction and security
    - [X] PDO
