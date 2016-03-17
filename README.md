@@ -46,7 +46,7 @@ Some of the features that RXN currently offers (or aims to offer):
    - [ ] Support for third-party ORMs 
 - [ ] Automated validation of API requests using existing (or generated) API contracts
 - [ ] Event logging
-- [X] Dependency injection container
+- [X] Dependency injection (DI) container
    - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
 - [X] Speed improvements
    - [X] Caching mechanisms
