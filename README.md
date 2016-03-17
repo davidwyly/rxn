@@ -37,7 +37,7 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
      - [ ] SAML 
 - [ ] Angular admin frontend
   - [ ] API documentation
-  - [ ] Cron process manager
+  - [ ] Scheduler interface
   - [ ] Integration test interface
   - [ ] Database schema migrations
 - [ ] Sample angular frontend templates 
@@ -49,6 +49,7 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
 - [ ] Automated validation of API requests using existing (or generated) API contracts
 - [ ] Event logging
 - [ ] Mailer
+- [ ] Scheduler
 - [X] Dependency injection (DI) container
    - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
 - [X] Speed improvements
