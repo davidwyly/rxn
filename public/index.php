@@ -18,6 +18,10 @@ use \Rxn\Router\Collector;
 use \Rxn\Api\Controller;
 use \Rxn\Api\Controller\Response;
 
+if (empty(ini_get('display_errors'))) {
+    exit("Note: PHP ini setting 'display_errors = On' must be set for RXN to work properly");
+}
+
 require_once('../bootstrap.php');
 
 try {
