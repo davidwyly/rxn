@@ -30,8 +30,8 @@ class Registry
         //
     }
 
-    public function initialize(Config $config) {
-        $this->fetchTables(Database::getName());
+    public function initialize($databaseName) {
+        $this->fetchTables($databaseName);
     }
 
     public function registerClass($classReference) {
@@ -61,7 +61,6 @@ class Registry
         self::$controllers[$controllerVersion][$controllerName] = $controllerRef;
         return null;
     }
-
 
     public function sortClasses() {
         ksort(self::$classes);

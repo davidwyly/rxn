@@ -13,9 +13,11 @@
 
 namespace Rxn\Service;
 
+use \Rxn\Api\Request;
 use \Rxn\Config;
 use \Rxn\Router\Collector;
 use \Rxn\Api\Controller;
+use \Rxn\Api\Controller\Response;
 use \Rxn\Service\Registry;
 
 class Api
@@ -33,10 +35,10 @@ class Api
         Registry::registerController($controllerName, $controllerVersion);
     }
 
-    public function invokeController(Collector $collector)
+    public function loadController(Request $request, Response $response)
     {
-        $controllerRef = Controller::getRef($collector);
-        $controller = new $controllerRef($collector);
+        $controllerRef = $request->getControllerRef();
+        $controller = new $controllerRef($request,$response);
         $this->controller = $controller;
         return $controller;
     }

@@ -19,8 +19,8 @@ class Router
 
     public function __construct()
     {
-        $this->session = new \Rxn\Router\Session();
-        $this->collector = new \Rxn\Router\Collector();
+        //$this->session = new \Rxn\Router\Session();
+        //$this->collector = new \Rxn\Router\Collector();
     }
 
     public function getUrlParam($paramName)

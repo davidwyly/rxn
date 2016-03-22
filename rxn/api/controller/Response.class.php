@@ -15,6 +15,7 @@
 namespace Rxn\Api\Controller;
 
 use \Rxn\Application;
+use \Rxn\Api\Request;
 use \Rxn\Router\Collector;
 use \Rxn\Utility\Debug;
 
@@ -29,7 +30,7 @@ class Response
     public $result;
     public $message;
     public $trace;
-    public $received;
+    public $request;
     public $elapsed;
 
     static public $responseCodes = [
@@ -93,8 +94,8 @@ class Response
     ];
 
 
-    public function __construct(Collector $collector) {
-        $this->received = $collector;
+    public function __construct(Request $request) {
+        $this->request = $request;
     }
 
     public function getSuccess() {

@@ -11,44 +11,42 @@
  *
  */
 
+use \Rxn\Service;
 use \Rxn\Config;
 use \Rxn\Application;
 use \Rxn\Utility\Debug;
-use \Rxn\Router\Collector;
+use \Rxn\Api\Request;
 use \Rxn\Api\Controller;
 use \Rxn\Api\Controller\Response;
 
-if (empty(ini_get('display_errors'))) {
-    exit("Note: PHP ini setting 'display_errors = On' must be set for RXN to work properly");
-}
-
 require_once('../bootstrap.php');
 
+// instantiate DI service container
+$service = new Service();
+
 try {
-    $responseToRender = runApplication();
+    $responseToRender = runApplication($service);
 } catch (\Exception $e) {
-    renderFailure($e);
+    renderFailure($service, $e);
     exit();
 }
 renderAndDie($responseToRender);
 
-function runApplication()
+function runApplication(Service $service)
 {
-    // load the application
-    $config = new Config();
-    $app = new Application($config);
-    $collector = $app->router->collector;
-    $controller = $app->api->invokeController($collector);
-    $response = new Response($collector);
-    /** @var $controller Controller $response */
+    // instantiate application
+    $app = $service->get(Application::class); /* @var $app Application */
+    $request = $service->get(Request::class); /* @var $request Request */
+    $response = $service->get(Response::class); /* @var $response Response */
+    $controller = $app->api->loadController($request,$response); /* @var $controller Controller */
     $responseToRender = $controller->trigger($response);
     return $responseToRender;
 }
 
-function renderFailure(Exception $e)
+function renderFailure(Service $service, Exception $e)
 {
-    $collector = new Collector();
-    $response = new Response($collector);
+    $request = $service->get(Request::class); /* @var $request Request */
+    $response = new Response($request);
     $responseToRender = $response->getFailure($e);
     renderAndDie($responseToRender);
 }

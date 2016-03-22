@@ -20,6 +20,7 @@ class Application
 {
     static public $timeStart;
     static public $config;
+    static public $database;
     public $api;
     public $auth;
     public $data;
@@ -62,7 +63,9 @@ class Application
         $this->registerAutoload();
 
         // initialize registry
-        $this->registry->initialize(self::$config);
+
+        self::$database = new Database();
+        $this->registry->initialize(Database::getName());
     }
 
     private function registerAutoload()

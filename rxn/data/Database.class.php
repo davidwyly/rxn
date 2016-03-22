@@ -52,6 +52,7 @@ class Database {
     {
         self::setDefaultSettings(Config::$databaseDefaultSettings);
         self::setCacheSettings(Config::$databaseCacheSettings);
+        self::connect();
         self::$allowCaching = Config::$allowCaching;
     }
 
