@@ -18,7 +18,8 @@ class Order extends \Rxn\Api\Controller
     public function create_v1() {
         $order = new OrderModel();
         $test = [
-            'billing_address' => '1',
+//            'id' => '1234',
+//            'billing_address' => '1',
         ];
         $id = $order->create($test);
         return [

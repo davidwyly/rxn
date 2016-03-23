@@ -73,7 +73,9 @@ abstract class Record extends Model
         if (!$result) {
             throw new \Exception("Failed to create record",500);
         }
-        return Database::getLastInsertId();
+        $createdId = Database::getLastInsertId();
+        Database::transactionClose();
+        return $createdId;
     }
 
     protected function validateRequiredColumns(array $keyValues) {
