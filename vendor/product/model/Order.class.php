@@ -7,5 +7,5 @@ use \Rxn\Utility\Debug;
 
 class Order extends \Rxn\Model\Record
 {
-    static public $table = 'orders';
+    public $table = 'orders';
 }

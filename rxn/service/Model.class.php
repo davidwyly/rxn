@@ -23,7 +23,7 @@ class Model
 
     }
 
-    private function getRecords() {
+    private function getModel($className) {
 
     }
 }

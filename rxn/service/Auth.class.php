@@ -15,14 +15,14 @@ namespace Rxn\Service;
 
 use \Rxn\Config;
 use \Rxn\Auth\Key;
+use \Rxn\Utility\Debug;
 
 class Auth
 {
     public $key;
 
-    public function __construct() {
+    public function __construct(Config $config) {
         $this->key = new Key;
-        $this->key->setEncryptionKey(Config::$applicationKey);
+        $this->key->setEncryptionKey($config->applicationKey);
     }
-
 }

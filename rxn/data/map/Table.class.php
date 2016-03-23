@@ -20,6 +20,16 @@ use \Rxn\Utility\Debug;
 
 class Table
 {
+    /**
+     * @var Registry
+     */
+    private $registry;
+
+    /**
+     * @var Database
+     */
+    private $database;
+
     public $name;
     public $tableInfo;
     public $columnInfo = array();
@@ -28,9 +38,10 @@ class Table
     public $cacheTime = null;
     //protected $fromCache = false;
 
-    public function __construct($databaseName, $tableName, $createReferenceMaps = true) {
+    public function __construct(Registry $registry, Database $database, $tableName, $createReferenceMaps = true) {
+        $this->registry = $registry;
+        $this->database = $database;
         $constructParams = [
-            $databaseName,
             $tableName,
             $createReferenceMaps,
         ];
@@ -44,19 +55,17 @@ class Table
     public function initializeNormally(array $constructParams)
     {
         // reverse engineer the parameters
-        $databaseName = $constructParams[0];
-        $tableName = $constructParams[1];
-        $createReferenceMaps = $constructParams[2];
+        list($tableName, $createReferenceMaps) = $constructParams;
 
         // generate the table map
         $this->name = $tableName;
-        $this->generateTableMap($databaseName, $tableName, $createReferenceMaps);
+        $this->generateTableMap($tableName, $createReferenceMaps);
     }
 
-    protected function generateTableMap($databaseName, $tableName, $createReferenceMaps) {
-        $this->tableInfo = self::getTableInfo($databaseName, $tableName);
-        $this->columnInfo = self::getColumns($databaseName, $tableName);
-        $this->primaryKeys = self::getPrimaryKeys($databaseName, $tableName);
+    protected function generateTableMap($tableName, $createReferenceMaps) {
+        $this->tableInfo = $this->getTableInfo($tableName);
+        $this->columnInfo = $this->getColumns($tableName);
+        $this->primaryKeys = $this->getPrimaryKeys($tableName);
         if ($createReferenceMaps) {
             $this->createReferenceMaps();
         }
@@ -81,8 +90,9 @@ class Table
         }
     }
 
-    static public function getTableDetails($databaseName, $tableName) {
-        if (!self::tableExists($databaseName, $tableName)) {
+    public function getTableDetails($tableName) {
+        $databaseName = $this->database->getName();
+        if (!$this->tableExists($tableName)) {
             throw new \Exception(__METHOD__ . " returned false: table '$tableName' doesn't exist");
         }
         $SQL = "
@@ -128,12 +138,13 @@ class Table
             'databaseName'=>$databaseName,
             'tableName'=>$tableName
         ];
-        $result = Database::fetchAll($SQL,$bindings,true,1);
+        $result = $this->database->fetchAll($SQL,$bindings,true,1);
         return $result;
     }
 
-    static public function tableExists($databaseName, $tableName) {
-        if (in_array($tableName,Registry::$tables[$databaseName])) {
+    public function tableExists($tableName) {
+        $databaseName = $this->database->getName();
+        if (in_array($tableName,$this->registry->tables[$databaseName])) {
             return true;
         }
         $SQL = "
@@ -144,14 +155,15 @@ class Table
 				AND t.table_name LIKE ?
 				AND t.table_type = 'BASE TABLE'
 			";
-        if (Database::fetch($SQL,[$databaseName, $tableName],true,1)) {
+        if ($this->database->fetch($SQL,[$databaseName, $tableName],true,1)) {
             return true;
         }
         return false;
     }
 
-    static public function getTableInfo($databaseName, $tableName) {
-        if (!self::tableExists($databaseName, $tableName)) {
+    public function getTableInfo($tableName) {
+        $databaseName = $this->database->getName();
+        if (!$this->tableExists($tableName)) {
             throw new \Exception("Table '$tableName' doesn't exist");
         }
         $SQL = "
@@ -179,12 +191,13 @@ class Table
 				WHERE t.table_schema LIKE ?
 					AND t.table_name LIKE ?
 			";
-        $result = Database::fetch($SQL,[$databaseName, $tableName],true,1);
+        $result = $this->database->fetch($SQL,[$databaseName, $tableName],true,1);
         return $result;
     }
 
-    static public function getPrimaryKeys($databaseName, $tableName) {
-        if (!self::tableExists($databaseName, $tableName)) {
+    public function getPrimaryKeys($tableName) {
+        $databaseName = $this->database->getName();
+        if (!$this->tableExists($tableName)) {
             throw new \Exception(__METHOD__ . " returned false: table '$tableName' doesn't exist");
         }
         $SQL = "
@@ -194,12 +207,12 @@ class Table
 					AND kcu.table_name LIKE ?
 					AND kcu.constraint_name LIKE 'PRIMARY'
 			";
-        $result =  Database::fetchArray($SQL,[$databaseName, $tableName],true,1);
+        $result =  $this->database->fetchArray($SQL,[$databaseName, $tableName],true,1);
         return $result;
     }
 
-    static public function getColumns($databaseName, $tableName) {
-        $result = self::getTableDetails($databaseName, $tableName);
+    public function getColumns($tableName) {
+        $result = $this->getTableDetails($tableName);
         if (!$result) {
             throw new \Exception(__METHOD__ . " returned false");
         }

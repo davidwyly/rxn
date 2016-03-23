@@ -23,8 +23,8 @@ class Collector
 
     const URL_STYLE = 'version/controller/action(/param/value/param2/value2/...)';
 
-    public function __construct() {
-        $this->get = $this->getRequestUrlParams();
+    public function __construct(Config $config) {
+        $this->get = $this->getRequestUrlParams($config);
         $this->post = $this->getRequestDataParams();
         $this->header = $this->getRequestHeaderParams();
     }
@@ -36,7 +36,7 @@ class Collector
         return (string)$this->get[$paramName];
     }
 
-    static public function getRequestDataParams() {
+    public function getRequestDataParams() {
         if (!isset($_POST) || empty($_POST)) {
             return null;
         }
@@ -51,7 +51,7 @@ class Collector
         return $_POST;
     }
 
-    static private function isEven($integer) {
+    private function isEven($integer) {
         if ($integer == 0) {
             return true;
         }
@@ -61,18 +61,18 @@ class Collector
         return false;
     }
 
-    static private function isOdd($integer) {
+    private function isOdd($integer) {
         if (!self::isEven($integer)) {
             return true;
         }
         return false;
     }
 
-    static private function processParams($params) {
+    private function processParams(Config $config, $params) {
 
         // assign version, controller, and action
         $processedParams = array();
-        foreach (Config::$endpointParameters as $mapParameter) {
+        foreach ($config->endpointParameters as $mapParameter) {
             $processedParams[$mapParameter] = array_shift($params);
         }
 
@@ -82,7 +82,7 @@ class Collector
 
             // split params into key-value pairs
             foreach ($params as $key=>$value) {
-                if (self::isEven($key)) {
+                if ($this->isEven($key)) {
                     $pairedKey = $value;
                     $nextKey = $key + 1;
                     if (isset($params[$nextKey])) {
@@ -98,7 +98,7 @@ class Collector
         return $processedParams;
     }
 
-    static public function getRequestUrlParams() {
+    public function getRequestUrlParams(Config $config) {
         if (!isset($_GET) || empty($_GET)) {
             return null;
         }
@@ -109,12 +109,12 @@ class Collector
             // split the param string into an array
             $params = explode('/',$params);
 
-            return self::processParams($params);
+            return $this->processParams($config, $params);
         }
         return $_GET;
     }
 
-    static public function getRequestHeaderParams() {
+    public function getRequestHeaderParams() {
         $headerParams = null;
         foreach ($_SERVER as $key=>$value) {
             if (mb_stripos($key,'HTTP_RXN') !== false) {
@@ -126,8 +126,8 @@ class Collector
         return $headerParams;
     }
 
-    static public function detectVersion() {
-        $get = self::getRequestUrlParams();
+    public function detectVersion(Config $config) {
+        $get = $this->getRequestUrlParams($config);
         if (!isset($get['version'])) {
             $urlStyle = self::URL_STYLE;
             throw new \Exception("Cannot detect version from URL; URL style is '$urlStyle'",400);
@@ -136,8 +136,8 @@ class Collector
         return $get['version'];
     }
 
-    static public function detectController() {
-        $get = self::getRequestUrlParams();
+    public function detectController(Config $config) {
+        $get = $this->getRequestUrlParams($config);
         if (!isset($get['controller'])) {
             $urlStyle = self::URL_STYLE;
             throw new \Exception("Cannot detect controller from URL; URL style is '$urlStyle'",400);
@@ -145,8 +145,8 @@ class Collector
         return $get['controller'];
     }
 
-    static public function detectAction() {
-        $get = self::getRequestUrlParams();
+    public function detectAction(Config $config) {
+        $get = $this->getRequestUrlParams($config);
         if (!isset($get['action'])) {
             $urlStyle = self::URL_STYLE;
             throw new \Exception("Cannot detect action from URL; URL style is '$urlStyle'",400);

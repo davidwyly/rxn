@@ -12,6 +12,7 @@
  */
 
 use \Rxn\Service;
+use \Rxn\Data\Database;
 use \Rxn\Config;
 use \Rxn\Application;
 use \Rxn\Utility\Debug;
@@ -21,33 +22,61 @@ use \Rxn\Api\Controller\Response;
 
 require_once('../bootstrap.php');
 
-// instantiate DI service container
-$service = new Service();
+// instantiate
+$config = new Config();
+$database = new Database($config);
+$app = new Application($config, $database);
 
 try {
-    $responseToRender = runApplication($service);
+    $responseToRender = runApplication($app);
 } catch (\Exception $e) {
-    renderFailure($service, $e);
+    renderFailure($app, $e);
     exit();
 }
 renderAndDie($responseToRender);
 
-function runApplication(Service $service)
+/**
+ * @param Application $app
+ *
+ * @return array
+ * @throws Exception
+ */
+function runApplication(Application $app)
 {
-    // instantiate application
-    $app = $service->get(Application::class); /* @var $app Application */
-    $request = $service->get(Request::class); /* @var $request Request */
-    $response = $service->get(Response::class); /* @var $response Response */
-    $controller = $app->api->loadController($request,$response); /* @var $controller Controller */
-    $responseToRender = $controller->trigger($response);
+    // instantiate request model
+    $request = $app->service->get(Request::class); /* @var $request Request */
+
+    // find controller class reference
+    $controllerRef = $app->api->findController($request);
+
+    // instantiate the controller
+    $app->api->controller = $app->service->get($controllerRef); /* @var $controller Controller */
+
+    // trigger the controller to build a response
+    $responseToRender = $app->api->controller->trigger();
+
+    Debug::dump($app);
+    die();
+
+    // render
     return $responseToRender;
 }
 
-function renderFailure(Service $service, Exception $e)
+/**
+ * @param Application $app
+ * @param Exception   $e
+ *
+ * @throws Exception
+ */
+function renderFailure(Application $app, Exception $e)
 {
-    $request = $service->get(Request::class); /* @var $request Request */
-    $response = new Response($request);
+    // instantiate request model using the DI service container
+    $response = $app->service->get(Response::class); /* @var $request Request */
+
+    // build a response
     $responseToRender = $response->getFailure($e);
+
+    // render
     renderAndDie($responseToRender);
 }
 

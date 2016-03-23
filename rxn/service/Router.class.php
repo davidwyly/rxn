@@ -1,28 +1,44 @@
 <?php
 /**
- *
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- *
- * For full copyright and license information, please see the docs/CREDITS.txt file.
- *
  * @author David Wyly (davidwyly) <david.wyly@gmail.com>
- *
  */
 
 namespace Rxn\Service;
 
+use \Rxn\Router\Collector;
+
+/**
+ * Class Router
+ *
+ * @package Rxn\Service
+ */
 class Router
 {
+
+    /**
+     * @var Collector
+     */
     public $collector;
 
-    public function __construct()
+    /**
+     * Router constructor.
+     *
+     * @param Collector $collector
+     */
+    public function __construct(Collector $collector)
     {
-        //$this->session = new \Rxn\Router\Session();
-        //$this->collector = new \Rxn\Router\Collector();
+        $this->collector = $collector;
     }
 
+    /**
+     * @param $paramName
+     *
+     * @return mixed
+     * @throws \Exception
+     */
     public function getUrlParam($paramName)
     {
         if (!isset($this->collector->get[$paramName])) {
@@ -32,6 +48,12 @@ class Router
         return $this->collector->get[$paramName];
     }
 
+    /**
+     * @param $paramName
+     *
+     * @return mixed
+     * @throws \Exception
+     */
     public function getDataParam($paramName)
     {
         if (!isset($this->collector->post[$paramName])) {
@@ -41,6 +63,12 @@ class Router
         return $this->collector->post[$paramName];
     }
 
+    /**
+     * @param $paramName
+     *
+     * @return mixed
+     * @throws \Exception
+     */
     public function getHeaderParam($paramName)
     {
         if (!isset($this->collector->header[$paramName])) {
@@ -50,16 +78,25 @@ class Router
         return $this->collector->header[$paramName];
     }
 
+    /**
+     * @return array|null
+     */
     public function getUrlParams()
     {
         return $this->collector->get;
     }
 
+    /**
+     * @return null
+     */
     public function getDataParams()
     {
         return $this->collector->post;
     }
 
+    /**
+     * @return null
+     */
     public function getHeaderParams()
     {
         return $this->collector->header;

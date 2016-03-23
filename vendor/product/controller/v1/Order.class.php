@@ -7,8 +7,12 @@ use \Vendor\Product\Model\Order AS OrderModel;
 
 class Order extends \Rxn\Api\Controller
 {
+    static public $create_v1_contract = [
+        'billing_address' => 'int(11)',
+    ];
+
     public function test_v1() {
-        $order = new OrderModel();
+        $order = $this->service->get(OrderModel::class);
         $response = [
             'order' => $order,
         ];
@@ -16,12 +20,8 @@ class Order extends \Rxn\Api\Controller
     }
 
     public function create_v1() {
-        $order = new OrderModel();
-        $test = [
-//            'id' => '1234',
-//            'billing_address' => '1',
-        ];
-        $id = $order->create($test);
+        $order = $this->service->get(OrderModel::class);
+        $id = $order->create($this->request->get);
         return [
             'created_order_id' => $id
         ];

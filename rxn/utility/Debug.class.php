@@ -1,18 +1,18 @@
 <?php
 /**
- *
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- *
- * For full copyright and license information, please see the docs/CREDITS.txt file.
- *
  * @author David Wyly (davidwyly) <david.wyly@gmail.com>
- *
  */
 
 namespace Rxn\Utility;
 
+/**
+ * Class Debug
+ *
+ * @package Rxn\Utility
+ */
 class Debug {
     static public $depth = 1; // initial value may need to be tweaked
     static public $ancestors = array();
@@ -496,25 +496,46 @@ class Debug {
         return $array;
     }
 
+    /**
+     * @param $propertyName
+     *
+     * @return string
+     */
     static private function renderPrivate($propertyName) {
         $privateStyle = 'color: rgba(244,67,57,1);';
         return "<span style='$privateStyle' title='private'>&bull;</span>$propertyName";
     }
 
+    /**
+     * @param $propertyName
+     *
+     * @return string
+     */
     static private function renderProtected($propertyName) {
         $protectedStyle = 'color: #FFC107;';
         return $propertyName = "<span style='$protectedStyle' title='protected'>&bull;</span>$propertyName";
     }
 
+    /**
+     * @param $propertyName
+     *
+     * @return string
+     */
     static private function renderStatic($propertyName) {
         $staticStyle = 'color: rgba(3,169,244,1);';
         return "<span style='$staticStyle' title='static'>&bull;</span>$propertyName";
     }
 
+    /**
+     *
+     */
     static public function startTimer() {
         self::$then = microtime(true);
     }
 
+    /**
+     *
+     */
     static public function endTimer() {
         $now = microtime(true);
         $elapsed = (($now - self::$then) * 1000) . " ms";

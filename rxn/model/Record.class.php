@@ -15,21 +15,28 @@ namespace Rxn\Model;
 
 use \Rxn\Utility\Debug;
 use \Rxn\Data\Database;
+use \Rxn\Data\Map;
 use \Rxn\Data\Map\Table;
 use \Rxn\Service\Registry;
 
 abstract class Record extends Model
 {
 
-    static public $table;
-    static public $primaryKey;
+    /**
+     * @var Database
+     */
+    private $database;
+
+    public $table;
+    public $primaryKey;
     protected $_columns;
     protected $_requiredColumns;
 
-    public function __construct() {
-        $tableName = $this::$table;
-        $this->validateTableName($tableName);
-        $table = $this->getTable($tableName);
+    public function __construct(Registry $registry, Database $database, Map $map) {
+        $this->database = $database;
+        $tableName = $this->table;
+        $this->validateTableName($registry,$tableName);
+        $table = $this->getTable($map,$tableName);
         $primaryKey = $this->getPrimaryKey($table);
         $this->setPrimaryKey($primaryKey);
         $this->setColumns($table);
@@ -40,7 +47,7 @@ abstract class Record extends Model
         $this->validateRequiredColumns($keyValues);
 
         // disallow explicit specification of the primary key
-        $primaryKey = $this::$primaryKey;
+        $primaryKey = $this->primaryKey;
         if (isset($keyValues[$primaryKey])) {
             unset($keyValues[$primaryKey]);
         }
@@ -64,17 +71,17 @@ abstract class Record extends Model
         }
         $values = implode(",",$placeholders);
 
-        $table = $this::$table;
+        $table = $this->table;
 
         // generate the SQL statement
         $createSql = "INSERT INTO $table ($columns) VALUES ($values)";
-        Database::transactionOpen();
-        $result = Database::query($createSql,$bindings);
+        $this->database->transactionOpen();
+        $result = $this->database->query($createSql,$bindings);
         if (!$result) {
             throw new \Exception("Failed to create record",500);
         }
-        $createdId = Database::getLastInsertId();
-        Database::transactionClose();
+        $createdId = $this->database->getLastInsertId();
+        $this->database->transactionClose();
         return $createdId;
     }
 
@@ -117,23 +124,18 @@ abstract class Record extends Model
         $this->_requiredColumns = $requiredColumns;
     }
 
-    protected function getTable($tableName) {
-        $map = $this->getMap();
+    protected function getTable(Map $map, $tableName) {
         return $map->tables[$tableName];
     }
 
     protected function setPrimaryKey($primaryKey) {
-        $this::$primaryKey = $primaryKey;
+        $this->primaryKey = $primaryKey;
     }
 
-    protected function getMap() {
-        return \Rxn\Service\Data::$map;
-    }
-
-    protected function validateTableName($tableName) {
-        foreach (Registry::$tables as $schema=>$tables) {
+    protected function validateTableName(Registry $registry, $tableName) {
+        foreach ($registry->tables as $schema=>$tables) {
             foreach ($tables as $key=>$table) {
-                if ($this::$table == $table) {
+                if ($this->table == $table) {
                     return true;
                 }
             }

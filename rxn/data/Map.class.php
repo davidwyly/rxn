@@ -15,47 +15,87 @@ namespace Rxn\Data;
 
 use \Rxn\Service\Registry;
 
+/**
+ * Class Map
+ *
+ * @package Rxn\Data
+ */
 class Map
 {
-    protected $database;
+    /**
+     * @var string
+     */
     public $fingerprint;
+
+    /**
+     * @var
+     */
     public $tables;
+
+    /**
+     * @var
+     */
     public $chain;
 
-    public function __construct($databaseName) {
-        $this->database = $databaseName;
-        $this->validateRegistry();
-        $this->generateTableMaps();
+    /**
+     * Map constructor.
+     *
+     * @param Database $database
+     */
+    public function __construct(Registry $registry, Database $database) {
+        $this->validateRegistry($registry);
+        $this->generateTableMaps($registry,$database);
         $this->fingerprint = $this->generateFingerprint();
     }
 
-    private function generateTableMaps() {
-        $databaseName = $this->database;
-        if (!isset(Registry::$tables[$databaseName])) {
+    /**
+     * @return bool
+     * @throws \Exception
+     */
+    private function generateTableMaps(Registry $registry, Database $database) {
+        $databaseName = $database->getName();
+        if (!isset($registry->tables[$databaseName])) {
             throw new \Exception();
         }
-        foreach (Registry::$tables[$databaseName] as $tableName) {
-            $table = new Map\Table($databaseName,$tableName);
+        foreach ($registry->tables[$databaseName] as $tableName) {
+            $table = $this->tableFactory($registry,$database,$tableName);
             $this->registerTable($table);
         }
         ksort($this->tables);
         return true;
     }
 
+    /**
+     * @param $tableName
+     *
+     * @return Map\Table
+     */
+    protected function tableFactory(Registry $registry, Database $database, $tableName) {
+        return new Map\Table($registry,$database,$tableName);
+    }
+
+    /**
+     * @param Map\Table $table
+     */
     public function registerTable(Map\Table $table) {
         $tableName = $table->name;
         $this->tables[$tableName] = $table;
     }
 
-    private function validateRegistry() {
-        if (empty(Registry::$tables)) {
+    /**
+     * @throws \Exception
+     */
+    private function validateRegistry(Registry $registry) {
+        if (empty($registry->tables)) {
             throw new \Exception("Expected registry to contain a list of database tables");
         }
     }
 
-
+    /**
+     * @return string
+     */
     private function generateFingerprint() {
-        return md5(serialize($this));
+        return md5(json_encode($this));
     }
 
 }

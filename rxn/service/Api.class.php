@@ -23,23 +23,17 @@ use \Rxn\Service\Registry;
 class Api
 {
 
+    /**
+     * @var Controller $controller
+     */
     public $controller;
-
 
     public function __construct()
     {
 
     }
 
-    public function registerController($controllerName, $controllerVersion) {
-        Registry::registerController($controllerName, $controllerVersion);
-    }
-
-    public function loadController(Request $request, Response $response)
-    {
-        $controllerRef = $request->getControllerRef();
-        $controller = new $controllerRef($request,$response);
-        $this->controller = $controller;
-        return $controller;
+    public function findController(Request $request) {
+        return $request->getControllerRef();
     }
 }

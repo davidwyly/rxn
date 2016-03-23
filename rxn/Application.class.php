@@ -1,14 +1,9 @@
 <?php
 /**
- *
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- *
- * For full copyright and license information, please see the docs/CREDITS.txt file.
- *
  * @author David Wyly (davidwyly) <david.wyly@gmail.com>
- *
  */
 
 namespace Rxn;
@@ -16,139 +11,102 @@ namespace Rxn;
 use \Rxn\Data\Database;
 use \Rxn\Utility\Debug;
 
+/**
+ * Class Application
+ *
+ * @package Rxn
+ */
 class Application
 {
     static public $timeStart;
     static public $config;
     static public $database;
+
+    /**
+     * @var Service\Api $api
+     */
     public $api;
+
+    /**
+     * @var Service\Auth $auth
+     */
     public $auth;
+
+    /**
+     * @var Service\Data $data
+     */
     public $data;
+
+    /**
+     * @var Service\Model $model
+     */
     public $model;
+
+    /**
+     * @var Service\Registry $registry
+     */
     public $registry;
+
+    /**
+     * @var Service\Router $router
+     */
     public $router;
+
+    /**
+     * @var Service\Stats $stats
+     */
     public $stats;
+
+    /**
+     * @var Service\Utility $utility
+     */
     public $utility;
 
-    public function __construct(Config $config)
+    /**
+     * @var Service $service Dependency Injection (DI) container
+     */
+    public $service;
+
+    /**
+     * Application constructor.
+     *
+     * @param Config  $config
+     * @param Service $service
+     */
+    public function __construct(Config $config, Database $database)
     {
-        self::$timeStart = microtime(true);
-        $this->setConfig($config);
-        $this->initialize(new Service\Registry);
-        $this->api = new Service\Api();
-        $this->auth = new Service\Auth();
-        $this->data = new Service\Data();
-        $this->model = new Service\Model();
-        $this->router = new Service\Router();
-        $this->stats = new Service\Stats();
-        $this->utility = new Service\Utility();
+        $this->initialize($config, $database, new Service());
+        $this->api = $this->service->get(Service\Api::class);
+        $this->auth = $this->service->get(Service\Auth::class);
+        $this->data = $this->service->get(Service\Data::class);
+        $this->model = $this->service->get(Service\Model::class);
+        $this->router = $this->service->get(Service\Router::class);
+        $this->stats = $this->service->get(Service\Stats::class);
+        $this->utility = $this->service->get(Service\Utility::class);
         $this->finalize($this->registry);
     }
 
-    private function setConfig(Config $config) {
-        self::$config = $config;
-    }
-
-    private function initialize(Service\Registry $registry)
-    {
-        // read from config
-        date_default_timezone_set(Config::$timezone);
-
-        // registry class registers itself
-        $registryClass = get_class($registry);
-        $this->registerClass($registry, $registryClass);
-        $this->registry = $registry;
-
-        // trigger the autoloading of unknown classes
-        $this->registerAutoload();
-
-        // initialize registry
-
-        self::$database = new Database();
-        $this->registry->initialize(Database::getName());
-    }
-
-    private function registerAutoload()
-    {
-        spl_autoload_register(array($this, 'load'));
-    }
-
     /**
-     * @param string $classReference
-     * @param string $extension
+     * @param Config $config
+     *
+     * @throws \Exception
      * @return void
      */
-    private function load($classReference, $extension = '.class.php')
-    {
-        // determine the file path of the class reference
-        $classPath = $this->getClassPathByClassReference($classReference, $extension);
-
-        // load the class
-        include($classPath);
-
-        // register the class
-        $this->registerClass($this->registry, $classReference);
-    }
-
-    private function registerClass(Service\Registry $registry, $classReference)
-    {
-        return $registry->registerClass($classReference);
+    private function initialize(Config $config, Database $database, Service $service) {
+        self::$timeStart = microtime(true);
+        self::$config = $config;
+        $this->service = $service;
+        $this->service->addInstance(Database::class,$database);
+        $this->service->addInstance(Config::class,$config);
+        $this->registry = $this->service->get(Service\Registry::class);
+        date_default_timezone_set($config->timezone);
     }
 
     /**
-     * @param string $classReference
-     * @param string $extension
-     * @return string
-     * @throws \Exception
+     * @param Service\Registry $registry
+     *
+     * @return void
      */
-    private function getClassPathByClassReference($classReference, $extension)
-    {
-        // break the class namespace into an array
-        $pathArray = explode("\\",$classReference);
-
-        // remove the root namespace from the array
-        $root = mb_strtolower(array_shift($pathArray));
-
-        if ($root != Config::$appFolder) {
-            if ($root != Config::$vendorFolder) {
-                throw new \Exception("Root path '$root' in reference '$classReference' not defined in config");
-            }
-        }
-
-        // determine the name of the class without the namespace
-        $classShortName = array_pop($pathArray);
-
-        // convert the namespaces into lowercase
-        foreach($pathArray as $key=>$value) {
-            $pathArray[$key] = mb_strtolower($value);
-        }
-
-        // tack the short name of the class back onto the end
-        array_push($pathArray,$classShortName);
-
-        // convert back into a string for directory reference
-        $classPath = implode("/",$pathArray);
-        $loadPathRoot = realpath(__DIR__ . "/../");
-        $loadPathClass = "/" . $root . "/" . $classPath . $extension;
-        $loadPath = $loadPathRoot . $loadPathClass;
-
-        if (!file_exists($loadPath)) {
-            // 400 level error if the controller is incorrect
-            if (mb_strpos($classPath,'controller')) {
-                throw new \Exception("Controller '$classReference' does not exist",400);
-            }
-            // 500 level error otherwise; only throw the partial path for security purposes
-            throw new \Exception("Load path '$loadPathClass' does not exist",501);
-        }
-        $loadPath = realpath($loadPath);
-
-        // validate the path
-        if (!file_exists($loadPath)) {
-            throw new \Exception("Cannot autoload path '$loadPath'");
-        }
-        return $loadPath;
-    }
-
     private function finalize(Service\Registry $registry)
     {
         $registry->sortClasses();

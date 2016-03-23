@@ -21,14 +21,14 @@ use \Rxn\Data\Mold;
 
 class Data
 {
-    static public $map;
+    public $map;
     public $chain;
     public $mold;
 
-    public function __construct()
+    public function __construct(Registry $registry, Database $database)
     {
         $this->cache = new Cache();
-        self::$map = new Map(Database::getName());
+        $this->map = new Map($registry, $database);
         //$this->cache->objectPattern('\\Rxn\\Data\\Map',[Database::getName()]);
         //$this->chain = new Chain($this->map);
         //$this->mold = new Mold($this->map);
