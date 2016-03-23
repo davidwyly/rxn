@@ -55,9 +55,6 @@ function runApplication(Application $app)
     // trigger the controller to build a response
     $responseToRender = $app->api->controller->trigger();
 
-    Debug::dump($app);
-    die();
-
     // render
     return $responseToRender;
 }
