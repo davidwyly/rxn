@@ -28,8 +28,19 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
 - [X] Support for versioned controllers and versioned actions *(saving you API maintenance hassles down the road)*
 - [X] URI Routing
    - [X] using Apache2
-   - [ ] using NGINX
-- [ ] Optional, modular plug-ins for more advanced funtionality
+   - [X] using NGINX *(currently experimental)*
+- [X] Dependency Injection (DI) service container
+   - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
+- [X] Object Relational Mapping (ORM)
+   - [X] RXN-ORM
+      - [ ] CRUD operations on any database record or relation table
+      - [X] ORM autowiring *(relationships derived from database structure and foreign keys)*
+   - [ ] Support for third-party ORMs
+- [X] Speed improvements
+   - [X] Caching mechanisms
+       - [X] Database caching
+       - [X] File caching
+   - [ ] Compiled extensions
 - [ ] Authentication  
    - [ ] Support for third-party libraries
      - [ ] OAUTH2
@@ -40,20 +51,9 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
   - [ ] Scheduler interface
   - [ ] Integration test interface
   - [ ] Database schema migrations
-- [ ] Sample angular frontend templates 
-- [X] Object Relational Mapping (ORM)
-   - [X] RXN-ORM
-      - [ ] CRUD operations on any database record or relation table
-      - [X] ORM autowiring *(relationships derived from database structure and foreign keys)*
-   - [ ] Support for third-party ORMs 
+- [ ] Sample angular frontend templates
 - [ ] Automated validation of API requests using existing (or generated) API contracts
 - [ ] Event logging
 - [ ] Mailer
 - [ ] Scheduler
-- [X] Dependency Injection (DI) service container
-   - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
-- [X] Speed improvements
-   - [X] Caching mechanisms
-       - [X] Database caching
-       - [ ] File caching
-   - [ ] Compiled extensions
+- [ ] Optional, modular plug-ins for loose coupling and greater flexibility
