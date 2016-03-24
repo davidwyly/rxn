@@ -15,7 +15,7 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
 5. Through strict **backend / frontend decoupling**, amazing things can happen
   *  Both the **backend** and **frontend** *can be developed separately* using versioned API contracts as reference
   *  Both the **backend** and **frontend** *have less entangling complexity*, providing a simple and clean workflow
-  *  Either the **backend** or **frontend** *can be swapped out entirely* with a completely different solution, giving you greater flexibility if needed
+  *  Either the **backend** or **frontend** *can be swapped out entirely* with a completely different solution, giving you greater flexibility further down the road
 
 ##### Some of the features that RXN currently offers in alpha (or aims to offer by beta):
 - [X] Simple workflow with an existing database schema *(just create models and controllers -- that's it!)*
@@ -24,7 +24,7 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
    - [X] Prepared statements
    - [X] Support for multiple database connections
 - [X] Robust error handling *(throw an exception anywhere and RXN handles the rest)*
-- [X] Fantastic debugging utilities *(you have to see them to believe them)*
+- [X] Fantastic debugging utilities *(inlcuding a powerful and simple alternative to var_dump and print_r)*
 - [X] Support for versioned controllers and versioned actions *(saving you API maintenance hassles down the road)*
 - [X] URI Routing
    - [X] using Apache2
@@ -50,7 +50,7 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
 - [ ] Event logging
 - [ ] Mailer
 - [ ] Scheduler
-- [X] Dependency injection (DI) container
+- [X] Dependency Injection (DI) service container
    - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
 - [X] Speed improvements
    - [X] Caching mechanisms
