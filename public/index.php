@@ -77,12 +77,14 @@ function getFailureResponse(Application $app, \Exception $e)
  */
 function render($responseToRender)
 {
+    $responseCode = $responseToRender['_rxn']->code;
     $json = json_encode((object)$responseToRender,JSON_PRETTY_PRINT);
     if (!isJson($json)) {
         Debug::dump($responseToRender);
         die();
     }
     header('content-type: application/json');
+    http_response_code($responseCode);
     echo($json);
 }
 
