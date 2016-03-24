@@ -1,14 +1,9 @@
 <?php
 /**
- *
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- *
- * For full copyright and license information, please see the docs/CREDITS.txt file.
- *
  * @author David Wyly (davidwyly) <david.wyly@gmail.com>
- *
  */
 
 use \Rxn\Service;
@@ -77,6 +72,9 @@ function renderFailure(Application $app, Exception $e)
     renderAndDie($responseToRender);
 }
 
+/**
+ * @param $responseToRender
+ */
 function renderAndDie($responseToRender)
 {
     //ob_start('ob_gzhandler');
@@ -89,6 +87,11 @@ function renderAndDie($responseToRender)
     echo($json);
 }
 
+/**
+ * @param $json
+ *
+ * @return bool
+ */
 function isJson($json) {
     json_decode($json);
     return (json_last_error()===JSON_ERROR_NONE);

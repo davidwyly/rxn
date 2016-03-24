@@ -1,14 +1,9 @@
 <?php
 /**
- *
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- *
- * For full copyright and license information, please see the docs/CREDITS.txt file.
- *
  * @author David Wyly (davidwyly) <david.wyly@gmail.com>
- *
  */
 
 
@@ -24,15 +19,49 @@ class Response
     const DEFAULT_SUCCESS_CODE = 200;
     const LEADER_KEY = '_rxn';
 
+    /**
+     * @var bool
+     */
     protected $rendered = false;
+
+    /**
+     * @var bool
+     */
     public $success;
+
+    /**
+     * @var
+     */
     public $code;
+
+    /**
+     * @var
+     */
     public $result;
+
+    /**
+     * @var
+     */
     public $message;
+
+    /**
+     * @var
+     */
     public $trace;
+
+    /**
+     * @var Request
+     */
     public $request;
+
+    /**
+     * @var
+     */
     public $elapsed;
 
+    /**
+     * @var array
+     */
     static public $responseCodes = [
         100 => "Continue",
         101 => "Switching Protocols",
@@ -93,11 +122,18 @@ class Response
         511 => "Network Authentication Required",
     ];
 
-
+    /**
+     * Response constructor.
+     *
+     * @param Request $request
+     */
     public function __construct(Request $request) {
         $this->request = $request;
     }
 
+    /**
+     * @return array
+     */
     public function getSuccess() {
         $this->success = true;
         $this->code = self::DEFAULT_SUCCESS_CODE;
@@ -107,6 +143,11 @@ class Response
         return [self::LEADER_KEY => $this];
     }
 
+    /**
+     * @param \Exception $e
+     *
+     * @return array
+     */
     public function getFailure(\Exception $e) {
         $this->success = false;
         $this->code = $e->getCode();
@@ -118,6 +159,11 @@ class Response
         return [self::LEADER_KEY => $this];
     }
 
+    /**
+     * @param \Exception $e
+     *
+     * @return int|mixed|string
+     */
     static public function getErrorCode(\Exception $e) {
         $code = $e->getCode();
         if (empty($code)) {
@@ -126,6 +172,11 @@ class Response
         return $code;
     }
 
+    /**
+     * @param \Exception $e
+     *
+     * @return array
+     */
     static public function getErrorTrace(\Exception $e) {
         $fullTrace = $e->getTrace();
         $allowedDebugKeys = ['file','line','function','class'];
@@ -147,7 +198,11 @@ class Response
         return $trace;
     }
 
-
+    /**
+     * @param $code
+     *
+     * @return string
+     */
     static public function getResponseCodeResult($code) {
         if (!isset(self::$responseCodes[$code])) {
             return 'Unsupported Response Code';
@@ -155,6 +210,9 @@ class Response
         return self::$responseCodes[$code];
     }
 
+    /**
+     *
+     */
     private function stopTimer() {
         $this->elapsed = round(microtime(true) - Application::$timeStart,4);
         $this->peakMemory = memory_get_peak_usage(true);
