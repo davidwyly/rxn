@@ -8,6 +8,8 @@
 
 namespace Rxn;
 
+use \Rxn\Utility\Debug;
+
 /**
  * Class Service
  *
@@ -43,6 +45,9 @@ class Service
         $reflection = new \ReflectionClass($className);
         $className = $reflection->getName();
         $constructor = $reflection->getConstructor();
+        if (!$constructor) {
+            throw new \Exception("Class '$className' does not have a valid constructor");
+        }
         $parameters = $constructor->getParameters();
         $args = array();
         foreach ($parameters as $parameter) {

@@ -9,6 +9,7 @@
 namespace Rxn\Data;
 
 use \Rxn\Service\Registry;
+use \Rxn\Utility\Debug;
 
 /**
  * Class Map
@@ -37,9 +38,9 @@ class Map
      *
      * @param Database $database
      */
-    public function __construct(Registry $registry, Database $database) {
+    public function __construct(Registry $registry, Database $database, Filecache $filecache) {
         $this->validateRegistry($registry);
-        $this->generateTableMaps($registry,$database);
+        $this->generateTableMaps($registry,$database,$filecache);
         $this->fingerprint = $this->generateFingerprint();
     }
 
@@ -47,13 +48,19 @@ class Map
      * @return bool
      * @throws \Exception
      */
-    private function generateTableMaps(Registry $registry, Database $database) {
+    private function generateTableMaps(Registry $registry, Database $database, Filecache $filecache) {
         $databaseName = $database->getName();
         if (!isset($registry->tables[$databaseName])) {
             throw new \Exception();
         }
         foreach ($registry->tables[$databaseName] as $tableName) {
-            $table = $this->tableFactory($registry,$database,$tableName);
+            $result = $filecache->isClassCached(Map\Table::class,[$databaseName,$tableName]);
+            if ($filecache->isClassCached(Map\Table::class,[$databaseName,$tableName])) {
+                $table = $filecache->getObject(Map\Table::class,[$databaseName,$tableName]);
+            } else {
+                $table = $this->createTable($registry,$database,$tableName);
+                $filecache->cacheObject($table,[$databaseName,$tableName]);
+            }
             $this->registerTable($table);
         }
         ksort($this->tables);
@@ -65,8 +72,18 @@ class Map
      *
      * @return Map\Table
      */
-    protected function tableFactory(Registry $registry, Database $database, $tableName) {
+    protected function createTable(Registry $registry, Database $database, $tableName) {
         return new Map\Table($registry,$database,$tableName);
+    }
+
+    protected function getFilecachedTable(Filecache $filecache, Registry $registry, Database $database, $tableName) {
+        $class = Map\Table::class;
+        $parameters = [$registry,$database,$tableName];
+        $isFilecached = $filecache->isCached($class,$parameters);
+        //if ($isFilecached === true) {
+        //    return $filecache->getObject($class,$parameters);
+        //}
+        return false;
     }
 
     /**

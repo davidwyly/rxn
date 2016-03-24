@@ -57,7 +57,7 @@ class Response
     /**
      * @var
      */
-    public $elapsed;
+    public $elapsedMs;
 
     /**
      * @var array
@@ -214,8 +214,8 @@ class Response
      *
      */
     private function stopTimer() {
-        $this->elapsed = round(microtime(true) - Application::$timeStart,4);
+        $this->elapsedMs = round((microtime(true) - Application::$timeStart) * 1000,4);
         $this->peakMemory = memory_get_peak_usage(true);
-        $this->requestsPerSecond = round(1 / $this->elapsed);
+        $this->requestsPerSecond = round(1000 / $this->elapsedMs);
     }
 }

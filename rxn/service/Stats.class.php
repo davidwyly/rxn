@@ -30,7 +30,7 @@ class Stats
     /**
      * @var
      */
-    public $loadSeconds;
+    public $loadMs;
 
     /**
      * Stats constructor.
@@ -44,7 +44,7 @@ class Stats
      */
     public function stop() {
         $this->stop = microtime(true);
-        $this->loadSeconds = round($this->stop - $this->start,4);
+        $this->loadMs = round(($this->stop - $this->start) * 1000,4);
     }
 
 }

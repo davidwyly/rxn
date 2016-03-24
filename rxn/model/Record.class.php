@@ -20,17 +20,17 @@ abstract class Record extends Model
     /**
      * @var Database
      */
-    private $database;
+    protected $database;
+    protected $_columns;
+    protected $_requiredColumns;
 
     public $table;
     public $primaryKey;
-    protected $_columns;
-    protected $_requiredColumns;
 
     public function __construct(Registry $registry, Database $database, Map $map) {
         $this->database = $database;
         $tableName = $this->table;
-        $this->validateTableName($registry,$tableName);
+        $this->validateTableName($database,$registry,$tableName);
         $table = $this->getTable($map,$tableName);
         $primaryKey = $this->getPrimaryKey($table);
         $this->setPrimaryKey($primaryKey);
@@ -127,13 +127,11 @@ abstract class Record extends Model
         $this->primaryKey = $primaryKey;
     }
 
-    protected function validateTableName(Registry $registry, $tableName) {
-        foreach ($registry->tables as $schema=>$tables) {
-            foreach ($tables as $key=>$table) {
-                if ($this->table == $table) {
-                    return true;
-                }
-            }
+    protected function validateTableName(Database $database,Registry $registry, $tableName) {
+        $databaseName = $database->getName();
+        $relevantTables = $registry->tables[$databaseName];
+        if (in_array($tableName,$relevantTables)) {
+            return true;
         }
         $reflection = new \ReflectionObject($this);
         $recordName = $reflection->getName();

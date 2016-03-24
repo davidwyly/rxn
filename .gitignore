@@ -1,5 +1,5 @@
 rxn/Config.class.php
-rxn/data/cache/*.*
+rxn/data/filecache/*
 
 # Compiled source #
 ###################

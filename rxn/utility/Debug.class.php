@@ -536,11 +536,10 @@ class Debug {
     /**
      *
      */
-    static public function endTimer() {
+    static public function stopTimer($message = null) {
         $now = microtime(true);
         $elapsed = (($now - self::$then) * 1000) . " ms";
-        echo "<pre>";
+        echo "\n$message\n ";
         echo $elapsed;
-        echo "</pre>";
     }
 }
