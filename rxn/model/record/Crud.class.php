@@ -8,6 +8,11 @@
 
 namespace Rxn\Model\Record;
 
+/**
+ * Class Crud
+ *
+ * @package Rxn\Model\Record
+ */
 class Crud
 {
 

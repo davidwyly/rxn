@@ -10,18 +10,44 @@ namespace Rxn\Data;
 
 use \Rxn\Utility\Debug;
 
+/**
+ * Class Chain
+ *
+ * @package Rxn\Data
+ */
 class Chain
 {
+    /**
+     * @var string
+     */
     protected $map;
+
+    /**
+     * @var array
+     */
     public $linksToRecords;
+
+    /**
+     * @var array
+     */
     public $linksFromRecords;
 
+    /**
+     * Chain constructor.
+     *
+     * @param Map $map
+     */
     public function __construct(Map $map)
     {
         $this->map = $map->fingerprint;
         $this->registerDataChain($map);
     }
 
+    /**
+     * @param Map $map
+     *
+     * @throws \Exception
+     */
     private function registerDataChain(Map $map)
     {
         $this->validateMap($map);
@@ -29,6 +55,9 @@ class Chain
         $this->registerLinksFromRecords($map);
     }
 
+    /**
+     * @param Map $map
+     */
     private function registerLinksToRecords(Map $map) {
         foreach ($map->tables as $tableName=>$tableMap) {
             if (isset($tableMap->fieldReferences)) {
@@ -44,6 +73,9 @@ class Chain
         }
     }
 
+    /**
+     * @param Map $map
+     */
     private function registerLinksFromRecords(Map $map)
     {
 
@@ -61,6 +93,11 @@ class Chain
         }
     }
 
+    /**
+     * @param $map
+     *
+     * @throws \Exception
+     */
     private function validateMap($map) {
         if (empty($map->tables)) {
             throw new \Exception();

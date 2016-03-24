@@ -8,6 +8,11 @@
 
 namespace Rxn\Model;
 
+/**
+ * Class Event
+ *
+ * @package Rxn\Model
+ */
 class Event
 {
 

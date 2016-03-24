@@ -8,6 +8,11 @@
 
 namespace Rxn\Data\Map\Chain;
 
+/**
+ * Class Link
+ *
+ * @package Rxn\Data\Map\Chain
+ */
 class Link
 {
 

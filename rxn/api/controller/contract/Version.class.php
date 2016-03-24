@@ -8,8 +8,13 @@
 
 namespace Rxn\Api\Contract;
 
-use \Rxn\Api\Contract as Contract;
+use \Rxn\Api\Contract;
 
+/**
+ * Class Version
+ *
+ * @package Rxn\Api\Contract
+ */
 class Version extends Contract
 {
 

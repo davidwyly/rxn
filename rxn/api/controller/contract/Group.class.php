@@ -8,6 +8,11 @@
 
 namespace Rxn\Api\Contract;
 
+/**
+ * Class Group
+ *
+ * @package Rxn\Api\Contract
+ */
 class Group
 {
 

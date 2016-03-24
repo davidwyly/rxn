@@ -10,15 +10,58 @@ namespace Rxn;
 
 class Config
 {
-    public $root;
+
+    /**
+     * Defines the root application folder
+     * Note: Changing this has not been thoroughly tested!
+     *
+     * Default value: 'rxn'
+     *
+     * @var string
+     */
     public $appFolder = 'rxn';
-    public $vendorFolder = 'vendor'; // TODO: validate
+
+    /**
+     * Defines the root vendor folder
+     * Note: Changing this has not been thoroughly tested!
+     *
+     * Default value: 'vendor'
+     *
+     * @var string
+     */
+    public $vendorFolder = 'vendor';
+
+    /**
+     * Defines the vendor/product namespace for vendor models and controllers
+     *
+     * @var string
+     */
     public $vendorNamespace = '\\Vendor\\Product';
 
+    /**
+     * Sets the filecache directory that needs special read/write permissions
+     *
+     * @var string
+     */
     public $fileCacheDirectory = 'filecache';
 
-    public $applicationKey = "2cKhyoP8E280xS962MV70eB0vbYw7NMn";
+    /**
+     * Uncomment this below to define an application key for encryption
+     */
+    // public $applicationKey = "application key goes here";
+
+    /**
+     * Defines the root of the application and vendor folders relative to this file
+     *
+     * @var string
+     */
     public $relativeRoot = "/../";
+
+    /**
+     * Defines your default database settings
+     *
+     * @var array
+     */
     public $databaseDefaultSettings = [
         'host'     => 'localhost',
         'name'     => 'database',
@@ -27,25 +70,37 @@ class Config
         'charset'  => 'utf8',
     ];
 
-    public $databaseCacheSettings = [
-        'table'           => '_cache',
-        'timestampColumn' => 'timestamp',
-        'expiresColumn'   => 'expires',
-        'sqlColumn'       => 'sql_md5',
-        'paramColumn'     => 'param_md5',
-        'typeColumn'      => 'query_type',
-        'packageColumn'   => 'package',
-        'elapsedColumn'   => 'elapsed',
-    ];
-
+    /**
+     * Defines default keys for URL params and routing
+     *
+     * @var array
+     */
     public $endpointParameters = [
         "version",
         "controller",
         "action",
     ];
 
+    /**
+     * enable or disable caching
+     *
+     * @var bool
+     */
     public $allowCaching = false;
+
+    /**
+     * Use a valid \DateTime timezone
+     *
+     * @var string
+     */
     public $timezone = 'America/Denver';
+
+    /**
+     * Do not edit; this is set by the constructor
+     *
+     * @var string
+     */
+    public $root;
 
     public function __construct() {
         $this->root = realpath(__DIR__ . $this->relativeRoot);

@@ -18,6 +18,12 @@ class Key
 
     }
 
+    /**
+     * @param string $encryptionKey
+     *
+     * @return null
+     * @throws \Exception
+     */
     public function setEncryptionKey($encryptionKey) {
         $minLength = self::$encryptionMinLength;
         if(mb_strlen($encryptionKey) < $minLength) {

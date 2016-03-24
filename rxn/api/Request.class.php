@@ -15,6 +15,11 @@ use \Rxn\Api\Controller\Response;
 use \Rxn\Service\Api;
 use \Rxn\Utility\Debug;
 
+/**
+ * Class Request
+ *
+ * @package Rxn\Api
+ */
 class Request
 {
     protected $validated = false;
@@ -62,6 +67,12 @@ class Request
         $this->header = $collector->header;
     }
 
+    /**
+     * @param Collector $collector
+     * @param Config    $config
+     *
+     * @return array|null
+     */
     private function getSanitizedGet(Collector $collector, Config $config) {
         $getParameters = $collector->get;
         foreach ($config->endpointParameters as $endpointParameter) {

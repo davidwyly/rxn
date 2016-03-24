@@ -11,18 +11,34 @@ namespace Rxn\Data;
 use \Rxn\Config;
 use \Rxn\Utility\Debug;
 
+/**
+ * Class Filecache
+ *
+ * @package Rxn\Data
+ */
 class Filecache
 {
-    public $objectParameterHashes;
-
+    /**
+     * @var string
+     */
     public $directory;
 
     const EXTENSION = 'filecache';
 
+    /**
+     * Filecache constructor.
+     *
+     * @param Config $config
+     */
     public function __construct(Config $config) {
         $this->setDirectory($config);
     }
 
+    /**
+     * @param Config $config
+     *
+     * @throws \Exception
+     */
     private function setDirectory(Config $config) {
         $directory = __DIR__ . "/" . $config->fileCacheDirectory;
         if (!file_exists($directory)) {
@@ -31,6 +47,13 @@ class Filecache
         $this->directory = realpath(__DIR__ . "/" . $config->fileCacheDirectory);
     }
 
+    /**
+     * @param string  $class
+     * @param array   $parameters
+     *
+     * @return bool|mixed
+     * @throws \Exception
+     */
     public function getObject($class, array $parameters) {
         if (!class_exists($class)) {
             throw new \Exception("Invalid class name '$class'");
@@ -51,6 +74,13 @@ class Filecache
         return unserialize($serializedObject);
     }
 
+    /**
+     * @param object  $object
+     * @param array   $parameters
+     *
+     * @return bool
+     * @throws \Exception
+     */
     public function cacheObject($object, array $parameters) {
         $serializedObject = serialize($object);
         $reflection = new \ReflectionObject($object);
@@ -72,6 +102,13 @@ class Filecache
         return true;
     }
 
+    /**
+     * @param string  $class
+     * @param array   $parameters
+     *
+     * @return bool
+     * @throws \Exception
+     */
     public function isClassCached($class, array $parameters) {
         if (!class_exists($class)) {
             throw new \Exception("Invalid class name '$class'");
@@ -91,18 +128,39 @@ class Filecache
         return true;
     }
 
+    /**
+     * @param array $parameters
+     *
+     * @return string
+     */
     private function getParametersHash(array $parameters) {
         return md5(serialize($parameters));
     }
 
+    /**
+     * @param string $parameterHash
+     *
+     * @return string
+     */
     private function getFileName($parameterHash) {
         return $parameterHash . "." . self::EXTENSION;
     }
 
+    /**
+     * @param string $shortName
+     *
+     * @return string
+     */
     private function getDirectory($shortName) {
         return $this->directory . "/" . $shortName;
     }
 
+    /**
+     * @param string $directory
+     * @param string $fileName
+     *
+     * @return string
+     */
     private function getFilePath($directory, $fileName) {
         return $directory . "/" . $fileName;
     }

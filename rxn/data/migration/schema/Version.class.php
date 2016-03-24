@@ -8,6 +8,11 @@
 
 namespace Framework\App\Database\Migration\Schema;
 
+/**
+ * Class Version
+ *
+ * @package Framework\App\Database\Migration\Schema
+ */
 class Version
 {
 

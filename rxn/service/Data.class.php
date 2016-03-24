@@ -15,12 +15,40 @@ use \Rxn\Data\Map;
 use \Rxn\Data\Chain;
 use \Rxn\Data\Mold;
 
+/**
+ * Class Data
+ *
+ * @package Rxn\Service
+ */
 class Data
 {
+    /**
+     * @var Filecache
+     */
+    public $filecache;
+
+    /**
+     * @var Map
+     */
     public $map;
+
+    /**
+     * @var
+     */
     public $chain;
+
+    /**
+     * @var
+     */
     public $mold;
 
+    /**
+     * Data constructor.
+     *
+     * @param Registry $registry
+     * @param Database $database
+     * @param Service  $service
+     */
     public function __construct(Registry $registry, Database $database, Service $service)
     {
         $this->filecache = $service->get(Filecache::class);

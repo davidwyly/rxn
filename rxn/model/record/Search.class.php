@@ -8,6 +8,11 @@
 
 namespace Rxn\Model\Record;
 
+/**
+ * Class Search
+ *
+ * @package Rxn\Model\Record
+ */
 class Search
 {
 

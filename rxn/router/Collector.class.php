@@ -10,20 +10,47 @@ namespace Rxn\Router;
 
 use \Rxn\Config;
 
+/**
+ * Class Collector
+ *
+ * @package Rxn\Router
+ */
 class Collector
 {
+    /**
+     * @var array|null
+     */
     public $get;
+
+    /**
+     * @var array|null
+     */
     public $post;
+
+    /**
+     * @var array|null
+     */
     public $header;
 
     const URL_STYLE = 'version/controller/action(/param/value/param2/value2/...)';
 
+    /**
+     * Collector constructor.
+     *
+     * @param Config $config
+     */
     public function __construct(Config $config) {
         $this->get = $this->getRequestUrlParams($config);
         $this->post = $this->getRequestDataParams();
         $this->header = $this->getRequestHeaderParams();
     }
 
+    /**
+     * @param $paramName
+     *
+     * @return string
+     * @throws \Exception
+     */
     public function getUrlParam($paramName) {
         if (!isset($this->get[$paramName])) {
             throw new \Exception("No GET param by the name of '$paramName'");
@@ -31,6 +58,9 @@ class Collector
         return (string)$this->get[$paramName];
     }
 
+    /**
+     * @return array|null
+     */
     public function getRequestDataParams() {
         if (!isset($_POST) || empty($_POST)) {
             return null;
@@ -46,6 +76,11 @@ class Collector
         return $_POST;
     }
 
+    /**
+     * @param $integer
+     *
+     * @return bool
+     */
     private function isEven($integer) {
         if ($integer == 0) {
             return true;
@@ -56,6 +91,11 @@ class Collector
         return false;
     }
 
+    /**
+     * @param $integer
+     *
+     * @return bool
+     */
     private function isOdd($integer) {
         if (!self::isEven($integer)) {
             return true;
@@ -63,6 +103,12 @@ class Collector
         return false;
     }
 
+    /**
+     * @param Config $config
+     * @param        $params
+     *
+     * @return array
+     */
     private function processParams(Config $config, $params) {
 
         // assign version, controller, and action
@@ -93,6 +139,11 @@ class Collector
         return $processedParams;
     }
 
+    /**
+     * @param Config $config
+     *
+     * @return array|null
+     */
     public function getRequestUrlParams(Config $config) {
         if (!isset($_GET) || empty($_GET)) {
             return null;
@@ -109,6 +160,9 @@ class Collector
         return $_GET;
     }
 
+    /**
+     * @return array|null
+     */
     public function getRequestHeaderParams() {
         $headerParams = null;
         foreach ($_SERVER as $key=>$value) {
@@ -121,6 +175,12 @@ class Collector
         return $headerParams;
     }
 
+    /**
+     * @param Config $config
+     *
+     * @return mixed
+     * @throws \Exception
+     */
     public function detectVersion(Config $config) {
         $get = $this->getRequestUrlParams($config);
         if (!isset($get['version'])) {
@@ -131,6 +191,12 @@ class Collector
         return $get['version'];
     }
 
+    /**
+     * @param Config $config
+     *
+     * @return mixed
+     * @throws \Exception
+     */
     public function detectController(Config $config) {
         $get = $this->getRequestUrlParams($config);
         if (!isset($get['controller'])) {
@@ -140,6 +206,12 @@ class Collector
         return $get['controller'];
     }
 
+    /**
+     * @param Config $config
+     *
+     * @return mixed
+     * @throws \Exception
+     */
     public function detectAction(Config $config) {
         $get = $this->getRequestUrlParams($config);
         if (!isset($get['action'])) {

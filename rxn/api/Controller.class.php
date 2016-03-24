@@ -10,11 +10,7 @@ namespace Rxn\Api;
 
 use \Rxn\Config;
 use \Rxn\Service;
-use \Rxn\Data\Database;
-use \Rxn\Application;
-use \Rxn\Router\Collector;
 use \Rxn\Api\Controller\Response;
-use \Rxn\Service\Api;
 use \Rxn\Utility\Debug;
 
 /**

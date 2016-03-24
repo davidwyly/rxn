@@ -14,6 +14,11 @@ use \Rxn\Api\Request;
 use \Rxn\Router\Collector;
 use \Rxn\Utility\Debug;
 
+/**
+ * Class Response
+ *
+ * @package Rxn\Api\Controller
+ */
 class Response
 {
     const DEFAULT_SUCCESS_CODE = 200;

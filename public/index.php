@@ -23,12 +23,12 @@ $database = new Database($config);
 $app = new Application($config, $database);
 
 try {
-    $responseToRender = runApplication($app);
+    $responseToRender = getSuccessResponse($app);
 } catch (\Exception $e) {
-    renderFailure($app, $e);
-    exit();
+    $responseToRender = getFailureResponse($app, $e);
 }
-renderAndDie($responseToRender);
+render($responseToRender);
+die();
 
 /**
  * @param Application $app
@@ -36,7 +36,7 @@ renderAndDie($responseToRender);
  * @return array
  * @throws Exception
  */
-function runApplication(Application $app)
+function getSuccessResponse(Application $app)
 {
     // instantiate request model
     $request = $app->service->get(Request::class); /* @var $request Request */
@@ -50,7 +50,7 @@ function runApplication(Application $app)
     // trigger the controller to build a response
     $responseToRender = $app->api->controller->trigger();
 
-    // render
+    // return response
     return $responseToRender;
 }
 
@@ -60,7 +60,7 @@ function runApplication(Application $app)
  *
  * @throws \Exception
  */
-function renderFailure(Application $app, \Exception $e)
+function getFailureResponse(Application $app, \Exception $e)
 {
     // instantiate request model using the DI service container
     $response = $app->service->get(Response::class);
@@ -68,16 +68,15 @@ function renderFailure(Application $app, \Exception $e)
     // build a response
     $responseToRender = $response->getFailure($e);
 
-    // render
-    renderAndDie($responseToRender);
+    // return response
+    return $responseToRender;
 }
 
 /**
  * @param $responseToRender
  */
-function renderAndDie($responseToRender)
+function render($responseToRender)
 {
-    //ob_start('ob_gzhandler');
     $json = json_encode((object)$responseToRender,JSON_PRETTY_PRINT);
     if (!isJson($json)) {
         Debug::dump($responseToRender);

@@ -8,8 +8,13 @@
 
 namespace Rxn\Api\Contract;
 
-use \Rxn\Api\Contract as Contract;
+use \Rxn\Api\Contract;
 
+/**
+ * Class Scaffold
+ *
+ * @package Rxn\Api\Contract
+ */
 class Scaffold extends Contract
 {
 

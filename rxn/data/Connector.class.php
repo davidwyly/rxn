@@ -8,6 +8,11 @@
 
 namespace Rxn\Data;
 
+/**
+ * Class Connector
+ *
+ * @package Rxn\Data
+ */
 class Connector
 {
 

@@ -8,6 +8,11 @@
 
 namespace Rxn\Data;
 
+/**
+ * Class Migration
+ *
+ * @package Rxn\Data
+ */
 class Migration
 {
 

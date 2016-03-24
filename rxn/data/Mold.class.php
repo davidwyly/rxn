@@ -10,6 +10,11 @@ namespace Rxn\Data;
 use \Rxn\Service\Registry;
 use \Rxn\Utility\Debug;
 
+/**
+ * Class Mold
+ *
+ * @package Rxn\Data
+ */
 class Mold
 {
     protected $map;

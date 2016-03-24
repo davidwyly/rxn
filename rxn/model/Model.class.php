@@ -8,6 +8,11 @@
 
 namespace Rxn\Model;
 
+/**
+ * Class Model
+ *
+ * @package Rxn\Model
+ */
 class Model
 {
 

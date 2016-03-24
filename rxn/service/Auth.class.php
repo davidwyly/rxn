@@ -8,16 +8,25 @@
 
 namespace Rxn\Service;
 
+use \Rxn\Service;
 use \Rxn\Config;
 use \Rxn\Auth\Key;
 use \Rxn\Utility\Debug;
 
 class Auth
 {
+    /**
+     * @var Key
+     */
     public $key;
 
-    public function __construct(Config $config) {
-        $this->key = new Key;
+    /**
+     * Auth constructor.
+     *
+     * @param Config $config
+     */
+    public function __construct(Config $config, Service $service) {
+        $this->key = $service->get(Key::class);
         $this->key->setEncryptionKey($config->applicationKey);
     }
 }

@@ -8,6 +8,11 @@
 
 namespace Rxn\Api;
 
+/**
+ * Class Contract
+ *
+ * @package Rxn\Api
+ */
 abstract class Contract
 {
 

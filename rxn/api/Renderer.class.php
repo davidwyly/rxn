@@ -8,6 +8,11 @@
 
 namespace Rxn\Api;
 
+/**
+ * Class Renderer
+ *
+ * @package Rxn\Api
+ */
 class Renderer
 {
 

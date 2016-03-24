@@ -8,6 +8,11 @@
 
 namespace Rxn\Data\Migration;
 
+/**
+ * Class Schema
+ *
+ * @package Rxn\Data\Migration
+ */
 class Schema
 {
 

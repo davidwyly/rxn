@@ -23,11 +23,19 @@ class Api
      */
     public $controller;
 
+    /**
+     * Api constructor.
+     */
     public function __construct()
     {
 
     }
 
+    /**
+     * @param Request $request
+     *
+     * @return string
+     */
     public function findController(Request $request) {
         return $request->getControllerRef();
     }

@@ -27,6 +27,13 @@ abstract class Record extends Model
     public $table;
     public $primaryKey;
 
+    /**
+     * Record constructor.
+     *
+     * @param Registry $registry
+     * @param Database $database
+     * @param Map      $map
+     */
     public function __construct(Registry $registry, Database $database, Map $map) {
         $this->database = $database;
         $tableName = $this->table;
@@ -38,6 +45,12 @@ abstract class Record extends Model
         $this->setRequiredColumns($table);
     }
 
+    /**
+     * @param array $keyValues
+     *
+     * @return mixed
+     * @throws \Exception
+     */
     public function create(array $keyValues) {
         $this->validateRequiredColumns($keyValues);
 
@@ -80,6 +93,11 @@ abstract class Record extends Model
         return $createdId;
     }
 
+    /**
+     * @param array $keyValues
+     *
+     * @throws \Exception
+     */
     protected function validateRequiredColumns(array $keyValues) {
         $requiredColumns = $this->getRequiredColumns();
         foreach ($requiredColumns as $requiredColumn) {
@@ -89,14 +107,23 @@ abstract class Record extends Model
         }
     }
 
+    /**
+     * @return mixed
+     */
     public function getColumns() {
         return $this->_columns;
     }
 
+    /**
+     * @return mixed
+     */
     public function getRequiredColumns() {
         return $this->_requiredColumns;
     }
 
+    /**
+     * @param Table $table
+     */
     protected function setColumns(Table $table) {
 
         $columns = array();
@@ -106,6 +133,9 @@ abstract class Record extends Model
         $this->_columns = $columns;
     }
 
+    /**
+     * @param Table $table
+     */
     protected function setRequiredColumns(Table $table) {
 
         $requiredColumns = array();
@@ -119,14 +149,31 @@ abstract class Record extends Model
         $this->_requiredColumns = $requiredColumns;
     }
 
+    /**
+     * @param Map $map
+     * @param     $tableName
+     *
+     * @return mixed
+     */
     protected function getTable(Map $map, $tableName) {
         return $map->tables[$tableName];
     }
 
+    /**
+     * @param $primaryKey
+     */
     protected function setPrimaryKey($primaryKey) {
         $this->primaryKey = $primaryKey;
     }
 
+    /**
+     * @param Database $database
+     * @param Registry $registry
+     * @param          $tableName
+     *
+     * @return bool
+     * @throws \Exception
+     */
     protected function validateTableName(Database $database,Registry $registry, $tableName) {
         $databaseName = $database->getName();
         $relevantTables = $registry->tables[$databaseName];
@@ -138,6 +185,11 @@ abstract class Record extends Model
         throw new \Exception("Record '$recordName' references table '$tableName' which doesn't exist",500);
     }
 
+    /**
+     * @param Table $table
+     *
+     * @return string
+     */
     protected function getPrimaryKey(Table $table) {
         return implode("-",$table->primaryKeys);
     }
