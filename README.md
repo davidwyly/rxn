@@ -38,8 +38,8 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
    - [ ] Support for third-party ORMs
 - [X] Speed improvements
    - [X] Caching mechanisms
-       - [X] Database caching
-       - [X] File caching
+       - [X] Query database caching
+       - [X] Object file caching
    - [ ] Compiled extensions
 - [ ] Authentication  
    - [ ] Support for third-party libraries
