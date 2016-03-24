@@ -24,6 +24,10 @@ class Filecache
     }
 
     private function setDirectory(Config $config) {
+        $directory = __DIR__ . "/" . $config->fileCacheDirectory;
+        if (!file_exists($directory)) {
+            throw new \Exception("Cache $directory doesn't exist; it may need to be created");
+        }
         $this->directory = realpath(__DIR__ . "/" . $config->fileCacheDirectory);
     }
 
@@ -38,7 +42,7 @@ class Filecache
         $directory = $this->getDirectory($shortName);
         $filePath = $this->getFilePath($directory,$fileName);
         if (!is_readable($this->directory)) {
-            throw new \Exception("{$this->directory} must be readable to cache; check owner and permissions");
+            throw new \Exception("$directory must be readable to cache; check owner and permissions");
         }
         if (!file_exists($filePath)) {
             return false;
@@ -56,12 +60,12 @@ class Filecache
         $directory = $this->getDirectory($shortName);
         $filePath = $this->getFilePath($directory,$fileName);
         if (!is_writable($this->directory)) {
-            throw new \Exception("{$this->directory} must be writable to cache; check owner and permissions");
+            throw new \Exception("$directory must be writable to cache; check owner and permissions");
         }
         if (!file_exists($directory)) {
             mkdir($directory,0777);
         }
-        if (!file_exists($filePath)) {
+        if (file_exists($filePath)) {
             throw new \Exception("Trying to cache a file that is already cached; use 'isClassCached()' method first");
         }
         file_put_contents($filePath,$serializedObject);
@@ -79,7 +83,7 @@ class Filecache
         $directory = $this->getDirectory($shortName);
         $filePath = $this->getFilePath($directory,$fileName);
         if (!is_readable($this->directory)) {
-            throw new \Exception("{$this->directory} must be readable to cache; check owner and permissions");
+            throw new \Exception("$directory must be readable to cache; check owner and permissions");
         }
         if (!file_exists($filePath)) {
             return false;

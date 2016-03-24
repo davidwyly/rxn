@@ -17,6 +17,8 @@ use \Rxn\Utility\Debug;
 
 class Request
 {
+    protected $validated = false;
+
     /**
      * @var null|string
      */
@@ -72,16 +74,16 @@ class Request
 
     /**
      * @param Collector $collector
-     * @param Config    $config
-     *
-     * @throws \Exception
+     * @param Config $config
+     * @return bool
      */
     private function validateRequiredParams(Collector $collector, Config $config) {
         foreach ($config->endpointParameters as $parameter) {
             if (!isset($collector->get[$parameter])) {
-                throw new \Exception("Required parameter '$parameter' not defined in API request URL",400);
+                return false;
             }
         }
+        $this->validated = true;
     }
 
     /**

@@ -56,8 +56,10 @@ class Controller
     /**
      * Controller constructor.
      *
-     * @param Request  $request
+     * @param Request $request
      * @param Response $response
+     * @param Service $service
+     * @throws \Exception
      */
     public function __construct(Request $request, Response $response, Service $service) {
         $this->service = $service;
@@ -108,6 +110,9 @@ class Controller
      * @throws \Exception
      */
     private function getActionMethod($actionName, $actionVersion) {
+        if (empty($actionName)) {
+            throw new \Exception("Action is missing from the request",400);
+        }
         $reflection = new \ReflectionObject($this);
         $methodName = $actionName . "_" . $actionVersion;
         if (!$reflection->hasMethod($methodName)) {

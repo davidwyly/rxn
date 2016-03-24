@@ -11,13 +11,10 @@
  *
  */
 
-validateServerSettings();
-
 $root = __DIR__;
 
-if (!file_exists("$root/rxn/Config.class.php")) {
-    throw new \Exception("Config file is missing; ensure that one was created from 'rxn/Config.class.php.sample'");
-}
+validateEnvironment($root);
+
 require_once("$root/rxn/Service.class.php");
 require_once("$root/rxn/Config.class.php");
 require_once("$root/rxn/service/Registry.class.php");
@@ -25,12 +22,16 @@ require_once("$root/rxn/utility/Debug.class.php");
 require_once("$root/rxn/data/Database.class.php");
 require_once("$root/rxn/Application.class.php");
 
-function validateServerSettings() {
+function validateEnvironment($root) {
     if (empty(ini_get('display_errors'))) {
-        exit("PHP ini setting 'display_errors = On' must be set for RXN to work properly");
+        exit(json_encode("RXN requires PHP ini setting 'display_errors = On'"));
     }
 
     if (!in_array('mod_rewrite',apache_get_modules())) {
-        throw new \Exception("Apache module 'mod_rewrite' must be enabled for RXN to work properly");
+        exit(json_encode("RXN requires Apache module 'mod_rewrite' to be enabled"));
+    }
+
+    if (!file_exists("$root/rxn/Config.class.php")) {
+        exit(json_encode("RXN config file is missing; ensure that one was created from 'rxn/Config.class.php.sample'"));
     }
 }

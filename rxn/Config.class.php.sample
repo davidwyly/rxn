@@ -10,22 +10,24 @@ namespace Rxn;
 
 class Config
 {
-    static public $root;
-    static public $appFolder = 'rxn';
-    static public $vendorFolder = 'vendor'; // TODO: validate
-    static public $vendorNamespace = '\\Vendor\\Product';
+    public $root;
+    public $appFolder = 'rxn';
+    public $vendorFolder = 'vendor'; // TODO: validate
+    public $vendorNamespace = '\\Vendor\\Product';
 
-    static public $applicationKey = "2cKhyoP8E280xS962MV70eB0vbYw7NMn";
-    static public $relativeRoot = "/../";
-    static public $databaseDefaultSettings = [
+    public $fileCacheDirectory = 'filecache';
+
+    public $applicationKey = "2cKhyoP8E280xS962MV70eB0vbYw7NMn";
+    public $relativeRoot = "/../";
+    public $databaseDefaultSettings = [
         'host'     => 'localhost',
-        'name'     => 'name',
-        'username' => 'user',
+        'name'     => 'database',
+        'username' => 'username',
         'password' => 'secret',
         'charset'  => 'utf8',
     ];
 
-    static public $databaseCacheSettings = [
+    public $databaseCacheSettings = [
         'table'           => '_cache',
         'timestampColumn' => 'timestamp',
         'expiresColumn'   => 'expires',
@@ -36,16 +38,16 @@ class Config
         'elapsedColumn'   => 'elapsed',
     ];
 
-    static public $endpointParameters = [
+    public $endpointParameters = [
         "version",
         "controller",
         "action",
     ];
 
-    static public $allowCaching = false;
-    static public $timezone = 'America/Denver';
+    public $allowCaching = false;
+    public $timezone = 'America/Denver';
 
     public function __construct() {
-        self::$root = realpath(__DIR__ . self::$relativeRoot);
+        $this->root = realpath(__DIR__ . $this->relativeRoot);
     }
 }

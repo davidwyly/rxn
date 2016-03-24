@@ -36,7 +36,10 @@ class Map
     /**
      * Map constructor.
      *
+     * @param Registry $registry
      * @param Database $database
+     * @param Filecache $filecache
+     * @throws \Exception
      */
     public function __construct(Registry $registry, Database $database, Filecache $filecache) {
         $this->validateRegistry($registry);
@@ -45,6 +48,9 @@ class Map
     }
 
     /**
+     * @param Registry $registry
+     * @param Database $database
+     * @param Filecache $filecache
      * @return bool
      * @throws \Exception
      */
@@ -54,8 +60,8 @@ class Map
             throw new \Exception();
         }
         foreach ($registry->tables[$databaseName] as $tableName) {
-            $result = $filecache->isClassCached(Map\Table::class,[$databaseName,$tableName]);
-            if ($filecache->isClassCached(Map\Table::class,[$databaseName,$tableName])) {
+            $isCached = $filecache->isClassCached(Map\Table::class,[$databaseName,$tableName]);
+            if ($isCached === true) {
                 $table = $filecache->getObject(Map\Table::class,[$databaseName,$tableName]);
             } else {
                 $table = $this->createTable($registry,$database,$tableName);
@@ -68,22 +74,13 @@ class Map
     }
 
     /**
+     * @param Registry $registry
+     * @param Database $database
      * @param $tableName
-     *
      * @return Map\Table
      */
     protected function createTable(Registry $registry, Database $database, $tableName) {
         return new Map\Table($registry,$database,$tableName);
-    }
-
-    protected function getFilecachedTable(Filecache $filecache, Registry $registry, Database $database, $tableName) {
-        $class = Map\Table::class;
-        $parameters = [$registry,$database,$tableName];
-        $isFilecached = $filecache->isCached($class,$parameters);
-        //if ($isFilecached === true) {
-        //    return $filecache->getObject($class,$parameters);
-        //}
-        return false;
     }
 
     /**
@@ -95,6 +92,7 @@ class Map
     }
 
     /**
+     * @param Registry $registry
      * @throws \Exception
      */
     private function validateRegistry(Registry $registry) {

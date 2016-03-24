@@ -56,15 +56,15 @@ function runApplication(Application $app)
 
 /**
  * @param Application $app
- * @param Exception   $e
+ * @param \Exception   $e
  *
- * @throws Exception
+ * @throws \Exception
  */
-function renderFailure(Application $app, Exception $e)
+function renderFailure(Application $app, \Exception $e)
 {
     // instantiate request model using the DI service container
-    $response = $app->service->get(Response::class); /* @var $request Request */
-
+    $response = $app->service->get(Response::class);
+    
     // build a response
     $responseToRender = $response->getFailure($e);
 
