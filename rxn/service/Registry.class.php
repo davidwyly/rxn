@@ -41,15 +41,12 @@ class Registry
      * @return void
      */
     public function __construct(Config $config, Database $database) {
-        $this->config = $config;
-        $this->database = $database;
-
         // register self and dependencies
         $this->registerObject($this);
         $this->registerObject($config);
         $this->registerObject($database);
-        $this->fetchTables();
-        $this->registerAutoload();
+        $this->fetchTables($database);
+        $this->registerAutoload($config);
     }
 
     /**
@@ -175,8 +172,8 @@ class Registry
     /**
      * @return bool
      */
-    private function fetchTables() {
-        $databaseName = $this->database->getName();
+    private function fetchTables(Database $database) {
+        $databaseName = $database->getName();
         $sql = "
 			SELECT
 				`TABLE_NAME`
@@ -185,7 +182,7 @@ class Registry
 				AND t.table_type = 'BASE TABLE'
 			";
 
-        $tables = $this->database->fetchArray($sql,[$databaseName],true,1);
+        $tables = $database->fetchArray($sql,[$databaseName],true,1);
         if (!$tables) {
             return false;
         }
@@ -197,9 +194,12 @@ class Registry
     /**
      *
      */
-    private function registerAutoload()
+    private function registerAutoload(Config $config)
     {
-        spl_autoload_register(array($this, 'load'));
+        spl_autoload_register(function($className) use ($config) {
+            $this->load($config, $className);
+        });
+        //spl_autoload_register(array($this, 'load'));
     }
 
     /**
@@ -207,10 +207,10 @@ class Registry
      * @param string $extension
      * @return void
      */
-    private function load($classReference, $extension = '.class.php')
+    private function load(Config $config, $classReference, $extension = '.class.php')
     {
         // determine the file path of the class reference
-        $classPath = $this->getClassPathByClassReference($classReference, $extension);
+        $classPath = $this->getClassPathByClassReference($config, $classReference, $extension);
 
         // load the class
         include($classPath);
@@ -225,7 +225,7 @@ class Registry
      * @return string
      * @throws \Exception
      */
-    private function getClassPathByClassReference($classReference, $extension)
+    private function getClassPathByClassReference(Config $config, $classReference, $extension)
     {
         // break the class namespace into an array
         $pathArray = explode("\\",$classReference);
@@ -233,8 +233,8 @@ class Registry
         // remove the root namespace from the array
         $root = mb_strtolower(array_shift($pathArray));
 
-        if ($root != $this->config->appFolder) {
-            if ($root != $this->config->vendorFolder) {
+        if ($root != $config->appFolder) {
+            if ($root != $config->vendorFolder) {
                 throw new \Exception("Root path '$root' in reference '$classReference' not defined in config");
             }
         }

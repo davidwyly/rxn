@@ -35,7 +35,6 @@ abstract class Record extends Model
      * @param Map      $map
      */
     public function __construct(Registry $registry, Database $database, Map $map) {
-        $this->database = $database;
         $tableName = $this->table;
         $this->validateTableName($database,$registry,$tableName);
         $table = $this->getTable($map,$tableName);
@@ -51,7 +50,7 @@ abstract class Record extends Model
      * @return mixed
      * @throws \Exception
      */
-    public function create(array $keyValues) {
+    public function create(Database $database, array $keyValues) {
         $this->validateRequiredColumns($keyValues);
 
         // disallow explicit specification of the primary key
@@ -83,13 +82,13 @@ abstract class Record extends Model
 
         // generate the SQL statement
         $createSql = "INSERT INTO $table ($columns) VALUES ($values)";
-        $this->database->transactionOpen();
-        $result = $this->database->query($createSql,$bindings);
+        $database->transactionOpen();
+        $result = $database->query($createSql,$bindings);
         if (!$result) {
             throw new \Exception("Failed to create record",500);
         }
-        $createdId = $this->database->getLastInsertId();
-        $this->database->transactionClose();
+        $createdId = $database->getLastInsertId();
+        $database->transactionClose();
         return $createdId;
     }
 

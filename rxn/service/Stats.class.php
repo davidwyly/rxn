@@ -18,14 +18,9 @@ use \Rxn\Application;
 class Stats
 {
     /**
-     * @var
+     * @var float
      */
-    private $start;
-
-    /**
-     * @var
-     */
-    private $stop;
+    private $timeStop;
 
     /**
      * @var
@@ -36,15 +31,15 @@ class Stats
      * Stats constructor.
      */
     public function __construct() {
-        $this->start = Application::$timeStart;
+
     }
 
     /**
      *
      */
-    public function stop() {
-        $this->stop = microtime(true);
-        $this->loadMs = round(($this->stop - $this->start) * 1000,4);
+    public function stop($timeStart) {
+        $this->timeStop = microtime(true);
+        $this->loadMs = round(($this->timeStop - $timeStart) * 1000,4);
     }
 
 }

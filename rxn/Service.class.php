@@ -39,6 +39,9 @@ class Service
         if (!class_exists($className)) {
             throw new \Exception("$className is not a valid class name",500);
         }
+        if ($className == Service::class) {
+            return $this;
+        }
         if (self::has($className)) {
             return $this->instances[$className];
         }

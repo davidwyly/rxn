@@ -39,16 +39,16 @@ die();
 function getSuccessResponse(Application $app)
 {
     // instantiate request model
-    $request = $app->service->get(Request::class); /* @var $request Request */
+    $app->api->request = $app->service->get(Request::class);
 
-    // find controller class reference
-    $controllerRef = $app->api->findController($request);
+    // find the correct controller to use; this is determined from the request
+    $controllerRef = $app->api->findController($app->api->request);
 
     // instantiate the controller
-    $app->api->controller = $app->service->get($controllerRef); /* @var $controller Controller */
+    $app->api->controller = $app->service->get($controllerRef);
 
     // trigger the controller to build a response
-    $responseToRender = $app->api->controller->trigger();
+    $responseToRender = $app->api->controller->trigger($app->service);
 
     // return response
     return $responseToRender;
@@ -77,12 +77,22 @@ function getFailureResponse(Application $app, \Exception $e)
  */
 function render($responseToRender)
 {
+    // determine response code
     $responseCode = $responseToRender['_rxn']->code;
+
+    // encode the response to JSON
     $json = json_encode((object)$responseToRender,JSON_PRETTY_PRINT);
+
+    // remove null bytes, which can be a gotcha upon decoding
+    $json = str_replace('\\u0000', '', $json);
+
+    // if the JSON is invalid, dump the raw response
     if (!isJson($json)) {
         Debug::dump($responseToRender);
         die();
     }
+
+    // render as JSON
     header('content-type: application/json');
     http_response_code($responseCode);
     echo($json);

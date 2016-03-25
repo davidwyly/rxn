@@ -144,7 +144,6 @@ class Response
         $this->code = self::DEFAULT_SUCCESS_CODE;
         $this->result = self::getResponseCodeResult($this->code);
         $this->rendered = true;
-        $this->stopTimer();
         return [self::LEADER_KEY => $this];
     }
 
@@ -160,7 +159,6 @@ class Response
         $this->message = $e->getMessage();
         $this->trace = self::getErrorTrace($e);
         $this->rendered = true;
-        $this->stopTimer();
         return [self::LEADER_KEY => $this];
     }
 
@@ -213,14 +211,5 @@ class Response
             return 'Unsupported Response Code';
         }
         return self::$responseCodes[$code];
-    }
-
-    /**
-     *
-     */
-    private function stopTimer() {
-        $this->elapsedMs = round((microtime(true) - Application::$timeStart) * 1000,4);
-        $this->peakMemory = memory_get_peak_usage(true);
-        $this->requestsPerSecond = round(1000 / $this->elapsedMs);
     }
 }

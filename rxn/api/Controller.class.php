@@ -20,7 +20,6 @@ use \Rxn\Utility\Debug;
  */
 class Controller
 {
-    protected $service;
     /**
      * @var Request
      */
@@ -36,12 +35,10 @@ class Controller
      */
     public $triggered = false;
 
-    protected $actionTimeStart;
-
     /**
-     * @var
+     * @var float
      */
-    public $actionTimeElapsed;
+    public $actionElapsedMs;
 
     /**
      * @var Response
@@ -58,7 +55,6 @@ class Controller
      * @throws \Exception
      */
     public function __construct(Request $request, Response $response, Service $service) {
-        $this->service = $service;
         $this->request = $request;
         $this->response = $response;
         $actionName = $request->getActionName();
@@ -69,7 +65,7 @@ class Controller
     /**
      * @return array
      */
-    public function trigger() {
+    public function trigger(Service $service) {
 
         $this->triggered = true;
 
@@ -85,7 +81,7 @@ class Controller
         // trigger the action method on the controller
         try {
             $actionTimeStart = microtime(true);
-            $actionResponse = $this->{$this->actionMethod}();
+            $actionResponse = $this->getActionResponse($service, $this->actionMethod);
             $this->calculateActionTimeElapsed($actionTimeStart);
             $this->validateActionResponse($actionResponse);
             return $this->response->getSuccess() + $actionResponse;
@@ -94,8 +90,57 @@ class Controller
         }
     }
 
+    /**
+     * @param Service $service
+     * @param         $method
+     *
+     * @return mixed
+     */
+    protected function getActionResponse(Service $service, $method) {
+        $reflection = new \ReflectionObject($this);
+        $reflectionMethod = $reflection->getMethod($method);
+        $classesToInject = $this->getMethodClassesToInject($reflectionMethod);
+        $objectsToInject = $this->invokeObjectsToInject($service, $classesToInject);
+        $actionResponse = $reflectionMethod->invokeArgs($this,$objectsToInject);
+        return $actionResponse;
+    }
+
+    /**
+     * @param \ReflectionMethod $reflectionMethod
+     *
+     * @return array
+     */
+    protected function getMethodClassesToInject(\ReflectionMethod $reflectionMethod) {
+        $parameters = $reflectionMethod->getParameters();
+        $classesToInject = array();
+        foreach ($parameters as $parameter) {
+            if ($parameter->getClass()) {
+                $classesToInject[] = $parameter->getClass()->name;
+            }
+        }
+        return $classesToInject;
+    }
+
+    /**
+     * @param Service $service
+     * @param array   $classesToInject
+     *
+     * @return array
+     * @throws \Exception
+     */
+    protected function invokeObjectsToInject(Service $service, array $classesToInject) {
+        $objectsToInject = array();
+        foreach ($classesToInject as $classToInject) {
+            $objectsToInject[] = $service->get($classToInject);
+        }
+        return $objectsToInject;
+    }
+
+    /**
+     * @param $startMicroTime
+     */
     protected function calculateActionTimeElapsed($startMicroTime) {
-        $this->actionTimeElapsed = round(microtime(true) - $startMicroTime,4);
+        $this->actionElapsedMs = round((microtime(true) - $startMicroTime) * 1000,4);
     }
 
     /**

@@ -10,10 +10,8 @@ namespace Rxn\Service;
 
 use \Rxn\Api\Request;
 use \Rxn\Config;
-use \Rxn\Router\Collector;
 use \Rxn\Api\Controller;
 use \Rxn\Api\Controller\Response;
-use \Rxn\Service\Registry;
 
 class Api
 {
@@ -22,6 +20,11 @@ class Api
      * @var Controller $controller
      */
     public $controller;
+
+    /**
+     * @var Request
+     */
+    public $request;
 
     /**
      * Api constructor.

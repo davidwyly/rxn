@@ -63,8 +63,8 @@ class Request
         $this->actionName = $this->createActionName($collector);
         $this->actionVersion = $this->createActionVersion($collector);
         $this->get = $this->getSanitizedGet($collector,$config);
-        $this->post = $collector->post;
-        $this->header = $collector->header;
+        $this->post = (array)$collector->post;
+        $this->header = (array)$collector->header;
     }
 
     /**

@@ -2,6 +2,9 @@
 
 namespace Vendor\Product\Controller\v1;
 
+use \Rxn\Service;
+use \Rxn\Data\Database;
+use \Rxn\Api\Request;
 use \Rxn\Utility\Debug;
 use \Vendor\Product\Model\Order AS OrderModel;
 
@@ -22,10 +25,19 @@ class Order extends \Rxn\Api\Controller
      * @return array
      * @throws \Exception
      */
-    public function test_v1() {
-        $order = $this->service->get(OrderModel::class);
+    public function test_v1(Service $service) {
+        $order = $service->get(OrderModel::class);
         $response = [
             'order' => $order,
+        ];
+        return $response;
+    }
+
+    public function test_v2(Request $request, Service $service, Database $database) {
+        $order = $service->get(OrderModel::class);
+        $response = [
+            'order' => $order,
+            'request' => (array)$request,
         ];
         return $response;
     }
@@ -36,9 +48,9 @@ class Order extends \Rxn\Api\Controller
      * @return array
      * @throws \Exception
      */
-    public function create_v1() {
-        $order = $this->service->get(OrderModel::class);
-        $id = $order->create($this->request->get);
+    public function create_v1(Service $service, Database $database) {
+        $order = $service->get(OrderModel::class);
+        $id = $order->create($database, $this->request->post);
         return [
             'created_order_id' => $id
         ];

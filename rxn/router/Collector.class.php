@@ -73,7 +73,7 @@ class Collector
                 }
             }
         }
-        return $_POST;
+        return (array)$_POST;
     }
 
     /**
@@ -157,7 +157,7 @@ class Collector
 
             return $this->processParams($config, $params);
         }
-        return $_GET;
+        return (array)$_GET;
     }
 
     /**
@@ -172,7 +172,7 @@ class Collector
                 $headerParams[$lowerKey] = $value;
             }
         }
-        return $headerParams;
+        return (array)$headerParams;
     }
 
     /**

@@ -30,6 +30,7 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
    - [X] using Apache2
    - [X] using NGINX *(currently experimental)*
 - [X] Dependency Injection (DI) service container
+   - [X] Controller method injection
    - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
 - [X] Object Relational Mapping (ORM)
    - [X] RXN-ORM

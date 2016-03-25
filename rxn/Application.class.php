@@ -18,9 +18,12 @@ use \Rxn\Utility\Debug;
  */
 class Application
 {
-    static public $timeStart;
-    static public $config;
-    static public $database;
+    private $timeStart;
+
+    /**
+     * @var Config
+     */
+    public $config;
 
     /**
      * @var Service\Api $api
@@ -73,8 +76,8 @@ class Application
      * @param Config  $config
      * @param Service $service
      */
-    public function __construct(Config $config, Database $database)
-    {
+    public function __construct(Config $config, Database $database) {
+        $timeStart = microtime(true);
         $this->initialize($config, $database, new Service());
         $this->api = $this->service->get(Service\Api::class);
         $this->auth = $this->service->get(Service\Auth::class);
@@ -83,7 +86,7 @@ class Application
         $this->router = $this->service->get(Service\Router::class);
         $this->stats = $this->service->get(Service\Stats::class);
         $this->utility = $this->service->get(Service\Utility::class);
-        $this->finalize($this->registry);
+        $this->finalize($this->registry, $timeStart);
     }
 
     /**
@@ -93,8 +96,8 @@ class Application
      * @return void
      */
     private function initialize(Config $config, Database $database, Service $service) {
-        self::$timeStart = microtime(true);
-        self::$config = $config;
+        $this->timeStart = microtime(true);
+        $this->config = $config;
         $this->service = $service;
         $this->service->addInstance(Database::class,$database);
         $this->service->addInstance(Config::class,$config);
@@ -107,9 +110,8 @@ class Application
      *
      * @return void
      */
-    private function finalize(Service\Registry $registry)
-    {
+    private function finalize(Service\Registry $registry, $timeStart) {
         $registry->sortClasses();
-        $this->stats->stop();
+        $this->stats->stop($timeStart);
     }
 }
