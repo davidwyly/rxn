@@ -33,7 +33,7 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 - [ ] Versioning *(saving you API maintenance hassles down the road)*
    - [X] Versioned Controllers
    - [ ] Versioned Actions
-- [X] Scaffolding *(fast application prototyping)*
+- [ ] Scaffolding *(fast application prototyping)*
    - [ ] Version-less CRUD controllers for each table in the database 
 - [X] URI Routing
    - [X] using Apache2
