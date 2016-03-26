@@ -74,11 +74,23 @@ Including planned features for beta:
 
 ## Hierarchical Namespacing and Autoloading
 
-Rxn uses a namespacing structure completely matches the directory structure, which is then used in its autoloading process.
+Rxn uses a namespacing structure that explicitly matches the directory structure of the class files. While also convenient, it is mainly used to implement some pretty cool autoloading features.
 
-So if you created a class named `\Vendor\Product\Model\MyAwesomeModel`, and put the file in a directory structure that follos the namespace convention (e.g., `{root}/vendor/product/model/MyAwesomeModel.php`), there's no need to put a `require` anywhere. Just invoke and go! 
+Say, for example, that you created a class named `\Vendor\Product\Model\MyAwesomeModel`. Just put the file in a directory structure that follows the namespace convention (e.g., `{root}/vendor/product/model/MyAwesomeModel.php`). When you need to call the class, just invoke the class by calling it directly. There's no need to put a `require` anywhere.
 
-The same for Rxn's native classes: For example, the response class (`\Rxn\Api\Controller\Response`) is found in the `{root}/rxn/api/controller` directory. Autoloading is one of the many ways in which Rxn reduces overhead.
+```php
+<?php
+
+namespace Vendor\Product;
+
+use \Vendor\Product\Model\MyAwesomeModel;
+
+$object = new MyAwesomeModel()
+
+// object gets created!
+```
+
+The same pattern exists for Rxn's native classes. For example, the response class (`\Rxn\Api\Controller\Response`) is found in the `{root}/rxn/api/controller` directory. Autoloading is one of the many ways in which Rxn reduces overhead.
 
 The following file extensions are supported by the autoloading feature (you may also define custom extensions in `\Rxn\Config`):
 
