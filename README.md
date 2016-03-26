@@ -187,7 +187,7 @@ public function doSomething_v1(Registry $registry, Database $database, Map $map)
     //...
 }
 ```
-**AFTER (using the DI service container & using controller method injection):**
+**AFTER (using the DI service container & controller method injection):**
 ```php
 public function doSomething_v1(Service $service) {
     $customer = $service->get(Customer::class);
