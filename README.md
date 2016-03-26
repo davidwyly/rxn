@@ -66,7 +66,7 @@ Rxn lives, breathes, and eats exceptions. Just do this anywhere in your code:
 $widget = "xyz';
 throw new \Exception("Cannot find widget '$widget'",404);
 ```
-...And Rxn will terminate the application, rolling back any in-process database transactions, and then gracefully respond using JSON:
+...And Rxn will terminate the application, rolling back any in-process database transactions, then gracefully responding with JSON:
 
 ```javascript
 {
