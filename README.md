@@ -183,14 +183,14 @@ $map = new Map($registry,$database,$filecache);
 $this->doSomething_v1($registry,$database,$map);
 
 public function doSomething_v1(Registry $registry, Database $database, Map $map) {
-    $order = new Order($registry,$database,$map);
+    $customer = new Customer($registry,$database,$map);
     //...
 }
 ```
 **AFTER (using the DI service container & using controller method injection):**
 ```php
 public function doSomething_v1(Service $service) {
-    $order = $service->get(Order::class);
+    $customer = $service->get(Customer::class);
     //...
 }
 ```
