@@ -69,12 +69,16 @@ So if you created a class named `\Vendor\Product\Model\MyAwesomeModel`, and the 
 The same for Rxn's native classes: For example, the response class (`\Rxn\Api\Controller\Response`) is found in the `{root}/rxn/api/controller` directory. Autoloading is one of the many ways in which Rxn reduces overhead.
 
 ## Error Handling
-Rxn lives, breathes, and eats exceptions. Just do this anywhere in your code:
+Rxn lives, breathes, and eats exceptions. Consider the following code snippet:
 ```php
-$widget = "xyz';
-throw new \Exception("Cannot find widget '$widget'",404);
+\\...
+try {
+    $result = $databse->query($sql,$bindings);
+} catch (/PDOException $e) {
+    throw new \Exception("Something went terribly wrong!",404);
+}
 ```
-...And Rxn will terminate the application, rolling back any in-process database transactions, then gracefully responding with JSON:
+If you throw an `\Exception` anywhere in the application, Rxn will self-terminate, roll back any in-process database transactions, then gracefully responding with JSON:
 
 ```javascript
 {
