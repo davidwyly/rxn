@@ -19,7 +19,8 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 ##### Some of the features that Rxn currently offers in alpha (or aims to offer by beta):
 - [X] Mild learning curve *(you don't have to be a guru to get up and running)*
    - [ ] Installation through Composer
-- [X] Simple workflow with an existing database schema *(just create models and controllers -- that's it!)*
+- [X] Simple workflow with an existing database schema
+   - [ ] Command-line utility to create controllers and models
 - [X] Database abstraction and security
    - [X] PDO
    - [X] Prepared statements
