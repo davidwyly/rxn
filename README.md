@@ -78,7 +78,24 @@ Rxn uses a namespacing structure that explicitly matches the directory structure
 
 Say, for example, that you created a class named `\Vendor\Product\Model\MyAwesomeModel`. Just put the file in a directory structure that follows the namespace convention (e.g., `{root}/vendor/product/model/MyAwesomeModel.php`). When you need to call the class, just invoke the class by calling it directly. There's no need to put a `require` anywhere.
 
+**BEFORE (not using autoloading):**
 ```php
+<?php
+
+require_once('/vendor/product/model/MyAwesomeModel.php');
+
+use \Vendor\Product\Model\MyAwesomeModel;
+
+$object = new MyAwesomeModel()
+// object gets created!
+```
+
+**AFTER (using autoloading):**
+```php
+<?php
+
+use \Vendor\Product\Model\MyAwesomeModel;
+
 $object = new MyAwesomeModel()
 // object gets created!
 ```
