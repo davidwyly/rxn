@@ -27,9 +27,10 @@ Including planned features for beta:
    - [X] PDO for multiple database support
    - [X] Support for multiple database connections
 - [X] Security
-   - [X] Prepared statements *(counters SQL injection)*
-   - [ ] I/O sanitization  *(counters XSS)*
-   - [ ] Session synchronizer tokens *(counters CSRF)* 
+   - [X] Prepared statements *(aids against SQL injection attacks)*
+   - [ ] I/O sanitization  *(aids against XSS attacks)*
+   - [ ] Session synchronizer tokens *(aids against CSRF attacks)* 
+   - [ ] SSL/TLS support *(aids against man-in-the-middle attacks)*
 - [X] Robust error handling *(throw an exception anywhere and Rxn handles the rest)*
 - [X] Fantastic debugging utilities *(including alternative to var_dump/print_r)*
 - [ ] Versioning *(saving you API maintenance hassles down the road)*
