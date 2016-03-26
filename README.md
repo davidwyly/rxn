@@ -93,14 +93,14 @@ throw new \Exception("Cannot find widget '$widget'",404);
 An example API endpoint for your backend might look like this:
 
 ```
-https://yourapp.tld/v2.1/order/someAction
+https://yourapp.tld/v2.1/order/doSomething
 ```
 
 With Rxn:
 
 1. `v2.1` is the `version`
 2. `order` is the `controller`
-3. `someAction` is the controller's `action`.
+3. `doSomething` is the controller's `action`.
 
 Now if you wanted to add a GET key-value pair to the request where `id`=`1234`, in PHP you would normally do this:
 
@@ -125,7 +125,7 @@ namespace Vendor\Product\Controller\v2;
 
 class Order extends \Rxn\Api\Controller
 {
-    public function someAction_v1() {
+    public function doSomething_v1() {
         //...
     }
 }
@@ -142,7 +142,7 @@ require_once('/path/to/Config.php');
 require_once('/path/to/Collector.php');
 require_once('/path/to/Request.php');
 
-public function someAction_v1() {
+public function doSomething_v1() {
     $config = new Config();
     $collector = new Collector($config);
     $request = new Request($collector,$config);
@@ -152,7 +152,7 @@ public function someAction_v1() {
 ```
 **AFTER (automatic instantiation and injection):**
 ```php
-public function someAction_v1(Request $request) {
+public function doSomething_v1(Request $request) {
     $id = $request->collectFromGet('id');
     //...
 }
@@ -172,19 +172,16 @@ $filecache = new Filecache($config);
 $map = new Map($registry,$database,$filecache);
 
 // call the action method
-$this->someAction_v1($registry,$database,$map);
+$this->doSomething_v1($registry,$database,$map);
 
-public function someAction_v1(Registry $registry, Database $database, Map $map) {
+public function doSomething_v1(Registry $registry, Database $database, Map $map) {
     $order = new Order($registry,$database,$map);
     //...
 }
 ```
-**AFTER (using the DI service container):**
+**AFTER (using the DI service container and method injection):**
 ```php
-// call the action method
-$this->someAction_v1($app->service);
-
-public function someAction_v1(Service $service) {
+public function doSomething_v1(Service $service) {
     $order = $service->get(Order::class);
     //...
 }
