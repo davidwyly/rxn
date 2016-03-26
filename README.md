@@ -83,7 +83,15 @@ throw new \Exception("Cannot find widget '$widget'",404);
 ## Versioned Controllers & Actions
 By versioning your endpoint URLs (e.g., `v1.1`, `v2.4`, etc), you can guarantee that you're not going to accidentally break anything on your front-end whenever you add new backend functionality.
 
-So for version `v2.1`, the first number (`2`) is the *controller version*, and the second number (`1`) is the *action version*. The example below is how we would declare controller version `2` with action version `1`:
+An example endpoint might look like this:
+
+```
+http://yourapp.tld/v2.1/order/someAction
+```
+
+The first parameter (`v2.1`) is the `version`, the second parameter (`order`) is the `controller`, and the third parameter (`someAction`) is the controller's `action`.
+
+So for the version `v2.1`, the first number (`2`) is the *controller version*, and the second number (`1`) is the *action version*. The example below is how we would declare controller version `2` with action version `1`:
 
 ```php
 namespace Vendor\Product\Controller\v2;
