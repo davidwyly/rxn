@@ -86,7 +86,7 @@ By versioning your endpoint URLs (e.g., `v1.1`, `v2.4`, etc), you can guarantee 
 So for version `v2.1`, the first number (`2`) is the *controller version*, and the second number (`1`) is the *action version*. The example below is how we would declare controller version `2` with action version `1`:
 
 ```php
-namespace Vendor\Product\Controller\v1;
+namespace Vendor\Product\Controller\v2;
 
 class Order extends \Rxn\Api\Controller
 {
