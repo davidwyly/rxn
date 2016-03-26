@@ -115,7 +115,7 @@ public function someAction_v1() {
     //...
 }
 ```
-**GOOD (automatic instantiation and injection):**
+**AFTER (automatic instantiation and injection):**
 ```php
 public function someAction_v1(Request $request) {
     $id = $request->collectFromGet('id');
