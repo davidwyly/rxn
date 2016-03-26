@@ -50,6 +50,21 @@ class Request
     protected $actionVersion;
 
     /**
+     * @var array
+     */
+    public $get;
+
+    /**
+     * @var array
+     */
+    public $post;
+
+    /**
+     * @var array
+     */
+    public $header;
+
+    /**
      * Request constructor.
      *
      * @param Collector $collector
@@ -62,9 +77,75 @@ class Request
         $this->controllerRef = $this->createControllerRef($config, $this->controllerName,$this->controllerVersion);
         $this->actionName = $this->createActionName($collector);
         $this->actionVersion = $this->createActionVersion($collector);
-        $this->get = $this->getSanitizedGet($collector,$config);
+        $this->get = (array)$this->getSanitizedGet($collector,$config);
         $this->post = (array)$collector->post;
         $this->header = (array)$collector->header;
+    }
+
+    public function collectFromGet($targetKey, $triggerException = true) {
+        foreach ($this->get as $key=>$value) {
+            if ($targetKey == $key) {
+                return $value;
+            }
+        }
+        if ($triggerException) {
+            throw new \Exception("Param '$targetKey' is missing from GET request",400);
+        }
+        return null;
+    }
+
+    public function collectFromPost($targetKey, $triggerException = true) {
+        foreach ($this->get as $key=>$value) {
+            if ($targetKey == $key) {
+                return $value;
+            }
+        }
+        if ($triggerException) {
+            throw new \Exception("Param '$targetKey' is missing from POST request",400);
+        }
+        return null;
+    }
+
+    public function collectFromHeader($targetKey, $triggerException = true) {
+        foreach ($this->get as $key=>$value) {
+            if ($targetKey == $key) {
+                return $value;
+            }
+        }
+        if ($triggerException) {
+            throw new \Exception("Param '$targetKey' is missing from request header",400);
+        }
+        return null;
+    }
+
+    public function collect($targetKey) {
+        $value = $this->collectFromGet($targetKey,false);
+        if (!empty($value)) {
+            return $value;
+        }
+        $value = $this->collectFromPost($targetKey,false);
+        if (!empty($value)) {
+            return $value;
+        }
+        $value = $this->collectFromHeader($targetKey,false);
+        if (!empty($value)) {
+            return $value;
+        }
+        throw new \Exception("Param '$targetKey' is missing from request",400);
+    }
+
+    public function collectAll() {
+        $args = array();
+        foreach ($this->get as $key=>$value) {
+            $args[$key] = $value;
+        }
+        foreach ($this->post as $key=>$value) {
+            $args[$key] = $value;
+        }
+        foreach ($this->header as $key=>$value) {
+            $args[$key] = $value;
+        }
+        return $args;
     }
 
     /**

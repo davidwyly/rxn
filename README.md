@@ -34,13 +34,15 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
    - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
 - [X] Object Relational Mapping (ORM)
    - [X] RXN-ORM
-      - [ ] CRUD operations on any database record or relation table
+      - [X] CRUD operations on any database record or relation table
       - [X] ORM autowiring *(relationships derived from database structure and foreign keys)*
+      - [ ] Soft deletes
    - [ ] Support for third-party ORMs
-- [X] Speed improvements
+- [X] Speed and Performance
+   - [X] Autoloading of only necessary classes *(extremely small footprint)*
    - [X] Caching mechanisms
-       - [X] Query database caching
-       - [X] Object file caching
+       - [X] Native query caching *(with expiration)*
+       - [X] Object file caching *(blazing fast instantiation)*
    - [ ] Compiled extensions
 - [ ] Authentication  
    - [ ] Support for third-party libraries

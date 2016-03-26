@@ -23,10 +23,13 @@ class Auth
     /**
      * Auth constructor.
      *
-     * @param Config $config
+     * @param Config  $config
+     * @param Service $service
+     *
+     * @throws \Exception
      */
     public function __construct(Config $config, Service $service) {
         $this->key = $service->get(Key::class);
-        $this->key->setEncryptionKey($config->applicationKey);
+        //$this->key->setEncryptionKey($config->applicationKey);
     }
 }

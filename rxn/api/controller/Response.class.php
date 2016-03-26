@@ -9,9 +9,8 @@
 
 namespace Rxn\Api\Controller;
 
-use \Rxn\Application;
+use \Rxn\Config;
 use \Rxn\Api\Request;
-use \Rxn\Router\Collector;
 use \Rxn\Utility\Debug;
 
 /**
@@ -22,12 +21,16 @@ use \Rxn\Utility\Debug;
 class Response
 {
     const DEFAULT_SUCCESS_CODE = 200;
-    const LEADER_KEY = '_rxn';
 
     /**
      * @var bool
      */
     protected $rendered = false;
+
+    /**
+     * @var string
+     */
+    private $responseLeaderKey;
 
     /**
      * @var bool
@@ -132,8 +135,9 @@ class Response
      *
      * @param Request $request
      */
-    public function __construct(Request $request) {
+    public function __construct(Request $request, Config $config) {
         $this->request = $request;
+        $this->responseLeaderKey = $config->responseLeaderKey;
     }
 
     /**
@@ -144,7 +148,7 @@ class Response
         $this->code = self::DEFAULT_SUCCESS_CODE;
         $this->result = self::getResponseCodeResult($this->code);
         $this->rendered = true;
-        return [self::LEADER_KEY => $this];
+        return [$this->responseLeaderKey => $this];
     }
 
     /**
@@ -159,7 +163,7 @@ class Response
         $this->message = $e->getMessage();
         $this->trace = self::getErrorTrace($e);
         $this->rendered = true;
-        return [self::LEADER_KEY => $this];
+        return [$this->responseLeaderKey => $this];
     }
 
     /**

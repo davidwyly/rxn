@@ -45,7 +45,8 @@ abstract class Record extends Model
     }
 
     /**
-     * @param array $keyValues
+     * @param Database $database
+     * @param array    $keyValues
      *
      * @return mixed
      * @throws \Exception
@@ -85,11 +86,70 @@ abstract class Record extends Model
         $database->transactionOpen();
         $result = $database->query($createSql,$bindings);
         if (!$result) {
-            throw new \Exception("Failed to create record",500);
+            throw new \Exception("Failed to create record on database '{$database->getName()}'",500);
         }
         $createdId = $database->getLastInsertId();
         $database->transactionClose();
         return $createdId;
+    }
+
+    public function read(Database $database, $id) {
+        $primaryKey = $this->primaryKey;
+        $table = $this->table;
+        $readSql = "SELECT * FROM $table WHERE $primaryKey = :id";
+        $result = $database->fetch($readSql,['id'=>$id]);
+        if (!$result) {
+            throw new \Exception("Failed to find record '$id' on database '{$database->getName()}'",404);
+        }
+        return $result;
+    }
+
+    public function update(Database $database, $id, array $keyValues) {
+        $primaryKey = $this->primaryKey;
+        $table = $this->table;
+
+        $expressions = array();
+        foreach ($keyValues as $key=>$value) {
+            $expressions[] = "$key=:$key";
+        }
+
+        $expressionList = implode(",",$expressions);
+
+        // append primary key onto the key value pairs for manual binding
+        $keyValues = $keyValues + ['id'=>$id];
+
+        // generate SQL
+        $updateSql = "UPDATE $table SET $expressionList WHERE $primaryKey=:id";
+
+        // update record
+        $result = $database->query($updateSql,$keyValues);
+        if (!$result) {
+            throw new \Exception("Failed to update record '$id' on database '{$database->getName()}'",500);
+        }
+        return $id;
+    }
+
+    public function delete(Database $database, $id, $softDelete = false) {
+
+        if ($softDelete) {
+            //TODO
+        }
+
+        $primaryKey = $this->primaryKey;
+        $table = $this->table;
+
+        $deleteSql = "DELETE FROM $table WHERE $primaryKey=:id";
+        $database->transactionOpen();
+        $result = $database->query($deleteSql,['id'=>$id]);
+        if (!$result) {
+            throw new \Exception("Failed to delete record '$id' on database '{$database->getName()}'",500);
+        }
+        $lastAffectedRows = $database->getLastAffectedRows();
+        if (empty($lastAffectedRows)) {
+            throw new \Exception("Failed to find record '$id' on database '{$database->getName()}'",404);
+        }
+        $database->transactionClose();
+        return $id;
     }
 
     /**

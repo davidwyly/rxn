@@ -8,7 +8,6 @@
 
 namespace Rxn\Api;
 
-use \Rxn\Config;
 use \Rxn\Service;
 use \Rxn\Api\Controller\Response;
 use \Rxn\Utility\Debug;
@@ -63,6 +62,8 @@ class Controller
     }
 
     /**
+     * @param Service $service
+     *
      * @return array
      */
     public function trigger(Service $service) {

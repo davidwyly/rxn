@@ -19,9 +19,39 @@ class Order extends \Rxn\Api\Controller
         'billing_address' => 'int(11)',
     ];
 
+    public function create_vx(Request $request, Service $service, Database $database) {
+        $keyValues = $request->collectAll();
+        $order = $service->get(OrderModel::class);
+        $createdId = $order->create($database,$keyValues);
+        return ['created_id' => $createdId];
+    }
+    
+    public function read_vx(Request $request, Service $service, Database $database) {
+        $id = $request->collect('id');
+        $order = $service->get(OrderModel::class);
+        return $order->read($database,$id);
+    }
+
+    public function update_vx(Request $request, Service $service, Database $database) {
+        $id = $request->collect('id');
+        $keyValues = $request->collectAll();
+        unset($keyValues['id']);
+        $order = $service->get(OrderModel::class);
+        $updatedId = $order->update($database,$id,$keyValues);
+        return ['updated_id' => $updatedId];
+    }
+
+    public function delete_vx(Request $request, Service $service, Database $database) {
+        $id = $request->collect('id');
+        $order = $service->get(OrderModel::class);
+        $deletedId = $order->delete($database,$id);
+        return ['deleted_id' => $deletedId];
+    }
+    
     /**
      * Example custom action
      *
+     * @param Service $service
      * @return array
      * @throws \Exception
      */
@@ -33,6 +63,13 @@ class Order extends \Rxn\Api\Controller
         return $response;
     }
 
+    /**
+     * @param Request $request
+     * @param Service $service
+     * @param Database $database
+     * @return array
+     * @throws \Exception
+     */
     public function test_v2(Request $request, Service $service, Database $database) {
         $order = $service->get(OrderModel::class);
         $response = [
@@ -45,6 +82,8 @@ class Order extends \Rxn\Api\Controller
     /**
      * Example action that utilizes the record's CRUD interface
      *
+     * @param Service $service
+     * @param Database $database
      * @return array
      * @throws \Exception
      */

@@ -27,7 +27,7 @@ try {
 } catch (\Exception $e) {
     $responseToRender = getFailureResponse($app, $e);
 }
-render($responseToRender);
+render($responseToRender, $config);
 die();
 
 /**
@@ -73,12 +73,13 @@ function getFailureResponse(Application $app, \Exception $e)
 }
 
 /**
- * @param $responseToRender
+ * @param        $responseToRender
+ * @param Config $config
  */
-function render($responseToRender)
+function render($responseToRender, Config $config)
 {
     // determine response code
-    $responseCode = $responseToRender['_rxn']->code;
+    $responseCode = $responseToRender[$config->responseLeaderKey]->code;
 
     // encode the response to JSON
     $json = json_encode((object)$responseToRender,JSON_PRETTY_PRINT);

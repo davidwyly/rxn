@@ -8,6 +8,10 @@
 
 namespace Rxn\Utility;
 
+/**
+ * Class Mailer
+ * @package Rxn\Utility
+ */
 class Mailer
 {
 

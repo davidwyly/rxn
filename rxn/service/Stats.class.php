@@ -8,8 +8,6 @@
 
 namespace Rxn\Service;
 
-use \Rxn\Application;
-
 /**
  * Class Stats
  *
@@ -35,7 +33,7 @@ class Stats
     }
 
     /**
-     *
+     * @param $timeStart
      */
     public function stop($timeStart) {
         $this->timeStop = microtime(true);

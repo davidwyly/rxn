@@ -88,9 +88,14 @@ class Database {
     private $transactionDepth = 0;
 
     /**
-     * @var
+     * @var int
      */
     private $lastInsertId;
+
+    /**
+     * @var int
+     */
+    private $lastAffectedRows;
 
     /**
      * Database constructor.
@@ -110,7 +115,7 @@ class Database {
      */
     private function setConfiguration(Config $config) {
         $this->setDefaultSettings($config->databaseDefaultSettings);
-        $this->setCacheSettings($config->databaseCacheSettings);
+        //$this->setCacheSettings($config->databaseCacheSettings);
         $this->allowCaching = $config->allowCaching;
     }
 
@@ -154,6 +159,10 @@ class Database {
      */
     public function getLastInsertId() {
         return $this->lastInsertId;
+    }
+
+    public function getLastAffectedRows() {
+        return $this->lastAffectedRows;
     }
 
     /**
@@ -496,6 +505,7 @@ class Database {
         // set the static 'lastInsertId' property
         $connection = $this->connection; /** @var $connection \PDO */
         $this->lastInsertId = $connection->lastInsertId();
+        $this->lastAffectedRows = $executedStatement->rowCount();
 
         // validate the response
         if (!$executedStatement) {

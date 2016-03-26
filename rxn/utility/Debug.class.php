@@ -57,11 +57,12 @@ class Debug {
         echo ($render);
         return true;
     }
-
+    
     /**
      * @param $var
      *
      * @return mixed
+     * @throws \Exception
      */
     static protected function lookupVarInfo($var)
     {
@@ -102,11 +103,12 @@ class Debug {
         }
         return $renderKeyArray;
     }
-
+    
     /**
      * @param $varMapType
      *
-     * @return array|bool
+     * @return array
+     * @throws \Exception
      */
     static protected function buildRenderInfo($varMapType)
     {
@@ -133,8 +135,9 @@ class Debug {
      * @param $value
      *
      * @return bool|string
+     * @throws \Exception
      */
-    static public function buildRenderValue($key,$value)
+    static public function buildRenderValue($key, $value)
     {
         $valueRenderInfo = self::buildRenderInfo($value['__type']);
         if (!$valueRenderInfo) {
@@ -194,6 +197,7 @@ class Debug {
      * @param array $varMap
      *
      * @return bool|string
+     * @throws \Exception
      */
     static protected function buildRender(array $varMap)
     {
@@ -224,7 +228,6 @@ class Debug {
         // figure out the varMap type (especially if an object)
         $renderInfo = self::buildRenderInfo($varMap["__type"]);
         $varMapType = $renderInfo['varMapType'];
-        $varMapName = $renderInfo['varMapName'];
 
         // initialize render string
         $html = '';
@@ -420,7 +423,8 @@ class Debug {
     /**
      * @param $object
      *
-     * @return array|bool
+     * @return array
+     * @throws \Exception
      */
     static private function inspectObject($object)
     {

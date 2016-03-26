@@ -19,6 +19,9 @@ use \Rxn\Utility\Debug;
 class Utility
 {
 
+    /**
+     * Utility constructor.
+     */
     public function __construct() {
 
     }

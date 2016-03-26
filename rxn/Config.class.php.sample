@@ -8,6 +8,10 @@
 
 namespace Rxn;
 
+/**
+ * Class Config
+ * @package Rxn
+ */
 class Config
 {
 
@@ -56,6 +60,13 @@ class Config
      * @var string
      */
     public $relativeRoot = "/../";
+
+    /**
+     * Defines the API response key that has request and response meta data
+     *
+     * @var string
+     */
+    public $responseLeaderKey = '_rxn';
 
     /**
      * Defines your default database settings

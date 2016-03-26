@@ -127,45 +127,45 @@ class Table
      */
     protected function getTableDetails(Database $database, $tableName) {
         $databaseName = $database->getName();
-        $SQL = "
-				SELECT DISTINCT
-					c.column_name,
-					-- c.table_catalog,
-					c.table_schema,
-					c.table_name,
-					-- c.ordinal_position,
-					c.column_default,
-					c.is_nullable,
-					-- c.data_type,
-					c.character_maximum_length,
-					-- c.character_octet_length,
-					-- c.numeric_precision,
-					-- c.numeric_scale,
-					-- c.datetime_precision,
-					-- c.character_set_name,
-					-- c.collation_name,
-					c.column_type,
-					c.column_key,
-					c.extra,
-					-- c.privileges,
-					c.column_comment,
-					-- kcu.constraint_catalog,
-					kcu.constraint_schema,
-					kcu.constraint_name,
-					-- kcu.position_in_unique_constraint,
-					kcu.referenced_table_schema,
-					kcu.referenced_table_name,
-					kcu.referenced_column_name
-				FROM information_schema.columns as c
-				LEFT JOIN information_schema.key_column_usage AS kcu
-					ON kcu.column_name = c.column_name
-						AND kcu.referenced_table_schema LIKE :databaseName
-						AND kcu.referenced_table_name IS NOT NULL
-				WHERE c.table_schema LIKE :databaseName
-					AND c.table_name LIKE :tableName
-				GROUP BY c.column_name
-				ORDER BY c.ordinal_position ASC
-			";
+        $SQL = /** @lang MySQL */ "
+            SELECT DISTINCT
+                c.column_name,
+                -- c.table_catalog,
+                c.table_schema,
+                c.table_name,
+                -- c.ordinal_position,
+                c.column_default,
+                c.is_nullable,
+                -- c.data_type,
+                c.character_maximum_length,
+                -- c.character_octet_length,
+                -- c.numeric_precision,
+                -- c.numeric_scale,
+                -- c.datetime_precision,
+                -- c.character_set_name,
+                -- c.collation_name,
+                c.column_type,
+                c.column_key,
+                c.extra,
+                -- c.privileges,
+                c.column_comment,
+                -- kcu.constraint_catalog,
+                kcu.constraint_schema,
+                kcu.constraint_name,
+                -- kcu.position_in_unique_constraint,
+                kcu.referenced_table_schema,
+                kcu.referenced_table_name,
+                kcu.referenced_column_name
+            FROM information_schema.columns as c
+            LEFT JOIN information_schema.key_column_usage AS kcu
+                ON kcu.column_name = c.column_name
+                    AND kcu.referenced_table_schema LIKE :databaseName
+                    AND kcu.referenced_table_name IS NOT NULL
+            WHERE c.table_schema LIKE :databaseName
+                AND c.table_name LIKE :tableName
+            GROUP BY c.column_name
+            ORDER BY c.ordinal_position ASC
+        ";
         $bindings = [
             'databaseName'=>$databaseName,
             'tableName'=>$tableName
@@ -186,7 +186,7 @@ class Table
         if (in_array($tableName,$registry->tables[$databaseName])) {
             return true;
         }
-        $SQL = "
+        $SQL = /** @lang MySQL */ "
 			SELECT
 				table_name
 			FROM information_schema.tables AS t
@@ -208,31 +208,31 @@ class Table
      */
     private function getTableInfo(Database $database, $tableName) {
         $databaseName = $database->getName();
-        $SQL = "
-				SELECT
-					t.table_catalog,
-					t.table_schema,
-					t.table_name,
-					t.engine,
-					t.version,
-					t.table_rows,
-					-- t.avg_row_length,
-					-- t.data_length,
-					-- t.max_data_length,
-					-- t.index_length,
-					-- t.data_free,
-					t.auto_increment,
-					t.create_time,
-					t.update_time,
-					t.check_time,
-					t.table_collation,
-					-- t.checksum,
-					-- t.create_options,
-					t.table_comment
-				FROM information_schema.tables AS t
-				WHERE t.table_schema LIKE ?
-					AND t.table_name LIKE ?
-			";
+        $SQL = /** @lang MySQL */ "
+            SELECT
+                t.table_catalog,
+                t.table_schema,
+                t.table_name,
+                t.engine,
+                t.version,
+                t.table_rows,
+                -- t.avg_row_length,
+                -- t.data_length,
+                -- t.max_data_length,
+                -- t.index_length,
+                -- t.data_free,
+                t.auto_increment,
+                t.create_time,
+                t.update_time,
+                t.check_time,
+                t.table_collation,
+                -- t.checksum,
+                -- t.create_options,
+                t.table_comment
+            FROM information_schema.tables AS t
+            WHERE t.table_schema LIKE ?
+                AND t.table_name LIKE ?
+        ";
         $result = $database->fetch($SQL,[$databaseName, $tableName],true,1);
         return $result;
     }
@@ -245,13 +245,13 @@ class Table
      */
     private function getPrimaryKeys(Database $database, $tableName) {
         $databaseName = $database->getName();
-        $SQL = "
-				SELECT COLUMN_NAME
-				FROM information_schema.key_column_usage AS kcu
-				WHERE kcu.table_schema LIKE ?
-					AND kcu.table_name LIKE ?
-					AND kcu.constraint_name LIKE 'PRIMARY'
-			";
+        $SQL = /** @lang MySQL */ "
+            SELECT COLUMN_NAME
+            FROM information_schema.key_column_usage AS kcu
+            WHERE kcu.table_schema LIKE ?
+                AND kcu.table_name LIKE ?
+                AND kcu.constraint_name LIKE 'PRIMARY'
+        ";
         $result =  $database->fetchArray($SQL,[$databaseName, $tableName],true,1);
         return $result;
     }
