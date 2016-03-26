@@ -106,18 +106,6 @@ class Registry
     }
 
     /**
-     * @param $controllerName
-     * @param $controllerVersion
-     *
-     * @return null
-     */
-    public function registerController($controllerName, $controllerVersion) {
-        $controllerRef = Controller::getRef($controllerName, $controllerVersion);
-        $this->controllers[$controllerVersion][$controllerName] = $controllerRef;
-        return null;
-    }
-
-    /**
      *
      */
     public function sortClasses() {
@@ -170,17 +158,19 @@ class Registry
     }
 
     /**
+     * @param Database $database
+     *
      * @return bool
      */
     private function fetchTables(Database $database) {
         $databaseName = $database->getName();
-        $sql = "
-			SELECT
-				`TABLE_NAME`
-			FROM information_schema.tables AS t
-			WHERE t.table_schema LIKE ?
-				AND t.table_type = 'BASE TABLE'
-			";
+        $sql = /** @lang SQL **/ "
+            SELECT
+                `TABLE_NAME`
+            FROM information_schema.tables AS t
+            WHERE t.table_schema LIKE ?
+                AND t.table_type = 'BASE TABLE'
+            ";
 
         $tables = $database->fetchArray($sql,[$databaseName],true,1);
         if (!$tables) {
@@ -192,31 +182,44 @@ class Registry
     }
 
     /**
-     *
+     * @param Config $config
      */
     private function registerAutoload(Config $config)
     {
         spl_autoload_register(function($className) use ($config) {
             $this->load($config, $className);
         });
-        //spl_autoload_register(array($this, 'load'));
     }
 
     /**
-     * @param string $classReference
+     * @param Config $config
+     * @param        $classReference
      * @param string $extension
-     * @return void
+     *
+     * @return bool
+     * @throws \Exception
      */
-    private function load(Config $config, $classReference, $extension = '.class.php')
+    private function load(Config $config, $classReference)
     {
-        // determine the file path of the class reference
-        $classPath = $this->getClassPathByClassReference($config, $classReference, $extension);
+        foreach ($config->autoloadExtensions as $extension) {
+            try {
+                $classPath = $this->getClassPathByClassReference($config, $classReference, $extension);
+            } catch (\Exception $e) {
+                continue;
+            }
+        }
+
+        if (!isset($classPath)) {
+            return false;
+        }
 
         // load the class
         include($classPath);
 
         // register the class
         $this->registerClass($classReference);
+
+        return true;
     }
 
     /**

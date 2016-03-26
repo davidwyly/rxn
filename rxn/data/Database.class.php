@@ -115,8 +115,7 @@ class Database {
      */
     private function setConfiguration(Config $config) {
         $this->setDefaultSettings($config->databaseDefaultSettings);
-        //$this->setCacheSettings($config->databaseCacheSettings);
-        $this->allowCaching = $config->allowCaching;
+        $this->allowCaching = $config->useQuerycaching;
     }
 
     /**

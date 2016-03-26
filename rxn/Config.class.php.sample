@@ -93,11 +93,39 @@ class Config
     ];
 
     /**
-     * enable or disable caching
+     * enable or disable file caching of objects
      *
      * @var bool
      */
-    public $allowCaching = false;
+    public $useFilecaching = false;
+
+    /**
+     * enable or disable query caching of queries
+     *
+     * @var bool
+     */
+    public $useQuerycaching = false;
+
+    /**
+     * Extensions that work with the autoloader
+     *
+     * @var array
+     */
+    public $autoloadExtensions = [
+        '.php',
+        '.class.php',
+        '.controller.php',
+        '.model.php',
+        '.record.php',
+        '.interface.php'
+    ];
+
+    /**
+     * enable or disable IO sanitization to help stop XSS attacks
+     *
+     * @var bool
+     */
+    public $useInputOutputSanitization = true;
 
     /**
      * Use a valid \DateTime timezone
