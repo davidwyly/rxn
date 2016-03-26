@@ -1,12 +1,12 @@
-# Reaction (RXN)
+![alt tag](http://i.imgur.com/nu63B1J.png?1)
 
 ####A fast, lightweight PHP API framework that responds to API requests with JSON, ensuring that your backend is completely separated from your front-end
 
-##### Please note: RXN is currently under active development and is still considered *early* alpha
+##### Please note: Rxn is currently under active development and is still considered *early* alpha
 
-Reaction, or RXN for short, is a framework designed to cut out the complexity and clutter of PHP-generated views -- offloading views to whatever frontend that suits your fancy.
+Rxn (pronounced 'reaction') is a framework designed to cut out the complexity and clutter of PHP-generated views -- offloading views to whatever frontend that suits your fancy.
 
-The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
+The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 
 1. The **backend** should *only* be accessible via API
 2. The **backend** should *only* render responses as JSON
@@ -17,7 +17,7 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
   *  Both the **backend** and **frontend** *have less entangling complexity*, providing a simple and clean workflow
   *  Either the **backend** or **frontend** *can be swapped out entirely* with a completely different solution, giving you greater flexibility further down the road
 
-##### Some of the features that RXN currently offers in alpha (or aims to offer by beta):
+##### Some of the features that Rxn currently offers in alpha (or aims to offer by beta):
 - [X] Simple workflow with an existing database schema *(just create models and controllers -- that's it!)*
 - [X] Database abstraction and security
    - [X] PDO
@@ -33,7 +33,7 @@ The philosophy behind RXN is simple: **strict backend / frontend decoupling**.
    - [X] Controller method injection
    - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
 - [X] Object Relational Mapping (ORM)
-   - [X] RXN-ORM
+   - [X] Rxn-ORM
       - [X] CRUD operations on any database record or relation table
       - [X] ORM autowiring *(relationships derived from database structure and foreign keys)*
       - [ ] Soft deletes
