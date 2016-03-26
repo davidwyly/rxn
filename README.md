@@ -21,10 +21,13 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
    - [ ] Installation through Composer
 - [X] Simple workflow with an existing database schema
    - [ ] Command-line utility to create controllers and models
-- [X] Database abstraction and security
-   - [X] PDO
-   - [X] Prepared statements
+- [X] Database abstraction
+   - [X] PDO for multiple database support
    - [X] Support for multiple database connections
+- [X] Security
+   - [X] Prepared statements *(counters SQL injection)*
+   - [ ] I/O sanitization  *(counters XSS)*
+   - [ ] Session synchronizer tokens *(counters CSRF)* 
 - [X] Robust error handling *(throw an exception anywhere and Rxn handles the rest)*
 - [X] Fantastic debugging utilities *(inlcuding a powerful and simple alternative to var_dump and print_r)*
 - [X] Support for versioned controllers and versioned actions *(saving you API maintenance hassles down the road)*
