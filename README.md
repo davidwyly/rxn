@@ -89,6 +89,7 @@ https://yourapp.tld/v2.1/order/someAction
 ```
 
 With Rxn:
+
 1. `v2.1` is the `version`
 2. `order` is the `controller`
 3. `someAction` is the controller's `action`.
