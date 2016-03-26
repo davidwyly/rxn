@@ -64,7 +64,9 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 
 Rxn uses a namespacing structure completely matches the directory structure, which is then used in its autoloading process.
 
-So if you created a class named `\Vendor\Product\Model\MyAwesomeModel`, and the directory structure is `{root}/vendor/product/model/MyAwesomeModel.class.php`, there's no need to put a `require` anywhere. Just invoke and go! This is one of the many ways in which Rxn reduces overhead.
+So if you created a class named `\Vendor\Product\Model\MyAwesomeModel`, and the directory structure is `{root}/vendor/product/model/MyAwesomeModel.class.php`, there's no need to put a `require` anywhere. Just invoke and go! 
+
+The same for Rxn's native classes: For example, the response class (`\Rxn\Api\Controller\Response`) is found in the `{root}/rxn/api/controller` directory. Autoloading is one of the many ways in which Rxn reduces overhead.
 
 ## Error Handling
 Rxn lives, breathes, and eats exceptions. Just do this anywhere in your code:
