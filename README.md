@@ -114,6 +114,7 @@ In Rxn, you can simplify this by putting the key and value in the URL using the 
 ```
 https://yourapp.tld/v2.1/order/someAction/id/1234
 ```
+An *odd* number of parameters after the `version`, `controller`, and `action` would result in an error.
 
 ## Versioned Controllers & Actions
 By versioning your endpoint URLs (e.g., `v1.1`, `v2.4`, etc), you can guarantee that you're not going to accidentally break anything on your front-end whenever you add new backend functionality. It also helps keep your documentation from being incorrect or out of date, as frontend developers can just build to the documentation and everything will just work.
