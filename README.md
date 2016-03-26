@@ -88,7 +88,10 @@ An example API endpoint for your backend might look like this:
 https://yourapp.tld/v2.1/order/someAction
 ```
 
-So with Rxn, the first parameter (`v2.1`) is the `version`, the second parameter (`order`) is the `controller`, and the third parameter (`someAction`) is the controller's `action`.
+With Rxn:
+1. `v2.1` is the `version`
+2. `order` is the `controller`
+3. `someAction` is the controller's `action`.
 
 Now if you wanted to add a GET key-value pair to the request where `id`=`1234`, in PHP you would normally do this:
 
