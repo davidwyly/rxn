@@ -60,6 +60,12 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 - [ ] Scheduler
 - [ ] Optional, modular plug-ins for loose coupling and greater flexibility
 
+## Hierarchical Namespacing and Autoloading
+
+Rxn uses a namespacing structure completely matches the directory structure, which is then used in its autoloading process.
+
+So if you created a class named `\Vendor\Product\Model\MyAwesomeModel`, and the directory structure is `{root}/vendor/product/model/MyAwesomeModel.class.php`, there's no need to put a `require` anywhere. Just invoke and go! This is one of the many ways in which Rxn reduces overhead.
+
 ## Error Handling
 Rxn lives, breathes, and eats exceptions. Just do this anywhere in your code:
 ```php
