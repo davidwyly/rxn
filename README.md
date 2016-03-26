@@ -147,9 +147,12 @@ require_once('/path/to/Collector.php');
 require_once('/path/to/Request.php');
 
 public function doSomething_v1() {
+    // instantiate the dependencies
     $config = new Config();
     $collector = new Collector($config);
     $request = new Request($collector,$config);
+    
+    // grab the id from the request
     $id = $request->collectFromGet('id');
     //...
 }
@@ -157,6 +160,7 @@ public function doSomething_v1() {
 **AFTER (automatic instantiation and injection):**
 ```php
 public function doSomething_v1(Request $request) {
+    // grab the id from the request
     $id = $request->collectFromGet('id');
     //...
 }
