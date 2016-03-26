@@ -74,7 +74,7 @@ Rxn lives, breathes, and eats exceptions. Consider the following code snippet:
 try {
     $result = $databse->query($sql,$bindings);
 } catch (/PDOException $e) {
-    throw new \Exception("Something went terribly wrong!",404);
+    throw new \Exception("Something went terribly wrong!",422);
 }
 ```
 If you throw an `\Exception` anywhere in the application, Rxn will self-terminate, roll back any in-process database transactions, then gracefully responding with JSON:
@@ -83,9 +83,9 @@ If you throw an `\Exception` anywhere in the application, Rxn will self-terminat
 {
     "_rxn": {
         "success": false,
-        "code": 404,
-        "result": "Not Found",
-        "message": "Cannot find widget 'xyz'",
+        "code": 422,
+        "result": "Unprocessable Entity",
+        "message": "Something went terribly wrong!",
         //...
     }
 }
