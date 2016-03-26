@@ -63,7 +63,8 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 ## Error Handling
 Rxn lives, breathes, and eats exceptions. Just do this anywhere in your code:
 ```php
-throw new \Exception('Cannot find widget',404);
+$widget = "xyz';
+throw new \Exception("Cannot find widget '$widget'",404);
 ```
 ...And Rxn will terminate the application, rolling back any in-process database transactions, and then gracefully respond using JSON:
 
@@ -73,7 +74,7 @@ throw new \Exception('Cannot find widget',404);
         "success": false,
         "code": 404,
         "result": "Not Found",
-        "message": "Cannot find widget",
+        "message": "Cannot find widget 'xyz'",
         //...
     }
 }
