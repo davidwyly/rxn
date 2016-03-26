@@ -93,17 +93,17 @@ If you throw an `\Exception` anywhere in the application, Rxn will self-terminat
 
 ## Routing Request Parameters
 
-An example API endpoint for your backend might look like this:
+An example API endpoint for your backend with Rxn might look like this:
 
 ```
 https://yourapp.tld/v2.1/order/doSomething
 ```
 
-With Rxn:
+Where:
 
 1. `v2.1` is the `version`
-2. `order` is the `controller`
-3. `doSomething` is the controller's `action`.
+2. `order` is the `controller` *(version `2`)*
+3. `doSomething` is the controller's `action` *(version `1`)*
 
 Now if you wanted to add a GET key-value pair to the request where `id`=`1234`, in PHP you would normally do this:
 
