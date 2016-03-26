@@ -91,11 +91,13 @@ https://yourapp.tld/v2.1/order/someAction
 So with Rxn, the first parameter (`v2.1`) is the `version`, the second parameter (`order`) is the `controller`, and the third parameter (`someAction`) is the controller's `action`.
 
 Now if you wanted to add a GET key-value pair to the request where `id`=`1234`, in PHP you would normally do this:
+
 **BEFORE:**
 ```
 https://yourapp.tld/v2.1/order/someAction?id=123
 ````
-In Rxn, you can simplify this by putting the key and value in the URL using the forward slash (`/`) as the separator.
+In Rxn, you can simplify this by putting the key and value in the URL using the forward slash (`/`) as the separator, like so:
+
 **AFTER:**
 ```
 https://yourapp.tld/v2.1/order/someAction/id/1234
