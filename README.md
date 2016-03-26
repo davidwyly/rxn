@@ -1,5 +1,5 @@
 ![alt tag](http://i.imgur.com/nu63B1J.png?1)
-####A fast, lightweight PHP API framework that responds to API requests with JSON, ensuring that your backend is completely separated from your front-end
+####A fast, lightweight PHP API framework that responds to API requests with JSON, ensuring that your backend is completely separated from your frontend
 
 ##### Please note: Rxn is currently under active development and is still considered *early* alpha
 
