@@ -1,5 +1,4 @@
 ![alt tag](http://i.imgur.com/nu63B1J.png?1)
-
 ####A fast, lightweight PHP API framework that responds to API requests with JSON, ensuring that your backend is completely separated from your front-end
 
 ##### Please note: Rxn is currently under active development and is still considered *early* alpha
@@ -60,3 +59,98 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 - [ ] Mailer
 - [ ] Scheduler
 - [ ] Optional, modular plug-ins for loose coupling and greater flexibility
+
+## Error Handling
+Rxn lives, breathes, and eats exceptions. Just do this anywhere in your code:
+```php
+throw new \Exception('Cannot find widget',404);
+```
+...And Rxn will terminate the application, rolling back any in-process database transactions, and then gracefully respond using JSON:
+
+```javascript
+{
+    "_rxn": {
+        "success": false,
+        "code": 404,
+        "result": "Not Found",
+        "message": "Cannot find widget",
+        //...
+    }
+}
+```
+
+## Versioned Controllers & Actions
+By using a versioning system for your endpoint URLs (e.g., `v1.1`, `v2.4`, etc), you can guarantee that you're not going to accidentally break anything on your front-end whenever you add new functionality.
+
+So for version `v2.1`, the first number (`2`) is the *controller version*, and the second number (`1`) is the *action version*. The example below is how we would declare controller version `2` with action version `1`:
+
+```php
+namespace Vendor\Product\Controller\v1;
+
+class Order extends \Rxn\Api\Controller
+{
+    public function someAction_v1() {
+        //...
+    }
+}
+```
+ This allows for maintainable, true-to-reality documentation that both frontend and backend developers can get behind.
+
+## Controller Method Injection
+Just typehint the class you need as a parameter, and *poof*, the DI service container will guess all of the dependencies for you and automatically load and inject them. No messy requires. *You don't have to inject the dependencies manually!*
+
+**BEFORE (manual instantiation):**
+```php
+// require the dependencies
+require_once('/path/to/Config.php');
+require_once('/path/to/Collector.php');
+require_once('/path/to/Request.php');
+
+public function someAction_v1() {
+    $config = new Config();
+    $collector = new Collector($config);
+    $request = new Request($collector,$config);
+    $id = $request->collectFromGet('id');
+    //...
+}
+```
+**GOOD (automatic instantiation and injection):**
+```php
+public function someAction_v1(Request $request) {
+    $id = $request->collectFromGet('id');
+    //...
+}
+```
+See the difference?
+
+## Dependency Injection (DI) Service Container
+While most people practice some for of DI, manually instantiating classes with a lot of dependencies can be a pretty big hassle. The follow examples should help demonstrate the benefit of automatic dependency injection via service containers.
+
+**BEFORE (manual DI):**
+```php
+// instantiate the dependencies
+$config = new Config();
+$database = new Database($config);
+$registry = new Registry($config,$database);
+$filecache = new Filecache($config);
+$map = new Map($registry,$database,$filecache);
+
+// call the action method
+$this->someAction_v1($registry,$database,$map);
+
+public function someAction_v1(Registry $registry, Database $database, Map $map) {
+    $order = new Order($registry,$database,$map);
+    //...
+}
+```
+**AFTER (using the DI service container):**
+```php
+// call the action method
+$this->someAction_v1($app->service);
+
+public function someAction_v1(Service $service) {
+    $order = $service->get(Order::class);
+    //...
+}
+```
+Hopefully you can see the benefits. With Rxn, there's no need to instantiate the prerequisites every time! Use the service container to make your life easier.
