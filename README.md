@@ -191,7 +191,7 @@ public function doSomething_v1(Registry $registry, Database $database, Map $map)
 **AFTER (using the DI service container):**
 ```php
 // call the action method
-$this->doSomething_v1($service);
+$this->doSomething_v1($app->service);
 
 public function doSomething_v1(Service $service) {
     $customer = $service->get(Customer::class);
