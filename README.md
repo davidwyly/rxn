@@ -18,11 +18,12 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 
 ##### Some of the features that Rxn currently offers in alpha (or aims to offer by beta):
 - [X] Simple workflow with an existing database schema *(just create models and controllers -- that's it!)*
+- [X] Mild learning curve *(you don't have to be a guru to get up and running)*
 - [X] Database abstraction and security
    - [X] PDO
    - [X] Prepared statements
    - [X] Support for multiple database connections
-- [X] Robust error handling *(throw an exception anywhere and RXN handles the rest)*
+- [X] Robust error handling *(throw an exception anywhere and Rxn handles the rest)*
 - [X] Fantastic debugging utilities *(inlcuding a powerful and simple alternative to var_dump and print_r)*
 - [X] Support for versioned controllers and versioned actions *(saving you API maintenance hassles down the road)*
 - [X] URI Routing
