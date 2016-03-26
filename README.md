@@ -101,9 +101,9 @@ https://yourapp.tld/v2.1/order/doSomething
 
 Where:
 
-1. `v2.1` is the `version`
-2. `order` is the `controller` *(version `2`)*
-3. `doSomething` is the controller's `action` *(version `1`)*
+1. `v2.1` is the endpoint `version`
+2. `order` is the `controller`
+3. `doSomething` is the controller's `action`
 
 Now if you wanted to add a GET key-value pair to the request where `id`=`1234`, in PHP you would normally do this:
 
