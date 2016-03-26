@@ -168,7 +168,7 @@ public function doSomething_v1(Request $request) {
 See the difference?
 
 ## Dependency Injection (DI) Service Container
-While most people practice some for of DI, manually instantiating and injecting classes with a lot of dependencies can be a pretty big hassle. The follow examples should help demonstrate the benefit of automatic dependency injection via service containers (and how this plays nicely with the aforementioned controller method injection).
+While most people practice some form of dependency injection without even thinking about it, the fact is, manually instantiating and injecting classes with a lot of dependencies can be a pretty big hassle. The follow examples should help demonstrate the benefit of automatic dependency injection via service containers (and how this plays nicely with the aforementioned controller method injection).
 
 **BEFORE (manual DI):**
 ```php
