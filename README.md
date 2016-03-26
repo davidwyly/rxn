@@ -108,7 +108,7 @@ https://yourapp.tld/v2.1/order/someAction/id/1234
 ```
 
 ## Versioned Controllers & Actions
-By versioning your endpoint URLs (e.g., `v1.1`, `v2.4`, etc), you can guarantee that you're not going to accidentally break anything on your front-end whenever you add new backend functionality.
+By versioning your endpoint URLs (e.g., `v1.1`, `v2.4`, etc), you can guarantee that you're not going to accidentally break anything on your front-end whenever you add new backend functionality. It also helps keep your documentation from being incorrect or out of date, as frontend developers can just build to the documentation and everything will just work.
 
 So for an endpoint with version `v2.1`, the first number (`2`) is the *controller version*, and the second number (`1`) is the *action version*. The example below is how we would declare controller version `2` with action version `1`:
 
