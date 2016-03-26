@@ -45,7 +45,7 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
    - [X] Caching mechanisms
        - [X] Native query caching *(with expiration)*
        - [X] Object file caching *(blazing fast instantiation)*
-   - [ ] Compiled extensions
+   - [ ] Compiled PHP extensions written in C
 - [ ] Authentication  
    - [ ] Support for third-party libraries
      - [ ] OAUTH2
