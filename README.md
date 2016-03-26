@@ -80,7 +80,7 @@ So if you created a class named `\Vendor\Product\Model\MyAwesomeModel`, and put 
 
 The same for Rxn's native classes: For example, the response class (`\Rxn\Api\Controller\Response`) is found in the `{root}/rxn/api/controller` directory. Autoloading is one of the many ways in which Rxn reduces overhead.
 
-The follow file extensions are supported by the autoloading feature (if you're into that sort of thing):
+The follow file extensions are supported by the autoloading feature (you can also define them in `\Rxn\Confg`):
 
 * .php
 * .class.php
