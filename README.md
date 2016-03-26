@@ -29,8 +29,12 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
    - [ ] I/O sanitization  *(counters XSS)*
    - [ ] Session synchronizer tokens *(counters CSRF)* 
 - [X] Robust error handling *(throw an exception anywhere and Rxn handles the rest)*
-- [X] Fantastic debugging utilities *(inlcuding a powerful and simple alternative to var_dump and print_r)*
-- [X] Support for versioned controllers and versioned actions *(saving you API maintenance hassles down the road)*
+- [X] Fantastic debugging utilities *(including alternative to var_dump/print_r)*
+- [ ] Versioning *(saving you API maintenance hassles down the road)*
+   - [X] Versioned Controllers
+   - [ ] Versioned Actions
+- [X] Scaffolding *(fast application prototyping)*
+   - [ ] Version-less CRUD controllers for each table in the database 
 - [X] URI Routing
    - [X] using Apache2
    - [X] using NGINX *(currently experimental)*
@@ -40,15 +44,15 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 - [X] Object Relational Mapping (ORM)
    - [X] Rxn-ORM
       - [X] CRUD operations on any database record or relation table
-      - [X] ORM autowiring *(relationships derived from database structure and foreign keys)*
+      - [X] ORM autowiring *(relationships automatically derived from database structure and foreign keys)*
       - [ ] Soft deletes
    - [ ] Support for third-party ORMs
 - [X] Speed and Performance
-   - [X] Autoloading of only necessary classes *(extremely small footprint)*
+   - [X] Autoloading of only necessary classes *(small footprint)*
    - [X] Caching mechanisms
        - [X] Native query caching *(with expiration)*
        - [X] Object file caching *(blazing fast instantiation)*
-   - [ ] Compiled PHP extensions written in C
+   - [ ] Compiled PHP extensions written in C *(similar to Phalcon)*
 - [ ] Authentication  
    - [ ] Support for third-party libraries
      - [ ] OAUTH2
