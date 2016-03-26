@@ -71,7 +71,6 @@ The same for Rxn's native classes: For example, the response class (`\Rxn\Api\Co
 ## Error Handling
 Rxn lives, breathes, and eats exceptions. Consider the following code snippet:
 ```php
-\\...
 try {
     $result = $databse->query($sql,$bindings);
 } catch (/PDOException $e) {
