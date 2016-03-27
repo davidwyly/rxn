@@ -36,8 +36,8 @@ Including planned features for beta:
 - [ ] Versioning *(saving you API maintenance hassles down the road)*
    - [X] Versioned Controllers
    - [ ] Versioned Actions
-- [ ] Scaffolding *(fast application prototyping)*
-   - [ ] Version-less CRUD controllers for each table in the database 
+- [X] Scaffolding *(fast application prototyping)*
+   - [X] Version-less CRUD endpoints
 - [X] URI Routing
    - [X] using Apache2
    - [X] using NGINX *(currently experimental)*

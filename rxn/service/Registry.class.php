@@ -86,7 +86,9 @@ class Registry
      */
     public function registerClass($classReference) {
         if (!class_exists($classReference)) {
-            throw new \Exception("Class '$classReference' has not been instantiated");
+            if (!interface_exists($classReference)) {
+                throw new \Exception("Class or interface '$classReference' has not been instantiated");
+            }
         }
         $classReflection = new \ReflectionClass($classReference);
         $classPath = $classReflection->getFileName();
@@ -194,7 +196,6 @@ class Registry
     /**
      * @param Config $config
      * @param        $classReference
-     * @param string $extension
      *
      * @return bool
      * @throws \Exception
@@ -223,8 +224,10 @@ class Registry
     }
 
     /**
+     * @param Config $config
      * @param string $classReference
      * @param string $extension
+     *
      * @return string
      * @throws \Exception
      */

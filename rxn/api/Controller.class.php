@@ -43,7 +43,6 @@ class Controller
      * @var Response
      */
     public $response;
-    static public $endpointParameters;
 
     /**
      * Controller constructor.

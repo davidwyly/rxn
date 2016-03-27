@@ -6,7 +6,6 @@
  * @author David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
-
 namespace Rxn\Api\Controller;
 
 use \Rxn\Config;
