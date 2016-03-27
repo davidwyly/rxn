@@ -18,8 +18,6 @@ use \Rxn\Utility\Debug;
  */
 class Application
 {
-    private $timeStart;
-
     /**
      * @var Config
      */
@@ -70,11 +68,12 @@ class Application
      */
     public $service;
 
+
     /**
      * Application constructor.
      *
-     * @param Config  $config
-     * @param Service $service
+     * @param Config   $config
+     * @param Database $database
      */
     public function __construct(Config $config, Database $database) {
         $timeStart = microtime(true);
@@ -90,13 +89,14 @@ class Application
     }
 
     /**
-     * @param Config $config
+     * @param Config   $config
+     *
+     * @param Database $database
+     * @param Service  $service
      *
      * @throws \Exception
-     * @return void
      */
     private function initialize(Config $config, Database $database, Service $service) {
-        $this->timeStart = microtime(true);
         $this->config = $config;
         $this->service = $service;
         $this->service->addInstance(Database::class,$database);
@@ -108,7 +108,7 @@ class Application
     /**
      * @param Service\Registry $registry
      *
-     * @return void
+     * @param                  $timeStart
      */
     private function finalize(Service\Registry $registry, $timeStart) {
         $registry->sortClasses();
