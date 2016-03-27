@@ -181,6 +181,20 @@ class Order extends \Rxn\Api\Controller
 ```
  This allows for maintainable, true-to-reality documentation that both frontend and backend developers can get behind.
 
+## Scaffolding
+
+Want to experiment and explore with your newfangled backend architecture? No problem, as long as you have a database schema, you have a suite of scaffolding APIs to you with! Scaffolding endpoints are accessed using URIs that are similar to the following (note the `.x` version):
+```
+https://yourapp.tld/v1.x/order/create
+https://yourapp.tld/v1.x/order/read/{id}
+https://yourapp.tld/v1.x/order/update/{id}
+https://yourapp.tld/v1.x/order/delete/{id}
+https://yourapp.tld/v1.x/order/search
+```
+Scaffolding APIs are version-less APIs, and are designed to allow frontend developers full access to the backend in the form of Create, Read, Update, and Delete (CRUD) operations and searches. Their main benefit is that you don't have to spend a ton of time manually crafting CRUD endpoints during the early phases of application development. (As it is these early phases of development when requirements are changing, and things are constantly in flux.)
+
+**Warning:** Because Scaffolding APIs are version-less, they inheret all the problems associated with version-less APIs. As soon as the backend is altered, these APIs are altered as well; this can potentially break an application in unexpected or hidden ways. For this reason, Scaffolding APIs should eventually be transitioned over to versioned APIs as the development process nears completion.
+
 ## Controller Method Injection
 Just typehint the class you need as a parameter, and *poof*, the DI service container will guess all of the dependencies for you and automatically load and inject them. No messy requires. *You don't have to inject the dependencies manually!*
 
@@ -244,17 +258,3 @@ public function doSomething_v1(Service $service) {
 }
 ```
 Hopefully you can see the benefits. With Rxn, there's no need to instantiate the prerequisites every time! Use the service container to make your life easier.
-
-## Scaffolding
-
-Want to experiment and explore with your newfangled backend architecture? No problem, as long as you have a database schema, you have a suite of scaffolding APIs to you with! Scaffolding endpoints are accessed using URIs that are similar to the following (note the `.x` version):
-```
-https://yourapp.tld/v1.x/order/create
-https://yourapp.tld/v1.x/order/read/{id}
-https://yourapp.tld/v1.x/order/update/{id}
-https://yourapp.tld/v1.x/order/delete/{id}
-https://yourapp.tld/v1.x/order/search
-```
-Scaffolding APIs are version-less APIs, and are designed to allow frontend developers full access to the backend in the form of Create, Read, Update, and Delete (CRUD) operations and searches. Their main benefit is that you don't have to spend a ton of time manually crafting CRUD endpoints during the early phases of application development. (As it is these early phases of development when requirements are changing, and things are constantly in flux.)
-
-**Warning:** Because Scaffolding APIs are version-less, they inheret all the problems associated with version-less APIs. As soon as the backend is altered, these APIs are altered as well; this can potentially break an application in unexpected or hidden ways. For this reason, Scaffolding APIs should eventually be transitioned over to versioned APIs as the development process nears completion.
