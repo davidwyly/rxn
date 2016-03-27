@@ -244,3 +244,16 @@ public function doSomething_v1(Service $service) {
 }
 ```
 Hopefully you can see the benefits. With Rxn, there's no need to instantiate the prerequisites every time! Use the service container to make your life easier.
+
+## Scaffolding
+
+Scaffolding endpoints are accessed using URIs that are similar to the following (note the `.x` version):
+```
+https://yourapp.tld/v1.x/order/create
+https://yourapp.tld/v1.x/order/read/{id}
+https://yourapp.tld/v1.x/order/update/{id}
+https://yourapp.tld/v1.x/order/delete/{id}
+```
+Scaffolding APIs are version-less APIs designed to allow frontend developers full access to the backend in the form of Create, Read, Update, and Delete (CRUD) operations. Their main benefit is that you don't have to spend a ton of time manually craft CRUD endpoits during the early phases of application development (as it is these early phases when requirements are changing and things are constantly in flux).
+
+**Warning:* Because Scaffolding APIs are version-less, they inheret all the problems associated with version-less APIs. As soon as the backend is altered, the APIs are altered as well; this can potentially break the frontend portion of the application. For this reason, Scaffolding APIs should eventually be transitioned over to versioned APIs as the application nears completion.
