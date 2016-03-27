@@ -195,39 +195,8 @@ Scaffolding APIs are version-less APIs, and are designed to allow frontend devel
 
 **Warning:** Because Scaffolding APIs are version-less, they inheret all the problems associated with version-less APIs. As soon as the backend is altered, these APIs are altered as well; this can potentially break an application in unexpected or hidden ways. For this reason, Scaffolding APIs should eventually be transitioned over to versioned APIs as the development process nears completion.
 
-## Controller Method Injection
-Just typehint the class you need as a parameter, and *poof*, the DI service container will guess all of the dependencies for you and automatically load and inject them. No messy requires. *You don't have to inject the dependencies manually!*
-
-**BEFORE (manual instantiation):**
-```php
-// require the dependencies
-require_once('/path/to/Config.php');
-require_once('/path/to/Collector.php');
-require_once('/path/to/Request.php');
-
-public function doSomething_v1() {
-    // instantiate the dependencies
-    $config = new Config();
-    $collector = new Collector($config);
-    $request = new Request($collector,$config);
-    
-    // grab the id from the request
-    $id = $request->collectFromGet('id');
-    //...
-}
-```
-**AFTER (automatic instantiation and injection):**
-```php
-public function doSomething_v1(Request $request) {
-    // grab the id from the request
-    $id = $request->collectFromGet('id');
-    //...
-}
-```
-See the difference?
-
 ## Dependency Injection (DI) Service Container
-While most people practice some form of dependency injection without even thinking about it, the fact is, manually instantiating and injecting classes with a lot of dependencies can be a pretty big hassle. The follow examples should help demonstrate the benefit of automatic dependency injection via service containers.
+While most people practice some form of dependency injection without even thinking about it, the fact is, manually instantiating and injecting classes with a lot of dependencies can be a pretty big hassle. The following examples should help demonstrate the benefit of automatic dependency injection via the service container.
 
 **BEFORE (manual DI):**
 ```php
@@ -258,3 +227,34 @@ public function doSomething_v1(Service $service) {
 }
 ```
 Hopefully you can see the benefits. With Rxn, there's no need to instantiate the prerequisites every time! Use the service container to make your life easier.
+
+## Controller Method Injection
+Just typehint the class you need as a parameter, and *poof*, the DI service container will guess all of the dependencies for you and automatically load and inject them. No messy requires. *You don't have to inject the dependencies manually!*
+
+**BEFORE (manual instantiation):**
+```php
+// require the dependencies
+require_once('/path/to/Config.php');
+require_once('/path/to/Collector.php');
+require_once('/path/to/Request.php');
+
+public function doSomething_v1() {
+    // instantiate the dependencies
+    $config = new Config();
+    $collector = new Collector($config);
+    $request = new Request($collector,$config);
+    
+    // grab the id from the request
+    $id = $request->collectFromGet('id');
+    //...
+}
+```
+**AFTER (automatic instantiation and injection):**
+```php
+public function doSomething_v1(Request $request) {
+    // grab the id from the request
+    $id = $request->collectFromGet('id');
+    //...
+}
+```
+See the difference?
