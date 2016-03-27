@@ -183,7 +183,7 @@ class Order extends \Rxn\Api\Controller
 
 ## Scaffolding
 
-Want to experiment and explore with your newfangled backend architecture? No problem, as long as you have a database schema, you have a suite of scaffolding APIs to you with! Scaffolding endpoints are accessed using URIs that are similar to the following (note the `.x` version):
+Want to experiment and explore with your newfangled backend architecture? No problem, as long as you have a database schema, you have a suite of scaffolding APIs toy with! Scaffolding endpoints are accessed using URIs that are similar to the following (note the `.x` version):
 ```
 https://yourapp.tld/v1.x/order/create
 https://yourapp.tld/v1.x/order/read/{id}
