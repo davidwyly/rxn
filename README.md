@@ -19,7 +19,7 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 ## Features In Alpha
 
 Including planned features for beta:
-- [X] Mild learning curve *(you don't have to be a guru to get up and running)*
+- [X] Gentle learning curve *(you don't have to be a guru to get up and running)*
    - [ ] Installation through Composer
 - [X] Simple workflow with an existing database schema
    - [ ] Command-line utility to create controllers and models
@@ -33,11 +33,11 @@ Including planned features for beta:
    - [ ] SSL/TLS support *(aids against man-in-the-middle attacks)*
 - [X] Robust error handling *(throw an exception anywhere and Rxn handles the rest)*
 - [X] Fantastic debugging utilities *(including alternative to var_dump/print_r)*
-- [ ] Versioning *(saving you API maintenance hassles down the road)*
+- [X] Versioning *(saving you API maintenance hassles down the road)*
    - [X] Versioned Controllers
-   - [ ] Versioned Actions
+   - [X] Versioned Actions
 - [X] Scaffolding *(fast application prototyping)*
-   - [X] Version-less CRUD endpoints
+   - [X] Version-less CRUD endpoints that reflect current backend records
 - [X] URI Routing
    - [X] using Apache2
    - [X] using NGINX *(currently experimental)*
