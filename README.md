@@ -22,7 +22,8 @@ Including planned features for beta:
 - [X] Gentle learning curve *(you don't have to be a guru to get up and running)*
    - [ ] Installation through Composer
 - [X] Simple workflow with an existing database schema
-   - [ ] Command-line utility to create controllers and models
+   - [ ] Code generation
+      - [ ] Command Line Interface (CLI) utility to create controllers and models
 - [X] Database abstraction
    - [X] PDO for multiple database support
    - [X] Support for multiple database connections
