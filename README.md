@@ -253,7 +253,8 @@ https://yourapp.tld/v1.x/order/create
 https://yourapp.tld/v1.x/order/read/{id}
 https://yourapp.tld/v1.x/order/update/{id}
 https://yourapp.tld/v1.x/order/delete/{id}
+https://yourapp.tld/v1.x/order/search
 ```
-Scaffolding APIs are version-less APIs, and are designed to allow frontend developers full access to the backend in the form of Create, Read, Update, and Delete (CRUD) operations. Their main benefit is that you don't have to spend a ton of time manually crafting CRUD endpoints during the early phases of application development. (As it is these early phases of development when requirements are changing, and things are constantly in flux.)
+Scaffolding APIs are version-less APIs, and are designed to allow frontend developers full access to the backend in the form of Create, Read, Update, and Delete (CRUD) operations and searches. Their main benefit is that you don't have to spend a ton of time manually crafting CRUD endpoints during the early phases of application development. (As it is these early phases of development when requirements are changing, and things are constantly in flux.)
 
-**Warning:** Because Scaffolding APIs are version-less, they inheret all the problems associated with version-less APIs. As soon as the backend is altered, these APIs are altered as well; this can potentially break the application in unexpected or hidden ways. For this reason, Scaffolding APIs should eventually be transitioned over to versioned APIs as the development process nears completion. This will save you from many a maintenance nightmare!
+**Warning:** Because Scaffolding APIs are version-less, they inheret all the problems associated with version-less APIs. As soon as the backend is altered, these APIs are altered as well; this can potentially break an application in unexpected or hidden ways. For this reason, Scaffolding APIs should eventually be transitioned over to versioned APIs as the development process nears completion.
