@@ -109,7 +109,6 @@ The following file extensions are supported by the autoloading feature (you may 
 * .class.php
 * .interface.php
 * .model.php
-* .record.php
 * .controller.php
 
 
