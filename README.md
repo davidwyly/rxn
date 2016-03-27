@@ -154,7 +154,7 @@ Now if you wanted to add a GET key-value pair to the request where `id`=`1234`, 
 
 **BEFORE:**
 ```
-https://yourapp.tld/v2.1/order/someAction?id=123
+https://yourapp.tld/v2.1/order/someAction?id=1234
 ````
 In Rxn, you can simplify this by putting the key and value in the URL using the forward slash (`/`) as the separator, like so:
 
