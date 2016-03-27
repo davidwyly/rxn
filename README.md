@@ -19,10 +19,11 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 ## Features In Alpha
 
 Including planned features for beta:
-- [X] Mild learning curve *(you don't have to be a guru to get up and running)*
+- [X] Gentle learning curve *(you don't have to be a guru to get up and running)*
    - [ ] Installation through Composer
 - [X] Simple workflow with an existing database schema
-   - [ ] Command-line utility to create controllers and models
+   - [ ] Code generation
+      - [ ] Command Line Interface (CLI) utility to create controllers and models
 - [X] Database abstraction
    - [X] PDO for multiple database support
    - [X] Support for multiple database connections
@@ -33,11 +34,11 @@ Including planned features for beta:
    - [ ] SSL/TLS support *(aids against man-in-the-middle attacks)*
 - [X] Robust error handling *(throw an exception anywhere and Rxn handles the rest)*
 - [X] Fantastic debugging utilities *(including alternative to var_dump/print_r)*
-- [ ] Versioning *(saving you API maintenance hassles down the road)*
+- [X] Versioning *(saving you API maintenance hassles down the road)*
    - [X] Versioned Controllers
-   - [ ] Versioned Actions
+   - [X] Versioned Actions
 - [X] Scaffolding *(fast application prototyping)*
-   - [X] Version-less CRUD endpoints
+   - [X] Version-less CRUD endpoints that reflect current backend records
 - [X] URI Routing
    - [X] using Apache2
    - [X] using NGINX *(currently experimental)*
@@ -109,7 +110,6 @@ The following file extensions are supported by the autoloading feature (you may 
 * .class.php
 * .interface.php
 * .model.php
-* .record.php
 * .controller.php
 
 
@@ -180,6 +180,20 @@ class Order extends \Rxn\Api\Controller
 }
 ```
  This allows for maintainable, true-to-reality documentation that both frontend and backend developers can get behind.
+
+## Scaffolding
+
+Want to experiment and explore with your newfangled backend architecture? No problem, as long as you have a database schema, you have a suite of scaffolding APIs toy with! Scaffolding endpoints are accessed using URIs that are similar to the following (note the `.x` version):
+```
+https://yourapp.tld/v1.x/order/create
+https://yourapp.tld/v1.x/order/read/{id}
+https://yourapp.tld/v1.x/order/update/{id}
+https://yourapp.tld/v1.x/order/delete/{id}
+https://yourapp.tld/v1.x/order/search
+```
+Scaffolding APIs are version-less APIs, and are designed to allow frontend developers full access to the backend in the form of Create, Read, Update, and Delete (CRUD) operations and searches. Their main benefit is that you don't have to spend a ton of time manually crafting CRUD endpoints during the early phases of application development. (As it is these early phases of development when requirements are changing, and things are constantly in flux.)
+
+**Warning:** Because Scaffolding APIs are version-less, they inheret all the problems associated with version-less APIs. As soon as the backend is altered, these APIs are altered as well; this can potentially break an application in unexpected or hidden ways. For this reason, Scaffolding APIs should eventually be transitioned over to versioned APIs as the development process nears completion.
 
 ## Controller Method Injection
 Just typehint the class you need as a parameter, and *poof*, the DI service container will guess all of the dependencies for you and automatically load and inject them. No messy requires. *You don't have to inject the dependencies manually!*
