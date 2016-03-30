@@ -122,7 +122,7 @@ try {
     throw new \Exception("Something went terribly wrong!",422);
 }
 ```
-If you throw an `\Exception` anywhere in the application, Rxn will self-terminate, roll back any in-process database transactions, and then gracefully responding with JSON:
+If you throw an `\Exception` anywhere in the application, Rxn will self-terminate, roll back any in-process database transactions, and then gracefully respond using JSON:
 
 ```javascript
 {
