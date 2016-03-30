@@ -7,7 +7,7 @@ use \Rxn\Data\Database;
 use \Rxn\Api\Request;
 use \Rxn\Api\CrudController;
 use \Rxn\Utility\Debug;
-use \Vendor\Product\Model\Order AS OrderRecord;
+use \Vendor\Product\Model\Order as OrderRecord;
 
 /**
  * Example Order controller
@@ -54,12 +54,15 @@ class Order extends CrudController
     /**
      * Example action that utilizes the record's CRUD interface
      *
-     * @param Service $service
+     * @param Request  $request
+     * @param Service  $service
      * @param Database $database
+     *
      * @return array
      * @throws \Exception
      */
-    public function create_v1(Service $service, Database $database) {
+    public function create_v1(Request $request, Service $service, Database $database) {
+        $response = $this->create_vx($request,$service,$database);
         $order = $service->get(OrderRecord::class);
         $id = $order->create($database, $this->request->post);
         return [
