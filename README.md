@@ -186,9 +186,9 @@ class Order extends \Rxn\Api\Controller
 Want to experiment and explore with your newfangled backend architecture? No problem, as long as you have a database schema, you have a suite of scaffolding APIs toy with! Scaffolding endpoints are accessed using URIs that are similar to the following (note the `.x` version):
 ```
 https://yourapp.tld/v1.x/order/create
-https://yourapp.tld/v1.x/order/read/{id}
-https://yourapp.tld/v1.x/order/update/{id}
-https://yourapp.tld/v1.x/order/delete/{id}
+https://yourapp.tld/v1.x/order/read/id/{id}
+https://yourapp.tld/v1.x/order/update/id/{id}
+https://yourapp.tld/v1.x/order/delete/id/{id}
 https://yourapp.tld/v1.x/order/search
 ```
 Scaffolding APIs are version-less APIs, and are designed to allow frontend developers full access to the backend in the form of Create, Read, Update, and Delete (CRUD) operations and searches. Their main benefit is that you don't have to spend a ton of time manually crafting CRUD endpoints during the early phases of application development. (As it is these early phases of development when requirements are changing, and things are constantly in flux.)
