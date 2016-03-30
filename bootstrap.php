@@ -24,14 +24,37 @@ require_once("$root/$appRoot/Application.class.php");
 
 function validateEnvironment($root,$appRoot) {
     if (empty(ini_get('display_errors'))) {
-        exit(json_encode("RXN requires PHP ini setting 'display_errors = On'"));
+        renderEnvironmentError("RXN requires PHP ini setting 'display_errors = On'");
     }
 
     if (!in_array('mod_rewrite',apache_get_modules())) {
-        exit(json_encode("RXN requires Apache module 'mod_rewrite' to be enabled"));
+        renderEnvironmentError("RXN requires Apache module 'mod_rewrite' to be enabled");
     }
 
     if (!file_exists("$root/$appRoot/Config.class.php")) {
-        exit(json_encode("RXN config file is missing; ensure that one was created from 'rxn/Config.php.sample'"));
+        renderEnvironmentError("RXN config file is missing; ensure that one was created from the sample file");
     }
+
+    if (!file_exists("$root/$appRoot/data/filecache")) {
+        renderEnvironmentError("RXN requires for folder '$root/$appRoot/data/filecache' to exist");
+    }
+
+    if (!is_writable("$root/$appRoot/data/filecache")) {
+        renderEnvironmentError("RXN requires for folder '$root/$appRoot/data/filecache' to be writable");
+    }
+}
+
+function renderEnvironmentError($errorMessage) {
+    $response = [
+        '_rxn' => [
+            'success' => false,
+            'code' => 500,
+            'result' => 'Internal Server Error',
+            'message' => $errorMessage,
+        ],
+    ];
+    http_response_code(500);
+    header('content-type: application/json');
+    echo json_encode($response,JSON_PRETTY_PRINT);
+    die();
 }
