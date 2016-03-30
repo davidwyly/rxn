@@ -76,12 +76,16 @@ class Request
      * @param Config    $config
      */
     public function __construct(Collector $collector, Config $config) {
+
+        // exceptions that appear here may need special handling
         try {
             $this->validateRequiredParams($collector,$config);
         } catch (\Exception $e) {
             $this->validated = false;
             $this->exception = $e;
         }
+
+        // assign from collector
         $this->controllerName = $this->createControllerName($collector);
         $this->controllerVersion = $this->createControllerVersion($collector);
         $this->controllerRef = $this->createControllerRef($config, $this->controllerName,$this->controllerVersion);
@@ -184,8 +188,10 @@ class Request
 
     /**
      * @param Collector $collector
-     * @param Config $config
+     * @param Config    $config
+     *
      * @return bool
+     * @throws \Exception
      */
     private function validateRequiredParams(Collector $collector, Config $config) {
         foreach ($config->endpointParameters as $parameter) {
