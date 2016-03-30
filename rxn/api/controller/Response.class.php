@@ -27,6 +27,11 @@ class Response
     protected $rendered = false;
 
     /**
+     * @var array
+     */
+    protected $failureResponse;
+
+    /**
      * @var string
      */
     private $responseLeaderKey;
@@ -133,10 +138,15 @@ class Response
      * Response constructor.
      *
      * @param Request $request
+     * @param Config  $config
      */
     public function __construct(Request $request, Config $config) {
-        $this->request = $request;
         $this->responseLeaderKey = $config->responseLeaderKey;
+        $this->request = $request;
+        if (!$this->request->isValidated()) {
+            $e = $this->request->getException();
+            $this->failureResponse = $this->getFailure($e);
+        }
     }
 
     /**
@@ -163,6 +173,20 @@ class Response
         $this->trace = self::getErrorTrace($e);
         $this->rendered = true;
         return [$this->responseLeaderKey => $this];
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getFailureResponse() {
+        return $this->failureResponse;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isRendered() {
+        return $this->rendered;
     }
 
     /**

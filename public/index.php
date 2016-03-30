@@ -66,8 +66,12 @@ function getFailureResponse(Application $app, \Exception $e)
     $response = $app->service->get(Response::class);
     
     // build a response
-    $responseToRender = $response->getFailure($e);
-
+    if (!$response->isRendered()) {
+        $responseToRender = $response->getFailure($e);
+    } else {
+        $responseToRender = $response->getFailureResponse();
+    }
+    
     // return response
     return $responseToRender;
 }

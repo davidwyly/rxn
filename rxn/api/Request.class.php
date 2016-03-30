@@ -19,7 +19,15 @@ use \Rxn\Utility\Debug;
  */
 class Request
 {
-    protected $validated = false;
+    /**
+     * @var bool
+     */
+    protected $validated = true;
+
+    /**
+     * @var \Exception
+     */
+    protected $exception;
 
     /**
      * @var null|string
@@ -68,7 +76,12 @@ class Request
      * @param Config    $config
      */
     public function __construct(Collector $collector, Config $config) {
-        $this->validateRequiredParams($collector,$config);
+        try {
+            $this->validateRequiredParams($collector,$config);
+        } catch (\Exception $e) {
+            $this->validated = false;
+            $this->exception = $e;
+        }
         $this->controllerName = $this->createControllerName($collector);
         $this->controllerVersion = $this->createControllerVersion($collector);
         $this->controllerRef = $this->createControllerRef($config, $this->controllerName,$this->controllerVersion);
@@ -77,6 +90,14 @@ class Request
         $this->get = (array)$this->getSanitizedGet($collector,$config);
         $this->post = (array)$collector->post;
         $this->header = (array)$collector->header;
+    }
+
+    public function isValidated() {
+        return $this->validated;
+    }
+
+    public function getException() {
+        return $this->exception;
     }
 
     public function collectFromGet($targetKey, $triggerException = true) {
@@ -169,7 +190,7 @@ class Request
     private function validateRequiredParams(Collector $collector, Config $config) {
         foreach ($config->endpointParameters as $parameter) {
             if (!isset($collector->get[$parameter])) {
-                return false;
+                throw new \Exception("Required parameter $parameter is missing from request",400);
             }
         }
         $this->validated = true;
