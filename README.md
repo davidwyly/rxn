@@ -33,6 +33,7 @@ Including planned features for beta:
    - [ ] Session synchronizer tokens *(aids against CSRF attacks)* 
    - [ ] SSL/TLS support *(aids against man-in-the-middle attacks)*
 - [X] Robust error handling *(throw an exception anywhere and Rxn handles the rest)*
+   - [ ] Optional error logging 
 - [X] Fantastic debugging utilities *(including alternative to var_dump/print_r)*
 - [X] Versioning *(saving you API maintenance hassles down the road)*
    - [X] Versioned Controllers
@@ -73,6 +74,10 @@ Including planned features for beta:
 - [ ] Mailer
 - [ ] Scheduler
 - [ ] Optional, modular plug-ins for loose coupling and greater flexibility
+
+## License
+
+Rxn is released under the permissive and free [MIT](http://flightphp.com/license) license.
 
 ## Hierarchical Namespacing and Autoloading
 
