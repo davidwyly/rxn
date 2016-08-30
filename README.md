@@ -153,7 +153,7 @@ Where:
 
 1. `v2.1` is the endpoint `version`
 2. `order` is the `controller`
-3. `doSomething` is the controller's `action`
+3. `doSomething` is the controller's `action` (a public method)
 
 Now if you wanted to add a GET key-value pair to the request where `id`=`1234`, in PHP you would normally do this:
 
@@ -188,7 +188,7 @@ class Order extends \Rxn\Api\Controller
 
 ## Scaffolding
 
-Want to experiment and explore with your newfangled backend architecture? No problem, as long as you have a database schema, you have a suite of scaffolding APIs toy with! Scaffolding endpoints are accessed using URIs that are similar to the following (note the `.x` version):
+Want to experiment and explore with your newfangled backend architecture? No problem, as long as you have a database schema, you have a suite of scaffolding APIs to toy with! Scaffolding endpoints are accessed using URIs that are similar to the following (note the `.x` version):
 ```
 https://yourapp.tld/v1.x/order/create
 https://yourapp.tld/v1.x/order/read/id/{id}
