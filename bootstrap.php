@@ -27,8 +27,10 @@ function validateEnvironment($root,$appRoot) {
         renderEnvironmentError("RXN requires PHP ini setting 'display_errors = On'");
     }
 
-    if (!in_array('mod_rewrite',apache_get_modules())) {
-        renderEnvironmentError("RXN requires Apache module 'mod_rewrite' to be enabled");
+    if (function_exists('apache_get_modules')) {
+        if (!in_array('mod_rewrite',apache_get_modules())) {
+            renderEnvironmentError("RXN requires Apache module 'mod_rewrite' to be enabled");
+        }
     }
 
     if (!file_exists("$root/$appRoot/Config.class.php")) {
