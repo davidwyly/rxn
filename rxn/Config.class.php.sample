@@ -12,9 +12,8 @@ namespace Rxn;
  * Class Config
  * @package Rxn
  */
-class Config
+class Config extends BaseConfig
 {
-
     /**
      * Defines the root application folder
      * Note: Changing this has not been thoroughly tested!
@@ -133,15 +132,4 @@ class Config
      * @var string
      */
     public $timezone = 'America/Denver';
-
-    /**
-     * Do not edit; this is set by the constructor
-     *
-     * @var string
-     */
-    public $root;
-
-    public function __construct() {
-        $this->root = realpath(__DIR__ . $this->relativeRoot);
-    }
 }
