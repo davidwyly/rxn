@@ -24,8 +24,9 @@ abstract class Record extends Model
     protected $_columns;
     protected $_requiredColumns;
 
-    public $table;
-    public $primaryKey;
+    protected $table;
+    private $primaryKey;
+    private $autoIncrement;
 
     /**
      * Record constructor.
@@ -35,13 +36,20 @@ abstract class Record extends Model
      * @param Map      $map
      */
     public function __construct(Registry $registry, Database $database, Map $map) {
-        $tableName = $this->table;
-        $this->validateTableName($database,$registry,$tableName);
-        $table = $this->getTable($map,$tableName);
+        $this->validateTableProperty($this->table);
+        $this->validateTableName($database,$registry,$this->table);
+        $table = $this->getTable($map,$this->table);
         $primaryKey = $this->getPrimaryKey($table);
         $this->setPrimaryKey($primaryKey);
         $this->setColumns($table);
         $this->setRequiredColumns($table);
+    }
+
+
+    private function validateTableProperty($table) {
+        if (empty($table)) {
+            throw new \Exception("Required property 'table' for '" . __CLASS__ . "' is not defined",500);
+        }
     }
 
     /**
@@ -57,10 +65,12 @@ abstract class Record extends Model
         // disallow explicit specification of the primary key
         $primaryKey = $this->primaryKey;
         if (isset($keyValues[$primaryKey])) {
-            unset($keyValues[$primaryKey]);
+            throw new \Exception("'$primaryKey' is not allowed in the create request; it is a primary key that will be auto-generated'",400);
         }
+
+        // disallow empty records
         if (empty($keyValues)) {
-            throw new \Exception("Cannot create an empty record",500);
+            throw new \Exception("Cannot create an empty record",400);
         }
 
         // create the key and value arrays for future SQL generation
@@ -77,12 +87,12 @@ abstract class Record extends Model
         foreach ($bindings as $key=>$value) {
             $placeholders[] = ":$key";
         }
-        $values = implode(",",$placeholders);
+        $placeholderValues = implode(",",$placeholders);
 
         $table = $this->table;
 
         // generate the SQL statement
-        $createSql = "INSERT INTO $table ($columns) VALUES ($values)";
+        $createSql = "INSERT INTO $table ($columns) VALUES ($placeholderValues)";
         $database->transactionOpen();
         $result = $database->query($createSql,$bindings);
         if (!$result) {

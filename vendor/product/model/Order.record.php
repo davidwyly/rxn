@@ -18,5 +18,5 @@ class Order extends Record
      *
      * @var string
      */
-    public $table = 'orders';
+    protected $table = 'orders';
 }

@@ -155,7 +155,18 @@ class Collector
             // split the param string into an array
             $params = explode('/',$params);
 
-            return $this->processParams($config, $params);
+            // determine the version, controller, and action from the parameters
+            $processedParams =  $this->processParams($config, $params);
+
+            // tack on the other GET params
+            $otherParams = $_GET;
+            unset($otherParams['params']);
+            foreach ($otherParams as $key=>$value) {
+                $processedParams[$key] = $value;
+            }
+
+            return $processedParams;
+
         }
         return (array)$_GET;
     }

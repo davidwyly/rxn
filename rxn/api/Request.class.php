@@ -57,6 +57,11 @@ class Request
     /**
      * @var array
      */
+    public $url;
+
+    /**
+     * @var array
+     */
     public $get;
 
     /**
@@ -91,6 +96,7 @@ class Request
         $this->controllerRef = $this->createControllerRef($config, $this->controllerName,$this->controllerVersion);
         $this->actionName = $this->createActionName($collector);
         $this->actionVersion = $this->createActionVersion($collector);
+        $this->url = (array)$this->getSanitizedUrl($collector,$config);
         $this->get = (array)$this->getSanitizedGet($collector,$config);
         $this->post = (array)$collector->post;
         $this->header = (array)$collector->header;
@@ -168,6 +174,22 @@ class Request
             $args[$key] = $value;
         }
         return $args;
+    }
+
+    /**
+     * @param Collector $collector
+     * @param Config    $config
+     *
+     * @return array|null
+     */
+    private function getSanitizedUrl(Collector $collector, Config $config) {
+        $getParameters = $collector->get;
+        foreach ($getParameters as $getParameterKey=>$getParameterValue) {
+            if (!in_array($getParameterKey,$config->endpointParameters)) {
+                unset($getParameters[$getParameterKey]);
+            }
+        }
+        return $getParameters;
     }
 
     /**
