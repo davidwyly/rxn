@@ -235,13 +235,22 @@ abstract class Record extends Model
      */
     protected function validateTableName(Database $database,Registry $registry, $tableName) {
         $databaseName = $database->getName();
+
+        // validate that tables exist for the database
+        if (!isset($registry->tables[$databaseName])
+            || empty($registry->tables[$databaseName])) {
+                throw new \Exception("No tables found in database '$databaseName'");
+        }
+
+        // validate that the relevant table exists in the database
         $relevantTables = $registry->tables[$databaseName];
         if (in_array($tableName,$relevantTables)) {
             return true;
+        } else {
+            $reflection = new \ReflectionObject($this);
+            $recordName = $reflection->getName();
+            throw new \Exception("Record '$recordName' references table '$tableName' which doesn't exist",500);
         }
-        $reflection = new \ReflectionObject($this);
-        $recordName = $reflection->getName();
-        throw new \Exception("Record '$recordName' references table '$tableName' which doesn't exist",500);
     }
 
     /**

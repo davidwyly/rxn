@@ -57,7 +57,7 @@ class Map
     private function generateTableMaps(Registry $registry, Database $database, Filecache $filecache) {
         $databaseName = $database->getName();
         if (!isset($registry->tables[$databaseName])) {
-            throw new \Exception();
+            return false;
         }
         foreach ($registry->tables[$databaseName] as $tableName) {
             $isCached = $filecache->isClassCached(Map\Table::class,[$databaseName,$tableName]);
@@ -97,7 +97,7 @@ class Map
      */
     private function validateRegistry(Registry $registry) {
         if (empty($registry->tables)) {
-            throw new \Exception("Cannot find any registered database tables");
+            //throw new \Exception("Cannot find any registered database tables");
         }
     }
 
