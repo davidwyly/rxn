@@ -26,7 +26,7 @@ class Service
      * Service constructor.
      */
     public function __construct() {
-
+        //nothing is intentionally here
     }
 
     /**
@@ -36,15 +36,37 @@ class Service
      * @throws \Exception
      */
     public function get($className) {
+        // validate that the class name actually exists
         if (!class_exists($className)) {
             throw new \Exception("$className is not a valid class name",500);
         }
+
+        // in the event that we're looking up the service class itself, return the service class
         if ($className == Service::class) {
             return $this;
         }
+
+        // if the service has already stored an instance of the class, return it
         if (self::has($className)) {
             return $this->instances[$className];
         }
+
+        // generate an instance of the class
+        $instance = $this->generateInstance($className);
+
+        // add the instance into memory
+        $this->addInstance($className,$instance);
+
+        // return the class instance
+        return $instance;
+    }
+
+    /**
+     * @param $className
+     * @return object
+     * @throws \Exception
+     */
+    private function generateInstance($className) {
         $reflection = new \ReflectionClass($className);
         $className = $reflection->getName();
         $constructor = $reflection->getConstructor();
@@ -59,9 +81,7 @@ class Service
                 $args[] = $this->get($class);
             }
         }
-        $instance = $reflection->newInstanceArgs($args);
-        $this->addInstance($className,$instance);
-        return $instance;
+        return $reflection->newInstanceArgs($args);
     }
 
     /**
