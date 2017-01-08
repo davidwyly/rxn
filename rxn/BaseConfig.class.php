@@ -42,7 +42,6 @@ abstract class BaseConfig
         'router'    => '\\Rxn\\Service\\Router',
         'stats'     => '\\Rxn\\Service\\Stats',
         'utility'   => '\\Rxn\\Service\\Utility',
-        'test'      => '\\Rxn\\Service\\Test',
     ];
 
     public function __construct() {
