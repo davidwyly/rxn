@@ -70,6 +70,10 @@ class Application
      */
     public $service;
 
+    /**
+     * @var array
+     */
+    static private $environmentErrors = [];
 
     /**
      * Application constructor.
@@ -80,13 +84,7 @@ class Application
     public function __construct(Config $config, Database $database) {
         $timeStart = microtime(true);
         $this->initialize($config, $database, new Service());
-        $this->api = $this->service->get(Service\Api::class);
-        $this->auth = $this->service->get(Service\Auth::class);
-        $this->data = $this->service->get(Service\Data::class);
-        $this->model = $this->service->get(Service\Model::class);
-        $this->router = $this->service->get(Service\Router::class);
-        $this->stats = $this->service->get(Service\Stats::class);
-        $this->utility = $this->service->get(Service\Utility::class);
+        $this->loadServices($config->useServices);
         $this->finalize($this->registry, $timeStart);
     }
 
@@ -108,6 +106,19 @@ class Application
     }
 
     /**
+     * @param $services
+     */
+    private function loadServices($services) {
+        foreach ($services as $serviceName=>$serviceClass) {
+            try {
+                $this->{$serviceName} = $this->service->get($serviceClass);
+            } catch (\Exception $e) {
+                self::appendEnvironmentError($e);
+            }
+        }
+    }
+
+    /**
      * @param Service\Registry $registry
      *
      * @param                  $timeStart
@@ -115,6 +126,13 @@ class Application
     private function finalize(Service\Registry $registry, $timeStart) {
         $registry->sortClasses();
         $this->stats->stop($timeStart);
+        if (!empty(self::$environmentErrors)) {
+            $this->renderEnvironmentErrors(
+                [
+                    'rxn encountered misconfiguration errors during initialization' => self::$environmentErrors
+                ]
+            );
+        }
     }
 
     /**
@@ -207,5 +225,38 @@ class Application
     private function isJson($json) {
         json_decode($json);
         return (json_last_error()===JSON_ERROR_NONE);
+    }
+
+    /**
+     * @param $errors
+     * @internal param $environmentErrors
+     */
+    private function renderEnvironmentErrors($errors) {
+        $response = [
+            '_rxn' => [
+                'success' => false,
+                'code' => 500,
+                'result' => 'Internal Server Error',
+                'message' => $errors,
+            ],
+        ];
+        http_response_code(500);
+        header('content-type: application/json');
+        echo json_encode($response,JSON_PRETTY_PRINT);
+        die();
+    }
+
+    /**
+     * @param \Exception $e
+     * @internal param $errorFile
+     * @internal param $errorLine
+     * @internal param $errorMessage
+     */
+    static public function appendEnvironmentError(\Exception $e) {
+        self::$environmentErrors[] = [
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'message' => $e->getMessage(),
+        ];
     }
 }

@@ -28,6 +28,23 @@ abstract class BaseConfig
      */
     public $relativeRoot = "/../";
 
+    /**
+     * Defines default services to run on startup
+     * Note: Changing this has not been thoroughly tested!
+     *
+     * @var array
+     */
+    public $useServices = [
+        'api'       => '\\Rxn\\Service\\Api',
+        'auth'      => '\\Rxn\\Service\\Auth',
+        'data'      => '\\Rxn\\Service\\Data',
+        'model'     => '\\Rxn\\Service\\Model',
+        'router'    => '\\Rxn\\Service\\Router',
+        'stats'     => '\\Rxn\\Service\\Stats',
+        'utility'   => '\\Rxn\\Service\\Utility',
+        'test'      => '\\Rxn\\Service\\Test',
+    ];
+
     public function __construct() {
         $this->root = realpath(__DIR__ . $this->relativeRoot);
     }

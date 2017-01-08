@@ -14,64 +14,72 @@
 $root = __DIR__;
 $appRoot = 'rxn';
 
-validateEnvironment($root,$appRoot);
+require_once("$root/$appRoot/Application.class.php");
 require_once("$root/$appRoot/BaseConfig.class.php");
 require_once("$root/$appRoot/Config.class.php");
 require_once("$root/$appRoot/Service.class.php");
 require_once("$root/$appRoot/service/Registry.class.php");
 require_once("$root/$appRoot/utility/Debug.class.php");
 require_once("$root/$appRoot/data/Database.class.php");
-require_once("$root/$appRoot/Application.class.php");
+validateEnvironment($root,$appRoot);
 
 function validateEnvironment($root,$appRoot) {
 
-    $environmentErrors = [];
+    if (!file_exists("$root/$appRoot/Config.class.php")) {
+        try {
+            throw new \Exception("RXN config file is missing; ensure that one was created from the sample file");
+        } catch (\Exception $e) {
+            \Rxn\Application::appendEnvironmentError($e);
+        }
+    }
+
     if (empty(ini_get('display_errors'))) {
-        array_push($environmentErrors,"RXN requires PHP ini setting 'display_errors = On'");
+        try {
+            throw new \Exception("RXN requires PHP ini setting 'display_errors = On'");
+        } catch (\Exception $e) {
+            \Rxn\Application::appendEnvironmentError($e);
+        }
     }
 
     if (empty(ini_get('zend.multibyte'))) {
-        array_push($environmentErrors,"RXN requires PHP ini setting 'zend.multibyte = On'");
+        try {
+            throw new \Exception("RXN requires PHP ini setting 'zend.multibyte = On'");
+        } catch (\Exception $e) {
+            \Rxn\Application::appendEnvironmentError($e);
+        }
     }
 
     if (!function_exists('mb_strtolower')) {
-        array_push($environmentErrors,"RXN requires the PHP mbstring extension to be installed/enabled");
+        try {
+            throw new \Exception("RXN requires the PHP mbstring extension to be installed/enabled");
+        } catch (\Exception $e) {
+            \Rxn\Application::appendEnvironmentError($e);
+        }
+    }
+
+    if (!file_exists("$root/$appRoot/data/filecache")) {
+        try {
+            throw new \Exception("RXN requires for folder '$root/$appRoot/data/filecache' to exist");
+        } catch (\Exception $e) {
+            \Rxn\Application::appendEnvironmentError($e);
+        }
+    }
+
+    if (!is_writable("$root/$appRoot/data/filecache")) {
+        try {
+            throw new \Exception("RXN requires for folder '$root/$appRoot/data/filecache' to be writable");
+        } catch (\Exception $e) {
+            \Rxn\Application::appendEnvironmentError($e);
+        }
     }
 
     if (function_exists('apache_get_modules')) {
         if (!in_array('mod_rewrite',apache_get_modules())) {
-            array_push($environmentErrors,"RXN requires Apache module 'mod_rewrite' to be enabled");
+            try {
+                throw new \Exception("RXN requires Apache module 'mod_rewrite' to be enabled");
+            } catch (\Exception $e) {
+                \Rxn\Application::appendEnvironmentError($e);
+            }
         }
     }
-
-    if (!file_exists("$root/$appRoot/Config.class.php")) {
-        array_push($environmentErrors,"RXN config file is missing; ensure that one was created from the sample file");
-    }
-
-    if (!file_exists("$root/$appRoot/data/filecache")) {
-        array_push($environmentErrors,"RXN requires for folder '$root/$appRoot/data/filecache' to exist");
-    }
-
-    if (!is_writable("$root/$appRoot/data/filecache")) {
-        array_push($environmentErrors,"RXN requires for folder '$root/$appRoot/data/filecache' to be writable");
-    }
-
-    if (!empty($environmentErrors)) {
-        renderEnvironmentError($environmentErrors);
-    }
-}
-
-function renderEnvironmentError($environmentErrors) {
-    $response = [
-        '_rxn' => [
-            'success' => false,
-            'code' => 500,
-            'result' => 'Internal Server Error',
-            'message' => $environmentErrors,
-        ],
-    ];
-    http_response_code(500);
-    header('content-type: application/json');
-    echo json_encode($response,JSON_PRETTY_PRINT);
-    die();
 }

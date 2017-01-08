@@ -37,3 +37,6 @@ rxn/Config.class.php
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# IDE generated files
+.idea/

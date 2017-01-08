@@ -97,7 +97,7 @@ class Map
      */
     private function validateRegistry(Registry $registry) {
         if (empty($registry->tables)) {
-            throw new \Exception("Expected registry to contain a list of database tables");
+            throw new \Exception("Cannot find any registered database tables");
         }
     }
 

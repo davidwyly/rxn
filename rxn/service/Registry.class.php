@@ -38,7 +38,6 @@ class Registry
     /**
      * @param Config $config
      * @param Database $database
-     * @return void
      */
     public function __construct(Config $config, Database $database) {
         // register self and dependencies
