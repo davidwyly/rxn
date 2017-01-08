@@ -174,7 +174,7 @@ class Database {
         $requiredKeys = array_keys($this->defaultSettings);
         foreach ($requiredKeys as $requiredKey) {
             if (!array_key_exists($requiredKey,$defaultSettings)) {
-                throw new \Exception("Required key '$requiredKey' missing");
+                throw new \Exception("Required key '$requiredKey' missing",500);
             }
         }
         $this->defaultSettings = $defaultSettings;
@@ -191,7 +191,7 @@ class Database {
         $requiredKeys = array_keys($this->cacheTableSettings);
         foreach ($requiredKeys as $requiredKey) {
             if (!array_key_exists($requiredKey,$cacheTableSettings)) {
-                throw new \Exception("Required key '$requiredKey' missing");
+                throw new \Exception("Required key '$requiredKey' missing",500);
             }
         }
         $this->cacheTableSettings = $cacheTableSettings;
@@ -546,7 +546,7 @@ class Database {
                 }
                 return $result;
             default:
-                throw new \Exception("Incorrect query type");
+                throw new \Exception("Incorrect query type '$queryType''",500);
         }
     }
 

@@ -69,7 +69,7 @@ class Debug {
         $backtrace = debug_backtrace();
         $depth = self::$depth;
         if (!$backtrace[$depth]) {
-            throw new \Exception("Debug depth '$depth' gives inconsistent results");
+            throw new \Exception("Debug depth '$depth' gives inconsistent results",500);
         }
         $vLine = file( $backtrace[$depth]['file'] );
         $fLine = $vLine[ $backtrace[$depth]['line'] - 1 ];
@@ -113,7 +113,7 @@ class Debug {
     static protected function buildRenderInfo($varMapType)
     {
         if (!is_string($varMapType)) {
-            throw new \Exception("Returning false in " . __METHOD__);
+            throw new \Exception("Returning false in " . __METHOD__,500);
         }
         $varObjectPosition = mb_strpos(mb_strtolower($varMapType),"object");
         if ($varObjectPosition) {
@@ -141,7 +141,7 @@ class Debug {
     {
         $valueRenderInfo = self::buildRenderInfo($value['__type']);
         if (!$valueRenderInfo) {
-            throw new \Exception("No value render info available during debug");
+            throw new \Exception("No value render info available during debug",500);
         }
         $arrow = "=&gt;";
         $valueMapType = $valueRenderInfo['varMapType'];
@@ -202,7 +202,7 @@ class Debug {
     static protected function buildRender(array $varMap)
     {
         if (!isset($varMap["__type"])) {
-            throw new \Exception("No type to debug");
+            throw new \Exception("No type to debug",500);
         }
         if (!isset($varMap["__data"])) {
             //No data to debug
@@ -429,7 +429,7 @@ class Debug {
     static private function inspectObject($object)
     {
         if (!is_object($object)) {
-            throw new \Exception("Trying to inspect an object that isn't an object");
+            throw new \Exception("Trying to inspect an object that isn't an object",500);
         }
         $reflection = new \ReflectionObject($object);
         $reflectionProperties = $reflection->getProperties(

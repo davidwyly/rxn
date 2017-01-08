@@ -161,7 +161,7 @@ abstract class Record extends Model
         $requiredColumns = $this->getRequiredColumns();
         foreach ($requiredColumns as $requiredColumn) {
             if (!isset($keyValues[$requiredColumn])) {
-                throw new \Exception("Key '$requiredColumn' is required");
+                throw new \Exception("Key '$requiredColumn' is required",500);
             }
         }
     }
@@ -239,7 +239,7 @@ abstract class Record extends Model
         // validate that tables exist for the database
         if (!isset($registry->tables[$databaseName])
             || empty($registry->tables[$databaseName])) {
-                throw new \Exception("No tables found in database '$databaseName'");
+                throw new \Exception("No tables found in database '$databaseName'",500);
         }
 
         // validate that the relevant table exists in the database

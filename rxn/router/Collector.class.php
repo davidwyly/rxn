@@ -53,7 +53,7 @@ class Collector
      */
     public function getUrlParam($paramName) {
         if (!isset($this->get[$paramName])) {
-            throw new \Exception("No GET param by the name of '$paramName'");
+            throw new \Exception("No GET param by the name of '$paramName',500");
         }
         return (string)$this->get[$paramName];
     }

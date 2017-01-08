@@ -71,7 +71,7 @@ class Service
         $className = $reflection->getName();
         $constructor = $reflection->getConstructor();
         if (!$constructor) {
-            throw new \Exception("Class '$className' does not have a valid constructor");
+            throw new \Exception("Class '$className' does not have a valid constructor",500);
         }
         $parameters = $constructor->getParameters();
         $args = array();

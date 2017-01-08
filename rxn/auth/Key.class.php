@@ -27,7 +27,7 @@ class Key
     public function setEncryptionKey($encryptionKey) {
         $minLength = self::$encryptionMinLength;
         if(mb_strlen($encryptionKey) < $minLength) {
-            throw new \Exception("Encryption key must be at least $minLength characters");
+            throw new \Exception("Encryption key must be at least $minLength characters",500);
         }
         $this->encryptionKey = $encryptionKey;
         return null;

@@ -100,7 +100,7 @@ class Chain
      */
     private function validateMap($map) {
         if (empty($map->tables)) {
-            throw new \Exception();
+            throw new \Exception('',500);
         }
     }
 }

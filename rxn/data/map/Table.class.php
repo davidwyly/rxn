@@ -56,7 +56,7 @@ class Table
      */
     private function validateTableExists(Database $database, Registry $registry, $tableName) {
         if (!$this->tableExists($database,$registry,$tableName)) {
-            throw new \Exception(__METHOD__ . " returned false: table '$tableName' doesn't exist");
+            throw new \Exception(__METHOD__ . " returned false: table '$tableName' doesn't exist",500);
         }
     }
 
@@ -266,7 +266,7 @@ class Table
     private function getColumns(Database $database, $tableName) {
         $result = $this->getTableDetails($database,$tableName);
         if (!$result) {
-            throw new \Exception(__METHOD__ . " returned false");
+            throw new \Exception(__METHOD__ . " returned false",500);
         }
         foreach ($result as $key=>$value) {
             $currentColumn = $value['column_name'];

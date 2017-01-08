@@ -64,7 +64,7 @@ class Registry
      */
     private function getClassByObject($object) {
         if (!is_object($object)) {
-            throw new \Exception("Expected object");
+            throw new \Exception("Expected object",500);
         }
         $reflection = new \ReflectionObject($object);
         return $reflection->getName();
@@ -86,7 +86,7 @@ class Registry
     public function registerClass($classReference) {
         if (!class_exists($classReference)) {
             if (!interface_exists($classReference)) {
-                throw new \Exception("Class or interface '$classReference' has not been instantiated");
+                throw new \Exception("Class or interface '$classReference' has not been instantiated",500);
             }
         }
         $classReflection = new \ReflectionClass($classReference);
@@ -240,7 +240,7 @@ class Registry
 
         if ($root != $config->appFolder) {
             if ($root != $config->vendorFolder) {
-                throw new \Exception("Root path '$root' in reference '$classReference' not defined in config");
+                throw new \Exception("Root path '$root' in reference '$classReference' not defined in config",500);
             }
         }
 
@@ -273,7 +273,7 @@ class Registry
 
         // validate the path
         if (!file_exists($loadPath)) {
-            throw new \Exception("Cannot autoload path '$loadPath'");
+            throw new \Exception("Cannot autoload path '$loadPath'",500);
         }
         return $loadPath;
     }
