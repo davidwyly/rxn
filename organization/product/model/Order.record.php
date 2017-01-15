@@ -1,6 +1,6 @@
 <?php
 
-namespace Vendor\Product\Model;
+namespace Organization\Product\Model;
 
 use \Rxn\Data\Database;
 use \Rxn\Model\Record;
@@ -9,7 +9,7 @@ use \Rxn\Utility\Debug;
 /**
  * Example Order model
  *
- * @package Vendor\Product\Model
+ * @package Organization\Product\Model
  */
 class Order extends Record
 {

@@ -12,41 +12,34 @@ namespace Rxn;
  * Class Config
  * @package Rxn
  */
-class Config extends BaseConfig
+class Config extends ApplicationConfig
 {
     /**
-     * Defines the root application folder
-     * Note: Changing this has not been thoroughly tested!
+     * Defines the root organization folder, typically your company or organization name
      *
-     * Default value: 'rxn'
+     * Default value: 'organization'
      *
      * @var string
      */
-    public $appFolder = 'rxn';
+    public $organizationFolder = 'organization';
 
     /**
-     * Defines the root vendor folder
-     * Note: Changing this has not been thoroughly tested!
+     * Defines the root product folder, typically the name of your application
      *
-     * Default value: 'vendor'
+     * Default value: 'product'
      *
      * @var string
      */
-    public $vendorFolder = 'vendor';
+    public $productFolder = 'product';
 
     /**
-     * Defines the vendor/product namespace for vendor models and controllers
+     * Defines the organization/product namespace for your application's models and controllers
+     *
+     * Default value: '\\Organization\\Product';
      *
      * @var string
      */
-    public $vendorNamespace = '\\Vendor\\Product';
-
-    /**
-     * Sets the filecache directory that needs special read/write permissions
-     *
-     * @var string
-     */
-    public $fileCacheDirectory = 'filecache';
+    public $vendorNamespace = '\\Organization\\Product';
 
     /**
      * Uncomment this below to define an application key for encryption
@@ -54,73 +47,27 @@ class Config extends BaseConfig
     // public $applicationKey = "application key goes here";
 
     /**
-     * Defines the root of the application and vendor folders relative to this file
+     * Enable or disable file caching of objects
      *
-     * @var string
-     */
-    public $relativeRoot = "/../";
-
-    /**
-     * Defines the API response key that has request and response meta data
-     *
-     * @var string
-     */
-    public $responseLeaderKey = '_rxn';
-
-    /**
-     * Defines your default database settings
-     *
-     * @var array
-     */
-    public $databaseDefaultSettings = [
-        'host'     => 'localhost',
-        'name'     => 'database',
-        'username' => 'username',
-        'password' => 'secret',
-        'charset'  => 'utf8',
-    ];
-
-    /**
-     * Defines default keys for URL params and routing
-     *
-     * @var array
-     */
-    public $endpointParameters = [
-        "version",
-        "controller",
-        "action",
-    ];
-
-    /**
-     * enable or disable file caching of objects
+     * Default value: false
      *
      * @var bool
      */
-    public $useFilecaching = false;
+    public $useFileCaching = false;
 
     /**
-     * enable or disable query caching of queries
+     * Enable or disable query caching of queries
+     *
+     * Default value: false
      *
      * @var bool
      */
-    public $useQuerycaching = false;
-
-    /**
-     * Extensions that work with the autoloader
-     *
-     * @var array
-     */
-    public $autoloadExtensions = [
-        '.php',
-        '.class.php',
-        '.controller.php',
-        '.model.php',
-        '.record.php',
-        '.interface.php'
-    ];
+    public $useQueryCaching = false;
 
     /**
      * enable or disable IO sanitization to help stop XSS attacks
+     *
+     * Default value: false
      *
      * @var bool
      */
@@ -128,6 +75,8 @@ class Config extends BaseConfig
 
     /**
      * Use a valid \DateTime timezone
+     *
+     * Default value: 'America/Denver'
      *
      * @var string
      */

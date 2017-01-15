@@ -1,18 +1,18 @@
 <?php
 
-namespace Vendor\Product\Controller\v1;
+namespace Organization\Product\Controller\v1;
 
 use \Rxn\Service;
 use \Rxn\Data\Database;
 use \Rxn\Api\Request;
 use \Rxn\Api\CrudController;
 use \Rxn\Utility\Debug;
-use \Vendor\Product\Model\Order as OrderRecord;
+use \Organization\Product\Model\Order as OrderRecord;
 
 /**
  * Example Order controller
  *
- * @package Vendor\Product\Controller\v1
+ * @package Organization\Product\Controller\v1
  */
 class Order extends CrudController
 {
