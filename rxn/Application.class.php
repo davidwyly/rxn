@@ -21,9 +21,14 @@ use \Rxn\Utility\Debug;
 class Application
 {
     /**
-     * @var Config
+     * @var Config $config
      */
     public $config;
+
+    /**
+     * @var array $databases
+     */
+    public $databases;
 
     /**
      * @var Service\Api $api
@@ -71,7 +76,7 @@ class Application
     public $service;
 
     /**
-     * @var array
+     * @var array $environmentErrors
      */
     static private $environmentErrors = [];
 
@@ -79,30 +84,40 @@ class Application
      * Application constructor.
      *
      * @param Config   $config
-     * @param Database $database
+     * @param Datasources $datasources
+     * @param Service $service
      */
-    public function __construct(Config $config, Database $database) {
+    public function __construct(Config $config, Datasources $datasources, Service $service) {
         $timeStart = microtime(true);
-        $this->initialize($config, $database, new Service());
-        $this->loadServices($config->useServices);
+        $this->initialize($config, $datasources, $service);
+        $services = $config->getServices();
+        $this->loadServices($services);
         $this->finalize($this->registry, $timeStart);
     }
 
     /**
      * @param Config   $config
-     *
-     * @param Database $database
+     * @param Datasources $datasources
      * @param Service  $service
      *
      * @throws \Exception
      */
-    private function initialize(Config $config, Database $database, Service $service) {
+    private function initialize(Config $config, Datasources $datasources, Service $service) {
         $this->config = $config;
         $this->service = $service;
-        $this->service->addInstance(Database::class,$database);
+        $this->databases = $this->registerDatabases($config,$datasources);
+        $this->service->addInstance(Datasources::class,$datasources);
         $this->service->addInstance(Config::class,$config);
         $this->registry = $this->service->get(Service\Registry::class);
         date_default_timezone_set($config->timezone);
+    }
+
+    private function registerDatabases(Config $config, Datasources $datasources) {
+        $databases = [];
+        foreach ($datasources->databases as $datasourceName=>$connectionSettings) {
+            $databases[] = new Database($config,$datasources,$datasourceName);
+        }
+        return $databases;
     }
 
     /**
@@ -127,11 +142,7 @@ class Application
         $registry->sortClasses();
         $this->stats->stop($timeStart);
         if (!empty(self::$environmentErrors)) {
-            $this->renderEnvironmentErrors(
-                [
-                    'rxn encountered misconfiguration errors during initialization' => self::$environmentErrors
-                ]
-            );
+            self::renderEnvironmentErrors();
         }
     }
 
@@ -196,6 +207,10 @@ class Application
      * @param Config $config
      */
     private function render($responseToRender, Config $config) {
+        if (ob_get_contents()) {
+            die();
+        }
+
         // determine response code
         $responseCode = $responseToRender[$config->responseLeaderKey]->code;
 
@@ -228,16 +243,27 @@ class Application
     }
 
     /**
-     * @param $errors
-     * @internal param $environmentErrors
+     * @return bool
      */
-    private function renderEnvironmentErrors($errors) {
+    static public function hasEnvironmentErrors() {
+        if (!empty(self::$environmentErrors)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Renders environment errrors and dies
+     */
+    static public function renderEnvironmentErrors() {
         $response = [
             '_rxn' => [
                 'success' => false,
                 'code' => 500,
                 'result' => 'Internal Server Error',
-                'message' => $errors,
+                'message' => [
+                    'environment errors on initialization' => self::$environmentErrors
+                ],
             ],
         ];
         http_response_code(500);
@@ -258,5 +284,83 @@ class Application
             'line' => $e->getLine(),
             'message' => $e->getMessage(),
         ];
+    }
+
+    /**
+     * @param $root
+     * @param $appRoot
+     */
+    static public function includeCoreComponents($root, $appRoot) {
+        $coreComponentPaths = ApplicationConfig::getCoreComponentPaths();
+        foreach ($coreComponentPaths as $name=>$coreComponentPath) {
+            if (!file_exists("$root/$appRoot/$coreComponentPath")) {
+                try {
+                    throw new \Exception("Rxn core component '$name' expected at '$coreComponentPath'");
+                } catch (\Exception $e) {
+                    self::appendEnvironmentError($e);
+                }
+            } else {
+                /** @noinspection PhpIncludeInspection */
+                require_once("$root/$appRoot/$coreComponentPath");
+            }
+        }
+    }
+
+    /**
+     * @param $root
+     * @param $appRoot
+     */
+    static public function validateEnvironment($root, $appRoot) {
+
+        // validate PHP INI file settings, as defined in BaseConfig
+        $iniRequirements = ApplicationConfig::getIniRequirements();
+        foreach ($iniRequirements as $iniKey => $requirement) {
+            if (ini_get($iniKey) != $requirement) {
+                if (is_bool($requirement)) {
+                    $requirement = ($requirement) ? 'On' : 'Off';
+                }
+                try {
+                    throw new \Exception("Rxn requires PHP ini setting '$iniKey' = '$requirement'");
+                } catch (\Exception $e) {
+                    self::appendEnvironmentError($e);
+                }
+            }
+        }
+
+        if (!file_exists("$root/$appRoot/data/filecache")) {
+            try {
+                throw new \Exception("Rxn requires for folder '$root/$appRoot/data/filecache' to exist");
+            } catch (\Exception $e) {
+                self::appendEnvironmentError($e);
+            }
+        }
+
+        if (!is_writable("$root/$appRoot/data/filecache")) {
+            try {
+                throw new \Exception("Rxn requires for folder '$root/$appRoot/data/filecache' to be writable");
+            } catch (\Exception $e) {
+                self::appendEnvironmentError($e);
+            }
+        }
+
+        if (!function_exists('mb_strtolower')
+            && isset($iniRequirements['zend.multibyte'])
+            && $iniRequirements['zend.multibyte'] === true) {
+                try {
+                    throw new \Exception("Rxn requires the PHP mbstring extension to be installed/enabled");
+                } catch (\Exception $e) {
+                    self::appendEnvironmentError($e);
+                }
+        }
+
+        if (function_exists('apache_get_modules')) {
+            if (!in_array('mod_rewrite',apache_get_modules())) {
+                try {
+                    throw new \Exception("Rxn requires Apache module 'mod_rewrite' to be enabled");
+                } catch (\Exception $e) {
+                    self::appendEnvironmentError($e);
+                }
+            }
+        }
     }
 }

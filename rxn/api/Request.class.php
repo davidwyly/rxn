@@ -184,6 +184,9 @@ class Request
      */
     private function getSanitizedUrl(Collector $collector, Config $config) {
         $getParameters = $collector->get;
+        if (!is_array($getParameters)) {
+            throw new \Exception("Cannot get sanitized URL, verify virtual hosts");
+        }
         foreach ($getParameters as $getParameterKey=>$getParameterValue) {
             if (!in_array($getParameterKey,$config->endpointParameters)) {
                 unset($getParameters[$getParameterKey]);
@@ -345,7 +348,14 @@ class Request
      */
     public function stringToUpperCamel($string, $delimiter = null) {
         if (!empty($delimiter)) {
-            if (mb_stripos($string,$delimiter)) {
+
+            if (function_exists('mb_stripos')) {
+                $delimiterExists = (mb_stripos($string,$delimiter) !== false);
+            } else {
+                $delimiterExists = (stripos($string,$delimiter) !== false);
+            }
+
+            if ($delimiterExists) {
                 $stringArray = explode($delimiter,$string);
                 $fragmentArray = array();
                 foreach ($stringArray as $stringFragment) {

@@ -6,20 +6,15 @@
  * @author David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
-use \Rxn\Service;
-use \Rxn\Data\Database;
-use \Rxn\Config;
-use \Rxn\Application;
-use \Rxn\Api\Controller;
-use \Rxn\Utility\Debug;
-
-// load the core models necessary for instantiation
 require_once('../bootstrap.php');
 
-// instantiate the application
-$config = new Config();
-$database = new Database($config);
-$app = new Application($config, $database);
-
-// start the application and render a response
-$app->run();
+try {
+    $config = new \Rxn\Config();
+    $datasources = new \Rxn\Datasources();
+    $service = new \Rxn\Service();
+    $app = new \Rxn\Application($config, $datasources, $service);
+    $app->run();
+} catch (\Exception $e) {
+    \Rxn\Application::appendEnvironmentError($e);
+    \Rxn\Application::renderEnvironmentErrors();
+}

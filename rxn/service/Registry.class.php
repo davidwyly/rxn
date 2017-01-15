@@ -236,7 +236,11 @@ class Registry
         $pathArray = explode("\\",$classReference);
 
         // remove the root namespace from the array
-        $root = mb_strtolower(array_shift($pathArray));
+        if (function_exists('mb_strtolower')) {
+            $root = mb_strtolower(array_shift($pathArray));
+        } else {
+            $root = strtolower(array_shift($pathArray));
+        }
 
         if ($root != $config->appFolder) {
             if ($root != $config->vendorFolder) {
@@ -248,9 +252,16 @@ class Registry
         $classShortName = array_pop($pathArray);
 
         // convert the namespaces into lowercase
-        foreach($pathArray as $key=>$value) {
-            $pathArray[$key] = mb_strtolower($value);
+        if (function_exists('mb_strtolower')) {
+            foreach($pathArray as $key=>$value) {
+                $pathArray[$key] = mb_strtolower($value);
+            }
+        } else {
+            foreach($pathArray as $key=>$value) {
+                $pathArray[$key] = strtolower($value);
+            }
         }
+
 
         // tack the short name of the class back onto the end
         array_push($pathArray,$classShortName);
@@ -263,9 +274,17 @@ class Registry
 
         if (!file_exists($loadPath)) {
             // 400 level error if the controller is incorrect
-            if (mb_strpos($classPath,'controller')) {
+
+            if (function_exists('mb_strpos')) {
+                $controllerExists = (mb_strpos($classPath,'controller') !== false);
+            } else {
+                $controllerExists = (strpos($classPath,'controller') !== false);
+            }
+
+            if (!$controllerExists) {
                 throw new \Exception("Controller '$classReference' does not exist",400);
             }
+
             // 500 level error otherwise; only throw the partial path for security purposes
             throw new \Exception("Load path '$loadPathClass' does not exist",501);
         }

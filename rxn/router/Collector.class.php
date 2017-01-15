@@ -177,7 +177,14 @@ class Collector
     public function getRequestHeaderParams() {
         $headerParams = null;
         foreach ($_SERVER as $key=>$value) {
-            if (mb_stripos($key,'HTTP_RXN') !== false) {
+
+            if (function_exists('mb_stripos')) {
+                $headerKeyExists = (mb_stripos($key,'HTTP_RXN') !== false);
+            } else {
+                $headerKeyExists = (stripos($key,'HTTP_RXN') !== false);
+            }
+
+            if ($headerKeyExists) {
                 $lowerKey = mb_strtolower($key);
                 $lowerKey = preg_replace("#http\_#",'',$lowerKey);
                 $headerParams[$lowerKey] = $value;

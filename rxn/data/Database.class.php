@@ -9,6 +9,7 @@
 namespace Rxn\Data;
 
 use \Rxn\Config as Config;
+use Rxn\Datasources;
 use \Rxn\Utility\Debug as Debug;
 
 /**
@@ -101,21 +102,26 @@ class Database {
      * Database constructor.
      *
      * @param Config $config
+     * @param Datasources $datasources
      */
-    public function __construct(Config $config)
+    public function __construct(Config $config, Datasources $datasources, $sourceName = null)
     {
-        $this->setConfiguration($config);
+        if (is_null($sourceName)) {
+            $sourceName = $datasources->defaultRead;
+        }
+        $this->setConfiguration($config, $datasources, $sourceName);
         $this->connect();
     }
 
     /**
      * @param Config $config
+     * @param Datasources $datasources
      *
      * @throws \Exception
      */
-    private function setConfiguration(Config $config) {
-        $this->setDefaultSettings($config->databaseDefaultSettings);
-        $this->allowCaching = $config->useQuerycaching;
+    private function setConfiguration(Config $config, Datasources $datasources, $sourceName) {
+        $this->setDefaultSettings($datasources->databases[$sourceName]);
+        $this->allowCaching = $config->useQueryCaching;
     }
 
     /**
@@ -429,7 +435,14 @@ class Database {
             'RENAME USER',
         ];
         foreach ($implicitCommitStatements as $problemStatement) {
-            if (mb_stripos($rawSql,$problemStatement) !== false) {
+
+            if (function_exists('mb_stripos')) {
+                $problemStatementExists = (mb_stripos($rawSql,$problemStatement) !== false);
+            } else {
+                $problemStatementExists = (stripos($rawSql,$problemStatement) !== false);
+            }
+
+            if ($problemStatementExists) {
                 $problemStatements[] = $problemStatement;
             }
         }
