@@ -157,7 +157,10 @@ class Response
         $this->code = self::DEFAULT_SUCCESS_CODE;
         $this->result = self::getResponseCodeResult($this->code);
         $this->rendered = true;
-        return [$this->responseLeaderKey => $this];
+        $this->elapsedMs = \Rxn\Application::getElapsedMs();
+        return [
+            $this->responseLeaderKey => $this
+        ];
     }
 
     /**
@@ -172,7 +175,9 @@ class Response
         $this->message = $e->getMessage();
         $this->trace = self::getErrorTrace($e);
         $this->rendered = true;
-        return [$this->responseLeaderKey => $this];
+        return [
+            $this->responseLeaderKey => $this
+        ];
     }
 
     /**
@@ -209,7 +214,12 @@ class Response
      */
     static public function getErrorTrace(\Exception $e) {
         $fullTrace = $e->getTrace();
-        $allowedDebugKeys = ['file','line','function','class'];
+        $allowedDebugKeys = [
+            'file',
+            'line',
+            'function',
+            'class'
+        ];
         $trace = array();
         foreach ($allowedDebugKeys as $allowedKey) {
             foreach ($fullTrace as $traceKey=>$traceGroup) {

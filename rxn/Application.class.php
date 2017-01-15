@@ -235,7 +235,7 @@ class Application
     /**
      * @return mixed
      */
-    static private function getElapsedMs() {
+    static public function getElapsedMs() {
         $now = microtime(true);
         $elapsedMs = round(
             ($now - \RXN_START) * 1000,
