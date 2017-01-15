@@ -274,8 +274,16 @@ class Request
         } catch (\Exception $e) {
             return null;
         }
-        $periodPosition = mb_strpos($fullVersion,".");
-        $controllerVersion= mb_substr($fullVersion,0,$periodPosition);
+
+        if (function_exists('mb_strpos')
+            && function_exists('mb_substr')) {
+                $periodPosition = mb_strpos($fullVersion,".");
+                $controllerVersion= mb_substr($fullVersion,0,$periodPosition);
+        } else {
+            $periodPosition = strpos($fullVersion,".");
+            $controllerVersion= substr($fullVersion,0,$periodPosition);
+        }
+
         return $controllerVersion;
     }
 
@@ -291,8 +299,16 @@ class Request
         } catch (\Exception $e) {
             return null;
         }
-        $periodPosition = mb_strpos($fullVersion,".");
-        $actionVersionNumber = mb_substr($fullVersion,$periodPosition + 1);
+
+        if (function_exists('mb_strpos')
+            && function_exists('mb_substr')) {
+                $periodPosition = mb_strpos($fullVersion,".");
+                $actionVersionNumber = mb_substr($fullVersion,$periodPosition + 1);
+        } else {
+            $periodPosition = strpos($fullVersion,".");
+            $actionVersionNumber = substr($fullVersion,$periodPosition + 1);
+        }
+
         $actionVersion = "v$actionVersionNumber";
         return $actionVersion;
     }

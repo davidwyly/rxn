@@ -9,12 +9,13 @@
 require_once('../bootstrap.php');
 
 try {
-    $config = new \Rxn\Config();
+    $config      = new \Rxn\Config();
     $datasources = new \Rxn\Datasources();
-    $service = new \Rxn\Service();
-    $app = new \Rxn\Application($config, $datasources, $service);
-    $app->run();
+    $service     = new \Rxn\Service();
+    $app         = new \Rxn\Application($config, $datasources, $service);
 } catch (\Exception $e) {
     \Rxn\Application::appendEnvironmentError($e);
     \Rxn\Application::renderEnvironmentErrors();
 }
+
+$app->run();

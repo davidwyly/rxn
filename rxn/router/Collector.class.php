@@ -185,7 +185,13 @@ class Collector
             }
 
             if ($headerKeyExists) {
-                $lowerKey = mb_strtolower($key);
+
+                if (function_exists('mb_strtolower')) {
+                    $lowerKey = mb_strtolower($key);
+                } else {
+                    $lowerKey = strtolower($key);
+                }
+
                 $lowerKey = preg_replace("#http\_#",'',$lowerKey);
                 $headerParams[$lowerKey] = $value;
             }

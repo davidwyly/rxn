@@ -19,23 +19,23 @@ class Datasources extends ApplicationDatasources {
     public $databases = [
         'read-only' => [
             'host'     => 'localhost',
-            'name'     => 'waretrax',
+            'name'     => 'dbname',
             'username' => 'dbuser',
-            'password' => '123',
+            'password' => 'secret',
             'charset'  => 'utf8',
         ],
         'read-write' => [
             'host'     => 'localhost',
-            'name'     => 'waretrax',
+            'name'     => 'dbname',
             'username' => 'dbuser',
-            'password' => '123',
+            'password' => 'secret',
             'charset'  => 'utf8',
         ],
         'admin' => [
             'host'     => 'localhost',
-            'name'     => 'waretrax',
-            'username' => 'root',
-            'password' => '123',
+            'name'     => 'dbname',
+            'username' => 'dbuser',
+            'password' => 'secret',
             'charset'  => 'utf8',
         ],
     ];
