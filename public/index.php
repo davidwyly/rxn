@@ -12,7 +12,7 @@ try {
     $config      = new \Rxn\Config();
     $datasources = new \Rxn\Datasources();
     $service     = new \Rxn\Service();
-    $app         = new \Rxn\Application($config, $datasources, $service);
+    $app         = new \Rxn\Application($config, $datasources, $service, \RXN_START);
 } catch (\Exception $e) {
     \Rxn\Application::appendEnvironmentError($e);
     \Rxn\Application::renderEnvironmentErrors();

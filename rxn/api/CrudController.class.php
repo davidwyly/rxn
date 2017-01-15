@@ -114,7 +114,7 @@ class CrudController extends Controller implements Crud
         $calledClass = get_called_class();
         $reflection = new \ReflectionClass($calledClass);
         $shortName = $reflection->getShortName();
-        $potentialRecord = "{$config->vendorNamespace}\\Model\\$shortName";
+        $potentialRecord = "{$config->productNamespace}\\Model\\$shortName";
         return $potentialRecord;
     }
 

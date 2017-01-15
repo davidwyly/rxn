@@ -32,7 +32,7 @@ abstract class ApplicationConfig
     public $root;
 
     /**
-     * Defines the root of the application and vendor folders relative to this file
+     * Defines the root of the rxn and organization folders relative to this file
      *
      * @var string
      */
@@ -44,8 +44,8 @@ abstract class ApplicationConfig
      * @var array
      */
     public $autoloadExtensions = [
-        '.php',
         '.class.php',
+        '.php',
         '.controller.php',
         '.model.php',
         '.record.php',
@@ -99,7 +99,7 @@ abstract class ApplicationConfig
     private $services = [
         'api'       => '\\Rxn\\Service\\Api',
         'auth'      => '\\Rxn\\Service\\Auth',
-        //'data'      => '\\Rxn\\Service\\Data',
+        'data'      => '\\Rxn\\Service\\Data',
         'model'     => '\\Rxn\\Service\\Model',
         'router'    => '\\Rxn\\Service\\Router',
         'stats'     => '\\Rxn\\Service\\Stats',

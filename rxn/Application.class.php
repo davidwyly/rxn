@@ -86,12 +86,12 @@ class Application
      * @param Config   $config
      * @param Datasources $datasources
      * @param Service $service
+     * @param float $timeStart
      */
-    public function __construct(Config $config, Datasources $datasources, Service $service) {
-        $timeStart = microtime(true);
+    public function __construct(Config $config, Datasources $datasources, Service $service, $timeStart) {
         $this->initialize($config, $datasources, $service);
-        $services = $config->getServices();
-        $this->loadServices($services);
+        $servicesToLoad = $config->getServices();
+        $this->loadServices($servicesToLoad);
         $this->finalize($this->registry, $timeStart);
     }
 
@@ -123,7 +123,7 @@ class Application
     /**
      * @param $services
      */
-    private function loadServices($services) {
+    private function loadServices(array $services) {
         foreach ($services as $serviceName=>$serviceClass) {
             try {
                 $this->{$serviceName} = $this->service->get($serviceClass);
@@ -233,6 +233,18 @@ class Application
     }
 
     /**
+     * @return mixed
+     */
+    static private function getElapsedMs() {
+        $now = microtime(true);
+        $elapsedMs = round(
+            ($now - \RXN_START) * 1000,
+            3
+        );
+        return (string)$elapsedMs . " ms";
+    }
+
+    /**
      * @param $json
      *
      * @return bool
@@ -259,8 +271,9 @@ class Application
         $response = [
             '_rxn' => [
                 'success' => false,
-                'code' => 500,
-                'result' => 'Internal Server Error',
+                'code'    => 500,
+                'result'  => 'Internal Server Error',
+                'elapsed' => self::getElapsedMs(),
                 'message' => [
                     'environment errors on initialization' => self::$environmentErrors
                 ],
@@ -280,8 +293,8 @@ class Application
      */
     static public function appendEnvironmentError(\Exception $e) {
         self::$environmentErrors[] = [
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
+            'file'    => $e->getFile(),
+            'line'    => $e->getLine(),
             'message' => $e->getMessage(),
         ];
     }
@@ -312,7 +325,7 @@ class Application
      */
     static public function validateEnvironment($root, $appRoot) {
 
-        // validate PHP INI file settings, as defined in BaseConfig
+        // validate PHP INI file settings
         $iniRequirements = ApplicationConfig::getIniRequirements();
         foreach ($iniRequirements as $iniKey => $requirement) {
             if (ini_get($iniKey) != $requirement) {
@@ -361,6 +374,13 @@ class Application
                     self::appendEnvironmentError($e);
                 }
             }
+        }
+
+        /**
+         * Render errors when finished
+         */
+        if (self::hasEnvironmentErrors()) {
+            self::renderEnvironmentErrors();
         }
     }
 }

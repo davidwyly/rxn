@@ -243,7 +243,7 @@ class Registry
         }
 
         if ($root != $config->appFolder) {
-            if ($root != $config->vendorFolder) {
+            if ($root != $config->organizationFolder) {
                 throw new \Exception("Root path '$root' in reference '$classReference' not defined in config",500);
             }
         }

@@ -83,15 +83,15 @@ Rxn is released under the permissive and free [MIT](http://flightphp.com/license
 
 Rxn uses a namespacing structure that explicitly matches the directory structure of the class files. While also convenient, it is mainly used to implement some pretty cool autoloading features.
 
-Say, for example, that you created a class named `\Vendor\Product\Model\MyAwesomeModel`. Just put the file in a directory structure that follows the namespace convention (e.g., `{root}/vendor/product/model/MyAwesomeModel.php`). When you need to call the class, just invoke the class by calling it directly. There's no need to put a `require` anywhere.
+Say, for example, that you created a class named `\Vendor\Product\Model\MyAwesomeModel`. Just put the file in a directory structure that follows the namespace convention (e.g., `{root}/organization/product/model/MyAwesomeModel.php`). When you need to call the class, just invoke the class by calling it directly. There's no need to put a `require` anywhere.
 
 **BEFORE (not using autoloading):**
 ```php
 <?php
 
-require_once('/vendor/product/model/MyAwesomeModel.php');
+require_once('/organization/product/model/MyAwesomeModel.php');
 
-use \Vendor\Product\Model\MyAwesomeModel;
+use \Organization\Product\Model\MyAwesomeModel;
 
 $object = new MyAwesomeModel()
 // object gets created!
@@ -101,7 +101,7 @@ $object = new MyAwesomeModel()
 ```php
 <?php
 
-use \Vendor\Product\Model\MyAwesomeModel;
+use \Organization\Product\Model\MyAwesomeModel;
 
 $object = new MyAwesomeModel()
 // object gets created!
@@ -175,7 +175,7 @@ By versioning your endpoint URLs (e.g., `v1.1`, `v2.4`, etc), you can rest easy 
 So for an endpoint with version `v2.1`, the first number (`2`) is the *controller version*, and the second number (`1`) is the *action version*. The example below is how we would declare controller version `2` with action version `1`:
 
 ```php
-namespace Vendor\Product\Controller\v2;
+namespace Organization\Product\Controller\v2;
 
 class Order extends \Rxn\Api\Controller
 {

@@ -352,7 +352,7 @@ class Request
      */
     public function createControllerRef(Config $config, $controllerName,$controllerVersion) {
         $processedName = $this->stringToUpperCamel($controllerName, "_");
-        $controllerRef = $config->vendorNamespace . "\\Controller\\$controllerVersion\\$processedName";
+        $controllerRef = $config->productNamespace . "\\Controller\\$controllerVersion\\$processedName";
         return $controllerRef;
     }
 
