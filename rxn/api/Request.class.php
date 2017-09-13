@@ -3,12 +3,12 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Api;
 
-use \Rxn\Config;
+use \Rxn\ApplicationConfig as Config;
 use \Rxn\Router\Collector;
 use \Rxn\Utility\Debug;
 
@@ -79,98 +79,108 @@ class Request
      *
      * @param Collector $collector
      * @param Config    $config
+     *
+     * @throws \Exception
      */
-    public function __construct(Collector $collector, Config $config) {
+    public function __construct(Collector $collector, Config $config)
+    {
 
         // exceptions that appear here may need special handling
         try {
-            $this->validateRequiredParams($collector,$config);
+            $this->validateRequiredParams($collector, $config);
         } catch (\Exception $e) {
             $this->validated = false;
             $this->exception = $e;
         }
 
         // assign from collector
-        $this->controllerName = $this->createControllerName($collector);
+        $this->controllerName    = $this->createControllerName($collector);
         $this->controllerVersion = $this->createControllerVersion($collector);
-        $this->controllerRef = $this->createControllerRef($config, $this->controllerName,$this->controllerVersion);
-        $this->actionName = $this->createActionName($collector);
-        $this->actionVersion = $this->createActionVersion($collector);
-        $this->url = (array)$this->getSanitizedUrl($collector,$config);
-        $this->get = (array)$this->getSanitizedGet($collector,$config);
-        $this->post = (array)$collector->post;
-        $this->header = (array)$collector->header;
+        $this->controllerRef     = $this->createControllerRef($config, $this->controllerName, $this->controllerVersion);
+        $this->actionName        = $this->createActionName($collector);
+        $this->actionVersion     = $this->createActionVersion($collector);
+        $this->url               = (array)$this->getSanitizedUrl($collector, $config);
+        $this->get               = (array)$this->getSanitizedGet($collector, $config);
+        $this->post              = (array)$collector->post;
+        $this->header            = (array)$collector->header;
     }
 
-    public function isValidated() {
+    public function isValidated()
+    {
         return $this->validated;
     }
 
-    public function getException() {
+    public function getException()
+    {
         return $this->exception;
     }
 
-    public function collectFromGet($targetKey, $triggerException = true) {
-        foreach ($this->get as $key=>$value) {
+    public function collectFromGet($targetKey, $triggerException = true)
+    {
+        foreach ($this->get as $key => $value) {
             if ($targetKey == $key) {
                 return $value;
             }
         }
         if ($triggerException) {
-            throw new \Exception("Param '$targetKey' is missing from GET request",400);
+            throw new \Exception("Param '$targetKey' is missing from GET request", 400);
         }
         return null;
     }
 
-    public function collectFromPost($targetKey, $triggerException = true) {
-        foreach ($this->get as $key=>$value) {
+    public function collectFromPost($targetKey, $triggerException = true)
+    {
+        foreach ($this->get as $key => $value) {
             if ($targetKey == $key) {
                 return $value;
             }
         }
         if ($triggerException) {
-            throw new \Exception("Param '$targetKey' is missing from POST request",400);
+            throw new \Exception("Param '$targetKey' is missing from POST request", 400);
         }
         return null;
     }
 
-    public function collectFromHeader($targetKey, $triggerException = true) {
-        foreach ($this->get as $key=>$value) {
+    public function collectFromHeader($targetKey, $triggerException = true)
+    {
+        foreach ($this->get as $key => $value) {
             if ($targetKey == $key) {
                 return $value;
             }
         }
         if ($triggerException) {
-            throw new \Exception("Param '$targetKey' is missing from request header",400);
+            throw new \Exception("Param '$targetKey' is missing from request header", 400);
         }
         return null;
     }
 
-    public function collect($targetKey) {
-        $value = $this->collectFromGet($targetKey,false);
+    public function collect($targetKey)
+    {
+        $value = $this->collectFromGet($targetKey, false);
         if (!empty($value)) {
             return $value;
         }
-        $value = $this->collectFromPost($targetKey,false);
+        $value = $this->collectFromPost($targetKey, false);
         if (!empty($value)) {
             return $value;
         }
-        $value = $this->collectFromHeader($targetKey,false);
+        $value = $this->collectFromHeader($targetKey, false);
         if (!empty($value)) {
             return $value;
         }
-        throw new \Exception("Param '$targetKey' is missing from request",400);
+        throw new \Exception("Param '$targetKey' is missing from request", 400);
     }
 
-    public function collectAll() {
-        $args = array();
-        foreach ($this->get as $key=>$value) {
+    public function collectAll()
+    {
+        $args = [];
+        foreach ($this->get as $key => $value) {
             $args[$key] = $value;
         }
-        foreach ($this->post as $key=>$value) {
+        foreach ($this->post as $key => $value) {
             $args[$key] = $value;
         }
-        foreach ($this->header as $key=>$value) {
+        foreach ($this->header as $key => $value) {
             $args[$key] = $value;
         }
         return $args;
@@ -181,14 +191,16 @@ class Request
      * @param Config    $config
      *
      * @return array|null
+     * @throws \Exception
      */
-    private function getSanitizedUrl(Collector $collector, Config $config) {
+    private function getSanitizedUrl(Collector $collector, Config $config)
+    {
         $getParameters = $collector->get;
         if (!is_array($getParameters)) {
             throw new \Exception("Cannot get sanitized URL, verify virtual hosts");
         }
-        foreach ($getParameters as $getParameterKey=>$getParameterValue) {
-            if (!in_array($getParameterKey,$config->endpointParameters)) {
+        foreach ($getParameters as $getParameterKey => $getParameterValue) {
+            if (!in_array($getParameterKey, $config->endpointParameters)) {
                 unset($getParameters[$getParameterKey]);
             }
         }
@@ -201,7 +213,8 @@ class Request
      *
      * @return array|null
      */
-    private function getSanitizedGet(Collector $collector, Config $config) {
+    private function getSanitizedGet(Collector $collector, Config $config)
+    {
         $getParameters = $collector->get;
         foreach ($config->endpointParameters as $endpointParameter) {
             if (isset($getParameters[$endpointParameter])) {
@@ -218,10 +231,11 @@ class Request
      * @return bool
      * @throws \Exception
      */
-    private function validateRequiredParams(Collector $collector, Config $config) {
+    private function validateRequiredParams(Collector $collector, Config $config)
+    {
         foreach ($config->endpointParameters as $parameter) {
             if (!isset($collector->get[$parameter])) {
-                throw new \Exception("Required parameter $parameter is missing from request",400);
+                throw new \Exception("Required parameter $parameter is missing from request", 400);
             }
         }
         $this->validated = true;
@@ -230,35 +244,40 @@ class Request
     /**
      * @return null|string
      */
-    public function getControllerVersion() {
+    public function getControllerVersion()
+    {
         return $this->controllerVersion;
     }
 
     /**
      * @return null|string
      */
-    public function getControllerName() {
+    public function getControllerName()
+    {
         return $this->controllerName;
     }
 
     /**
      * @return string
      */
-    public function getControllerRef() {
+    public function getControllerRef()
+    {
         return $this->controllerRef;
     }
 
     /**
      * @return null|string
      */
-    public function getActionName() {
+    public function getActionName()
+    {
         return $this->actionName;
     }
 
     /**
      * @return null|string
      */
-    public function getActionVersion() {
+    public function getActionVersion()
+    {
         return $this->actionVersion;
     }
 
@@ -276,12 +295,13 @@ class Request
         }
 
         if (function_exists('mb_strpos')
-            && function_exists('mb_substr')) {
-                $periodPosition = mb_strpos($fullVersion,".");
-                $controllerVersion= mb_substr($fullVersion,0,$periodPosition);
+            && function_exists('mb_substr')
+        ) {
+            $periodPosition    = mb_strpos($fullVersion, ".");
+            $controllerVersion = mb_substr($fullVersion, 0, $periodPosition);
         } else {
-            $periodPosition = strpos($fullVersion,".");
-            $controllerVersion= substr($fullVersion,0,$periodPosition);
+            $periodPosition    = strpos($fullVersion, ".");
+            $controllerVersion = substr($fullVersion, 0, $periodPosition);
         }
 
         return $controllerVersion;
@@ -301,12 +321,13 @@ class Request
         }
 
         if (function_exists('mb_strpos')
-            && function_exists('mb_substr')) {
-                $periodPosition = mb_strpos($fullVersion,".");
-                $actionVersionNumber = mb_substr($fullVersion,$periodPosition + 1);
+            && function_exists('mb_substr')
+        ) {
+            $periodPosition      = mb_strpos($fullVersion, ".");
+            $actionVersionNumber = mb_substr($fullVersion, $periodPosition + 1);
         } else {
-            $periodPosition = strpos($fullVersion,".");
-            $actionVersionNumber = substr($fullVersion,$periodPosition + 1);
+            $periodPosition      = strpos($fullVersion, ".");
+            $actionVersionNumber = substr($fullVersion, $periodPosition + 1);
         }
 
         $actionVersion = "v$actionVersionNumber";
@@ -350,7 +371,8 @@ class Request
      *
      * @return string
      */
-    public function createControllerRef(Config $config, $controllerName,$controllerVersion) {
+    public function createControllerRef(Config $config, $controllerName, $controllerVersion)
+    {
         $processedName = $this->stringToUpperCamel($controllerName, "_");
         $controllerRef = $config->productNamespace . "\\Controller\\$controllerVersion\\$processedName";
         return $controllerRef;
@@ -362,22 +384,23 @@ class Request
      *
      * @return string
      */
-    public function stringToUpperCamel($string, $delimiter = null) {
+    public function stringToUpperCamel($string, $delimiter = null)
+    {
         if (!empty($delimiter)) {
 
             if (function_exists('mb_stripos')) {
-                $delimiterExists = (mb_stripos($string,$delimiter) !== false);
+                $delimiterExists = (mb_stripos($string, $delimiter) !== false);
             } else {
-                $delimiterExists = (stripos($string,$delimiter) !== false);
+                $delimiterExists = (stripos($string, $delimiter) !== false);
             }
 
             if ($delimiterExists) {
-                $stringArray = explode($delimiter,$string);
-                $fragmentArray = array();
+                $stringArray   = explode($delimiter, $string);
+                $fragmentArray = [];
                 foreach ($stringArray as $stringFragment) {
                     $fragmentArray[] = ucfirst($stringFragment);
                 }
-                return implode($delimiter,$fragmentArray);
+                return implode($delimiter, $fragmentArray);
             }
         }
         return ucfirst($string);

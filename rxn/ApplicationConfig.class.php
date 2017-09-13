@@ -3,17 +3,27 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn;
 
 /**
  * Class BaseConfig
+ *
  * @package Rxn
  */
 abstract class ApplicationConfig
 {
+    /**
+     * Defines the root organization folder, typically your company or organization name
+     *
+     * Default value: 'organization'
+     *
+     * @var string
+     */
+    public $organizationFolder = 'organization';
+
     /**
      * Defines the root application folder
      * Note: Changing this has not been thoroughly tested!
@@ -49,7 +59,7 @@ abstract class ApplicationConfig
         '.controller.php',
         '.model.php',
         '.record.php',
-        '.interface.php'
+        '.interface.php',
     ];
 
     /**
@@ -97,13 +107,13 @@ abstract class ApplicationConfig
      * @var array
      */
     private $services = [
-        'api'       => '\\Rxn\\Service\\Api',
-        'auth'      => '\\Rxn\\Service\\Auth',
-        'data'      => '\\Rxn\\Service\\Data',
-        'model'     => '\\Rxn\\Service\\Model',
-        'router'    => '\\Rxn\\Service\\Router',
-        'stats'     => '\\Rxn\\Service\\Stats',
-        'utility'   => '\\Rxn\\Service\\Utility',
+        'api'     => '\\Rxn\\Service\\Api',
+        'auth'    => '\\Rxn\\Service\\Auth',
+        'data'    => '\\Rxn\\Service\\Data',
+        'model'   => '\\Rxn\\Service\\Model',
+        'router'  => '\\Rxn\\Service\\Router',
+        'stats'   => '\\Rxn\\Service\\Stats',
+        'utility' => '\\Rxn\\Service\\Utility',
     ];
 
     /**
@@ -118,7 +128,8 @@ abstract class ApplicationConfig
      *
      * @return array
      */
-    static public function getIniRequirements() {
+    static public function getIniRequirements()
+    {
         return self::$iniRequirements;
     }
 
@@ -127,7 +138,8 @@ abstract class ApplicationConfig
      *
      * @return array
      */
-    static public function getCoreComponentPaths() {
+    static public function getCoreComponentPaths()
+    {
         return self::$coreComponentPaths;
     }
 
@@ -136,11 +148,13 @@ abstract class ApplicationConfig
      *
      * @return array
      */
-    public function getServices() {
+    public function getServices()
+    {
         return $this->services;
     }
 
-    public function __construct() {
+    public function __construct()
+    {
         $this->root = realpath(__DIR__ . $this->relativeRoot);
     }
 }

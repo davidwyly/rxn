@@ -3,7 +3,7 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Data;
@@ -36,6 +36,8 @@ class Chain
      * Chain constructor.
      *
      * @param Map $map
+     *
+     * @throws \Exception
      */
     public function __construct(Map $map)
     {
@@ -58,14 +60,16 @@ class Chain
     /**
      * @param Map $map
      */
-    private function registerLinksToRecords(Map $map) {
-        foreach ($map->tables as $tableName=>$tableMap) {
+    private function registerLinksToRecords(Map $map)
+    {
+        foreach ($map->tables as $tableName => $tableMap) {
             if (isset($tableMap->fieldReferences)) {
-                foreach ($tableMap->fieldReferences as $column=>$referenceTableInfo) {
+                foreach ($tableMap->fieldReferences as $column => $referenceTableInfo) {
                     $referenceTable = $referenceTableInfo['table'];
                     if (array_key_exists($referenceTable, $map->tables)) {
-                        $matchingTable = $map->tables[$referenceTable];
+                        $matchingTable     = $map->tables[$referenceTable];
                         $matchingTableName = $matchingTable->name;
+
                         $this->linksToRecords[$tableName][$column] = $matchingTableName;
                     }
                 }
@@ -79,13 +83,14 @@ class Chain
     private function registerLinksFromRecords(Map $map)
     {
 
-        foreach ($map->tables as $tableName=>$tableMap) {
+        foreach ($map->tables as $tableName => $tableMap) {
             if (isset($tableMap->fieldReferences)) {
-                foreach ($tableMap->fieldReferences as $column=>$referenceTableInfo) {
+                foreach ($tableMap->fieldReferences as $column => $referenceTableInfo) {
                     $referenceTable = $referenceTableInfo['table'];
                     if (array_key_exists($referenceTable, $map->tables)) {
-                        $matchingTable = $map->tables[$referenceTable];
+                        $matchingTable     = $map->tables[$referenceTable];
                         $matchingTableName = $matchingTable->name;
+
                         $this->linksFromRecords[$matchingTableName][$tableName] = $column;
                     }
                 }
@@ -98,9 +103,10 @@ class Chain
      *
      * @throws \Exception
      */
-    private function validateMap($map) {
+    private function validateMap($map)
+    {
         if (empty($map->tables)) {
-            throw new \Exception('',500);
+            throw new \Exception('', 500);
         }
     }
 }

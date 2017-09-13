@@ -3,12 +3,12 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Api\Controller;
 
-use \Rxn\Config;
+use \Rxn\ApplicationConfig as Config;
 use \Rxn\Api\Request;
 use \Rxn\Utility\Debug;
 
@@ -140,11 +140,12 @@ class Response
      * @param Request $request
      * @param Config  $config
      */
-    public function __construct(Request $request, Config $config) {
+    public function __construct(Request $request, Config $config)
+    {
         $this->responseLeaderKey = $config->responseLeaderKey;
-        $this->request = $request;
+        $this->request           = $request;
         if (!$this->request->isValidated()) {
-            $e = $this->request->getException();
+            $e                     = $this->request->getException();
             $this->failureResponse = $this->getFailure($e);
         }
     }
@@ -152,14 +153,15 @@ class Response
     /**
      * @return array
      */
-    public function getSuccess() {
-        $this->success = true;
-        $this->code = self::DEFAULT_SUCCESS_CODE;
-        $this->result = self::getResponseCodeResult($this->code);
-        $this->rendered = true;
+    public function getSuccess()
+    {
+        $this->success   = true;
+        $this->code      = self::DEFAULT_SUCCESS_CODE;
+        $this->result    = self::getResponseCodeResult($this->code);
+        $this->rendered  = true;
         $this->elapsedMs = \Rxn\Application::getElapsedMs();
         return [
-            $this->responseLeaderKey => $this
+            $this->responseLeaderKey => $this,
         ];
     }
 
@@ -168,29 +170,32 @@ class Response
      *
      * @return array
      */
-    public function getFailure(\Exception $e) {
-        $this->success = false;
-        $this->code = $e->getCode();
-        $this->result = self::getResponseCodeResult($this->code);
-        $this->message = $e->getMessage();
-        $this->trace = self::getErrorTrace($e);
+    public function getFailure(\Exception $e)
+    {
+        $this->success  = false;
+        $this->code     = $e->getCode();
+        $this->result   = self::getResponseCodeResult($this->code);
+        $this->message  = $e->getMessage();
+        $this->trace    = self::getErrorTrace($e);
         $this->rendered = true;
         return [
-            $this->responseLeaderKey => $this
+            $this->responseLeaderKey => $this,
         ];
     }
 
     /**
      * @return mixed
      */
-    public function getFailureResponse() {
+    public function getFailureResponse()
+    {
         return $this->failureResponse;
     }
 
     /**
      * @return bool
      */
-    public function isRendered() {
+    public function isRendered()
+    {
         return $this->rendered;
     }
 
@@ -199,7 +204,8 @@ class Response
      *
      * @return int|mixed|string
      */
-    static public function getErrorCode(\Exception $e) {
+    static public function getErrorCode(\Exception $e)
+    {
         $code = $e->getCode();
         if (empty($code)) {
             $code = '500';
@@ -212,26 +218,27 @@ class Response
      *
      * @return array
      */
-    static public function getErrorTrace(\Exception $e) {
-        $fullTrace = $e->getTrace();
+    static public function getErrorTrace(\Exception $e)
+    {
+        $fullTrace        = $e->getTrace();
         $allowedDebugKeys = [
             'file',
             'line',
             'function',
-            'class'
+            'class',
         ];
-        $trace = array();
+        $trace            = [];
         foreach ($allowedDebugKeys as $allowedKey) {
-            foreach ($fullTrace as $traceKey=>$traceGroup) {
+            foreach ($fullTrace as $traceKey => $traceGroup) {
                 if (isset($traceGroup[$allowedKey])) {
                     $trace[$traceKey][$allowedKey] = $traceGroup[$allowedKey];
                 }
             }
         }
-        foreach ($trace as $key=>$traceGroup) {
+        foreach ($trace as $key => $traceGroup) {
             if (isset($traceGroup['file'])) {
-                $regex = '^.+\/';
-                $trimmedFile = preg_replace("#$regex#",'',$traceGroup['file']);
+                $regex               = '^.+\/';
+                $trimmedFile         = preg_replace("#$regex#", '', $traceGroup['file']);
                 $trace[$key]['file'] = $trimmedFile;
             }
         }
@@ -243,7 +250,8 @@ class Response
      *
      * @return string
      */
-    static public function getResponseCodeResult($code) {
+    static public function getResponseCodeResult($code)
+    {
         if (!isset(self::$responseCodes[$code])) {
             return 'Unsupported Response Code';
         }

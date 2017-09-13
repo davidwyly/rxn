@@ -3,13 +3,13 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Service;
 
 use \Rxn\Service;
-use \Rxn\Config;
+use \Rxn\ApplicationConfig as Config;
 use \Rxn\Auth\Key;
 use \Rxn\Utility\Debug;
 
@@ -28,8 +28,8 @@ class Auth
      *
      * @throws \Exception
      */
-    public function __construct(Config $config, Service $service) {
+    public function __construct(Config $config, Service $service)
+    {
         $this->key = $service->get(Key::class);
-        //$this->key->setEncryptionKey($config->applicationKey);
     }
 }

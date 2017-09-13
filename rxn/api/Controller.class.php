@@ -3,7 +3,7 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Api;
@@ -47,17 +47,19 @@ class Controller
     /**
      * Controller constructor.
      *
-     * @param Request $request
+     * @param Request  $request
      * @param Response $response
-     * @param Service $service
+     * @param Service  $service
+     *
      * @throws \Exception
      */
-    public function __construct(Request $request, Response $response, Service $service) {
-        $this->request = $request;
-        $this->response = $response;
-        $actionName = $request->getActionName();
-        $actionVersion = $request->getActionVersion();
-        $this->actionMethod = $this->getActionMethod($actionName,$actionVersion);
+    public function __construct(Request $request, Response $response, Service $service)
+    {
+        $this->request      = $request;
+        $this->response     = $response;
+        $actionName         = $request->getActionName();
+        $actionVersion      = $request->getActionVersion();
+        $this->actionMethod = $this->getActionMethod($actionName, $actionVersion);
     }
 
     /**
@@ -65,14 +67,15 @@ class Controller
      *
      * @return array
      */
-    public function trigger(Service $service) {
+    public function trigger(Service $service)
+    {
 
         $this->triggered = true;
 
         // determine the action method on the controller to trigger
         try {
-            $actionName = $this->request->getActionName();
-            $actionVersion = $this->request->getActionVersion();
+            $actionName         = $this->request->getActionName();
+            $actionVersion      = $this->request->getActionVersion();
             $this->actionMethod = $this->getActionMethod($actionName, $actionVersion);
         } catch (\Exception $e) {
             return $this->response->getFailure($e);
@@ -81,7 +84,7 @@ class Controller
         // trigger the action method on the controller
         try {
             $actionTimeStart = microtime(true);
-            $actionResponse = $this->getActionResponse($service, $this->actionMethod);
+            $actionResponse  = $this->getActionResponse($service, $this->actionMethod);
             $this->calculateActionTimeElapsed($actionTimeStart);
             $this->validateActionResponse($actionResponse);
             return $this->response->getSuccess() + $actionResponse;
@@ -95,13 +98,15 @@ class Controller
      * @param         $method
      *
      * @return mixed
+     * @throws \Exception
      */
-    protected function getActionResponse(Service $service, $method) {
-        $reflection = new \ReflectionObject($this);
+    protected function getActionResponse(Service $service, $method)
+    {
+        $reflection       = new \ReflectionObject($this);
         $reflectionMethod = $reflection->getMethod($method);
-        $classesToInject = $this->getMethodClassesToInject($reflectionMethod);
-        $objectsToInject = $this->invokeObjectsToInject($service, $classesToInject);
-        $actionResponse = $reflectionMethod->invokeArgs($this,$objectsToInject);
+        $classesToInject  = $this->getMethodClassesToInject($reflectionMethod);
+        $objectsToInject  = $this->invokeObjectsToInject($service, $classesToInject);
+        $actionResponse   = $reflectionMethod->invokeArgs($this, $objectsToInject);
         return $actionResponse;
     }
 
@@ -110,9 +115,10 @@ class Controller
      *
      * @return array
      */
-    protected function getMethodClassesToInject(\ReflectionMethod $reflectionMethod) {
-        $parameters = $reflectionMethod->getParameters();
-        $classesToInject = array();
+    protected function getMethodClassesToInject(\ReflectionMethod $reflectionMethod)
+    {
+        $parameters      = $reflectionMethod->getParameters();
+        $classesToInject = [];
         foreach ($parameters as $parameter) {
             if ($parameter->getClass()) {
                 $classesToInject[] = $parameter->getClass()->name;
@@ -128,8 +134,9 @@ class Controller
      * @return array
      * @throws \Exception
      */
-    protected function invokeObjectsToInject(Service $service, array $classesToInject) {
-        $objectsToInject = array();
+    protected function invokeObjectsToInject(Service $service, array $classesToInject)
+    {
+        $objectsToInject = [];
         foreach ($classesToInject as $classToInject) {
             $objectsToInject[] = $service->get($classToInject);
         }
@@ -139,8 +146,9 @@ class Controller
     /**
      * @param $startMicroTime
      */
-    protected function calculateActionTimeElapsed($startMicroTime) {
-        $this->actionElapsedMs = round((microtime(true) - $startMicroTime) * 1000,4);
+    protected function calculateActionTimeElapsed($startMicroTime)
+    {
+        $this->actionElapsedMs = round((microtime(true) - $startMicroTime) * 1000, 4);
     }
 
     /**
@@ -150,15 +158,16 @@ class Controller
      * @return string
      * @throws \Exception
      */
-    private function getActionMethod($actionName, $actionVersion) {
+    private function getActionMethod($actionName, $actionVersion)
+    {
         if (empty($actionName)) {
-            throw new \Exception("Action is missing from the request",400);
+            throw new \Exception("Action is missing from the request", 400);
         }
         $reflection = new \ReflectionObject($this);
         $methodName = $actionName . "_" . $actionVersion;
         if (!$reflection->hasMethod($methodName)) {
             $controllerName = $reflection->getName();
-            throw new \Exception("Method '$methodName' does not exist on '$controllerName'",400);
+            throw new \Exception("Method '$methodName' does not exist on '$controllerName'", 400);
         }
         return $methodName;
     }
@@ -168,10 +177,11 @@ class Controller
      *
      * @throws \Exception
      */
-    private function validateActionResponse($actionResponse) {
+    private function validateActionResponse($actionResponse)
+    {
         if (!is_array($actionResponse)) {
             $method = $this->actionMethod;
-            throw new \Exception("Controller method '$method' must return an array of key-value as a response",500);
+            throw new \Exception("Controller method '$method' must return an array of key-value as a response", 500);
         }
     }
 }

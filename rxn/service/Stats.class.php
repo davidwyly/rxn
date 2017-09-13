@@ -3,7 +3,7 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Service;
@@ -28,16 +28,18 @@ class Stats
     /**
      * Stats constructor.
      */
-    public function __construct() {
+    public function __construct()
+    {
 
     }
 
     /**
      * @param $timeStart
      */
-    public function stop($timeStart) {
+    public function stop($timeStart)
+    {
         $this->timeStop = microtime(true);
-        $this->loadMs = round(($this->timeStop - $timeStart) * 1000,4);
+        $this->loadMs   = round(($this->timeStop - $timeStart) * 1000, 4);
     }
 
 }

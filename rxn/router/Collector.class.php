@@ -3,12 +3,12 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Router;
 
-use \Rxn\Config;
+use \Rxn\ApplicationConfig as Config;
 
 /**
  * Class Collector
@@ -39,9 +39,10 @@ class Collector
      *
      * @param Config $config
      */
-    public function __construct(Config $config) {
-        $this->get = $this->getRequestUrlParams($config);
-        $this->post = $this->getRequestDataParams();
+    public function __construct(Config $config)
+    {
+        $this->get    = $this->getRequestUrlParams($config);
+        $this->post   = $this->getRequestDataParams();
         $this->header = $this->getRequestHeaderParams();
     }
 
@@ -51,7 +52,8 @@ class Collector
      * @return string
      * @throws \Exception
      */
-    public function getUrlParam($paramName) {
+    public function getUrlParam($paramName)
+    {
         if (!isset($this->get[$paramName])) {
             throw new \Exception("No GET param by the name of '$paramName',500");
         }
@@ -61,13 +63,14 @@ class Collector
     /**
      * @return array|null
      */
-    public function getRequestDataParams() {
+    public function getRequestDataParams()
+    {
         if (!isset($_POST) || empty($_POST)) {
             return null;
         }
-        foreach ($_POST as $key=>$value) {
+        foreach ($_POST as $key => $value) {
             if (is_string($value)) {
-                $decoded = json_decode($value,true);
+                $decoded = json_decode($value, true);
                 if ($decoded) {
                     $_POST[$key] = $decoded;
                 }
@@ -81,7 +84,8 @@ class Collector
      *
      * @return bool
      */
-    private function isEven($integer) {
+    private function isEven($integer)
+    {
         if ($integer == 0) {
             return true;
         }
@@ -96,7 +100,8 @@ class Collector
      *
      * @return bool
      */
-    private function isOdd($integer) {
+    private function isOdd($integer)
+    {
         if (!self::isEven($integer)) {
             return true;
         }
@@ -109,10 +114,11 @@ class Collector
      *
      * @return array
      */
-    private function processParams(Config $config, $params) {
+    private function processParams(Config $config, $params)
+    {
 
         // assign version, controller, and action
-        $processedParams = array();
+        $processedParams = [];
         foreach ($config->endpointParameters as $mapParameter) {
             $processedParams[$mapParameter] = array_shift($params);
         }
@@ -122,12 +128,12 @@ class Collector
         if ($paramCount > 0) {
 
             // split params into key-value pairs
-            foreach ($params as $key=>$value) {
+            foreach ($params as $key => $value) {
                 if ($this->isEven($key)) {
                     $pairedKey = $value;
-                    $nextKey = $key + 1;
+                    $nextKey   = $key + 1;
                     if (isset($params[$nextKey])) {
-                        $pairedValue = $params[$nextKey];
+                        $pairedValue                 = $params[$nextKey];
                         $processedParams[$pairedKey] = $pairedValue;
                     } else {
                         $processedParams[$pairedKey] = null;
@@ -144,24 +150,25 @@ class Collector
      *
      * @return array|null
      */
-    public function getRequestUrlParams(Config $config) {
+    public function getRequestUrlParams(Config $config)
+    {
         if (!isset($_GET) || empty($_GET)) {
             return null;
         }
         if (isset($_GET['params']) && !empty($_GET['params'])) {
             // trim any trailing forward slash
-            $params = preg_replace('#\/$#','',$_GET['params']);
+            $params = preg_replace('#\/$#', '', $_GET['params']);
 
             // split the param string into an array
-            $params = explode('/',$params);
+            $params = explode('/', $params);
 
             // determine the version, controller, and action from the parameters
-            $processedParams =  $this->processParams($config, $params);
+            $processedParams = $this->processParams($config, $params);
 
             // tack on the other GET params
             $otherParams = $_GET;
             unset($otherParams['params']);
-            foreach ($otherParams as $key=>$value) {
+            foreach ($otherParams as $key => $value) {
                 $processedParams[$key] = $value;
             }
 
@@ -174,14 +181,15 @@ class Collector
     /**
      * @return array|null
      */
-    public function getRequestHeaderParams() {
+    public function getRequestHeaderParams()
+    {
         $headerParams = null;
-        foreach ($_SERVER as $key=>$value) {
+        foreach ($_SERVER as $key => $value) {
 
             if (function_exists('mb_stripos')) {
-                $headerKeyExists = (mb_stripos($key,'HTTP_RXN') !== false);
+                $headerKeyExists = (mb_stripos($key, 'HTTP_RXN') !== false);
             } else {
-                $headerKeyExists = (stripos($key,'HTTP_RXN') !== false);
+                $headerKeyExists = (stripos($key, 'HTTP_RXN') !== false);
             }
 
             if ($headerKeyExists) {
@@ -192,7 +200,7 @@ class Collector
                     $lowerKey = strtolower($key);
                 }
 
-                $lowerKey = preg_replace("#http\_#",'',$lowerKey);
+                $lowerKey                = preg_replace("#http\_#", '', $lowerKey);
                 $headerParams[$lowerKey] = $value;
             }
         }
@@ -205,11 +213,12 @@ class Collector
      * @return mixed
      * @throws \Exception
      */
-    public function detectVersion(Config $config) {
+    public function detectVersion(Config $config)
+    {
         $get = $this->getRequestUrlParams($config);
         if (!isset($get['version'])) {
             $urlStyle = self::URL_STYLE;
-            throw new \Exception("Cannot detect version from URL; URL style is '$urlStyle'",400);
+            throw new \Exception("Cannot detect version from URL; URL style is '$urlStyle'", 400);
 
         }
         return $get['version'];
@@ -221,11 +230,12 @@ class Collector
      * @return mixed
      * @throws \Exception
      */
-    public function detectController(Config $config) {
+    public function detectController(Config $config)
+    {
         $get = $this->getRequestUrlParams($config);
         if (!isset($get['controller'])) {
             $urlStyle = self::URL_STYLE;
-            throw new \Exception("Cannot detect controller from URL; URL style is '$urlStyle'",400);
+            throw new \Exception("Cannot detect controller from URL; URL style is '$urlStyle'", 400);
         }
         return $get['controller'];
     }
@@ -236,11 +246,12 @@ class Collector
      * @return mixed
      * @throws \Exception
      */
-    public function detectAction(Config $config) {
+    public function detectAction(Config $config)
+    {
         $get = $this->getRequestUrlParams($config);
         if (!isset($get['action'])) {
             $urlStyle = self::URL_STYLE;
-            throw new \Exception("Cannot detect action from URL; URL style is '$urlStyle'",400);
+            throw new \Exception("Cannot detect action from URL; URL style is '$urlStyle'", 400);
         }
         return $get['action'];
     }

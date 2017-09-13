@@ -3,7 +3,7 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Data\Map;
@@ -22,10 +22,10 @@ class Table
 {
     public $name;
     public $tableInfo;
-    public $columnInfo = array();
-    public $primaryKeys = array();
-    public $fieldReferences = array();
-    public $cacheTime = null;
+    public $columnInfo      = [];
+    public $primaryKeys     = [];
+    public $fieldReferences = [];
+    public $cacheTime       = null;
     //protected $fromCache = false;
 
     /**
@@ -35,9 +35,12 @@ class Table
      * @param Database $database
      * @param          $tableName
      * @param bool     $createReferenceMaps
+     *
+     * @throws \Exception
      */
-    public function __construct(Registry $registry, Database $database, $tableName, $createReferenceMaps = true) {
-        $this->validateTableExists($database,$registry,$tableName);
+    public function __construct(Registry $registry, Database $database, $tableName, $createReferenceMaps = true)
+    {
+        $this->validateTableExists($database, $registry, $tableName);
         $constructParams = [
             $registry,
             $database,
@@ -54,21 +57,27 @@ class Table
      *
      * @throws \Exception
      */
-    private function validateTableExists(Database $database, Registry $registry, $tableName) {
-        if (!$this->tableExists($database,$registry,$tableName)) {
-            throw new \Exception(__METHOD__ . " returned false: table '$tableName' doesn't exist",500);
+    private function validateTableExists(Database $database, Registry $registry, $tableName)
+    {
+        if (!$this->tableExists($database, $registry, $tableName)) {
+            throw new \Exception(__METHOD__ . " returned false: table '$tableName' doesn't exist", 500);
         }
     }
 
     /**
      * @param array $constructParams
+     *
+     * @throws \Exception
      */
-    public function initialize(array $constructParams) {
+    public function initialize(array $constructParams)
+    {
         $this->initializeNormally($constructParams);
     }
 
     /**
      * @param array $constructParams
+     *
+     * @throws \Exception
      */
     public function initializeNormally(array $constructParams)
     {
@@ -88,10 +97,11 @@ class Table
      * @return bool
      * @throws \Exception
      */
-    private function generateTableMap(Database $database, $tableName, $createReferenceMaps) {
-        $this->tableInfo = $this->getTableInfo($database,$tableName);
-        $this->columnInfo = $this->getColumns($database,$tableName);
-        $this->primaryKeys = $this->getPrimaryKeys($database,$tableName);
+    private function generateTableMap(Database $database, $tableName, $createReferenceMaps)
+    {
+        $this->tableInfo   = $this->getTableInfo($database, $tableName);
+        $this->columnInfo  = $this->getColumns($database, $tableName);
+        $this->primaryKeys = $this->getPrimaryKeys($database, $tableName);
         if ($createReferenceMaps) {
             $this->createReferenceMaps();
         }
@@ -101,17 +111,19 @@ class Table
     /**
      *
      */
-    private function createReferenceMaps() {
+    private function createReferenceMaps()
+    {
         if (is_array($this->columnInfo)) {
-            foreach ($this->columnInfo as $key=>$value) {
+            foreach ($this->columnInfo as $key => $value) {
                 if (isset($value['referenced_table_schema'])
-                    && isset($value['referenced_table_name'])) {
+                    && isset($value['referenced_table_name'])
+                ) {
                     $referenceDatabase = $value['referenced_table_schema'];
-                    $referenceTable = $value['referenced_table_name'];
+                    $referenceTable    = $value['referenced_table_name'];
                     if ($referenceTable) {
                         $this->fieldReferences[$key] = [
                             'schema' => $referenceDatabase,
-                            'table' => $referenceTable,
+                            'table'  => $referenceTable,
                         ];
                     }
                 }
@@ -124,10 +136,13 @@ class Table
      * @param          $tableName
      *
      * @return array|mixed
+     * @throws \Exception
      */
-    protected function getTableDetails(Database $database, $tableName) {
+    protected function getTableDetails(Database $database, $tableName)
+    {
         $databaseName = $database->getName();
-        $SQL = /** @lang MySQL */ "
+        $SQL          = /** @lang MySQL */
+            "
             SELECT DISTINCT
                 c.column_name,
                 -- c.table_catalog,
@@ -156,7 +171,7 @@ class Table
                 kcu.referenced_table_schema,
                 kcu.referenced_table_name,
                 kcu.referenced_column_name
-            FROM information_schema.columns as c
+            FROM information_schema.columns AS c
             LEFT JOIN information_schema.key_column_usage AS kcu
                 ON kcu.column_name = c.column_name
                     AND kcu.referenced_table_schema LIKE :databaseName
@@ -166,11 +181,11 @@ class Table
             GROUP BY c.column_name
             ORDER BY c.ordinal_position ASC
         ";
-        $bindings = [
-            'databaseName'=>$databaseName,
-            'tableName'=>$tableName
+        $bindings     = [
+            'databaseName' => $databaseName,
+            'tableName'    => $tableName,
         ];
-        $result = $database->fetchAll($SQL,$bindings,true,1);
+        $result       = $database->fetchAll($SQL, $bindings, true, 1);
         return $result;
     }
 
@@ -180,13 +195,16 @@ class Table
      * @param          $tableName
      *
      * @return bool
+     * @throws \Exception
      */
-    public function tableExists(Database $database, Registry $registry, $tableName) {
+    public function tableExists(Database $database, Registry $registry, $tableName)
+    {
         $databaseName = $database->getName();
-        if (in_array($tableName,$registry->tables[$databaseName])) {
+        if (in_array($tableName, $registry->tables[$databaseName])) {
             return true;
         }
-        $SQL = /** @lang MySQL */ "
+        $SQL = /** @lang MySQL */
+            "
 			SELECT
 				table_name
 			FROM information_schema.tables AS t
@@ -194,7 +212,7 @@ class Table
 				AND t.table_name LIKE ?
 				AND t.table_type = 'BASE TABLE'
 			";
-        if ($database->fetch($SQL,[$databaseName, $tableName],true,1)) {
+        if ($database->fetch($SQL, [$databaseName, $tableName], true, 1)) {
             return true;
         }
         return false;
@@ -205,10 +223,13 @@ class Table
      * @param          $tableName
      *
      * @return array|mixed
+     * @throws \Exception
      */
-    private function getTableInfo(Database $database, $tableName) {
+    private function getTableInfo(Database $database, $tableName)
+    {
         $databaseName = $database->getName();
-        $SQL = /** @lang MySQL */ "
+        $SQL          = /** @lang MySQL */
+            "
             SELECT
                 t.table_catalog,
                 t.table_schema,
@@ -233,26 +254,7 @@ class Table
             WHERE t.table_schema LIKE ?
                 AND t.table_name LIKE ?
         ";
-        $result = $database->fetch($SQL,[$databaseName, $tableName],true,1);
-        return $result;
-    }
-
-    /**
-     * @param Database $database
-     * @param          $tableName
-     *
-     * @return array|mixed
-     */
-    private function getPrimaryKeys(Database $database, $tableName) {
-        $databaseName = $database->getName();
-        $SQL = /** @lang MySQL */ "
-            SELECT COLUMN_NAME
-            FROM information_schema.key_column_usage AS kcu
-            WHERE kcu.table_schema LIKE ?
-                AND kcu.table_name LIKE ?
-                AND kcu.constraint_name LIKE 'PRIMARY'
-        ";
-        $result =  $database->fetchArray($SQL,[$databaseName, $tableName],true,1);
+        $result       = $database->fetch($SQL, [$databaseName, $tableName], true, 1);
         return $result;
     }
 
@@ -263,13 +265,36 @@ class Table
      * @return array|mixed
      * @throws \Exception
      */
-    private function getColumns(Database $database, $tableName) {
-        $result = $this->getTableDetails($database,$tableName);
+    private function getPrimaryKeys(Database $database, $tableName)
+    {
+        $databaseName = $database->getName();
+        $SQL          = /** @lang MySQL */
+            "
+            SELECT COLUMN_NAME
+            FROM information_schema.key_column_usage AS kcu
+            WHERE kcu.table_schema LIKE ?
+                AND kcu.table_name LIKE ?
+                AND kcu.constraint_name LIKE 'PRIMARY'
+        ";
+        $result       = $database->fetchArray($SQL, [$databaseName, $tableName], true, 1);
+        return $result;
+    }
+
+    /**
+     * @param Database $database
+     * @param          $tableName
+     *
+     * @return array|mixed
+     * @throws \Exception
+     */
+    private function getColumns(Database $database, $tableName)
+    {
+        $result = $this->getTableDetails($database, $tableName);
         if (!$result) {
-            throw new \Exception(__METHOD__ . " returned false",500);
+            throw new \Exception(__METHOD__ . " returned false", 500);
         }
-        foreach ($result as $key=>$value) {
-            $currentColumn = $value['column_name'];
+        foreach ($result as $key => $value) {
+            $currentColumn          = $value['column_name'];
             $result[$currentColumn] = $value;
             unset($result[$key]);
         }

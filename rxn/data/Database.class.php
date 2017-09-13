@@ -3,13 +3,13 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Data;
 
-use \Rxn\Config as Config;
-use Rxn\Datasources;
+use \Rxn\ApplicationConfig as Config;
+use Rxn\ApplicationDatasources as Datasources;
 use \Rxn\Utility\Debug as Debug;
 
 /**
@@ -17,28 +17,29 @@ use \Rxn\Utility\Debug as Debug;
  *
  * @package Rxn\Data
  */
-class Database {
+class Database
+{
 
     /**
      * @var array
      */
     private $defaultSettings = [
-        'host' => null,
-        'name' => null,
+        'host'     => null,
+        'name'     => null,
         'username' => null,
         'password' => null,
-        'charset' => 'utf8',
+        'charset'  => 'utf8',
     ];
 
     /**
      * @var array
      */
     private $cacheTableSettings = [
-        'table' => null,
+        'table'         => null,
         'expiresColumn' => null,
-        'sqlColumn' => null,
-        'paramColumn' => null,
-        'typeColumn' => null,
+        'sqlColumn'     => null,
+        'paramColumn'   => null,
+        'typeColumn'    => null,
         'packageColumn' => null,
         'elapsedColumn' => null,
     ];
@@ -101,8 +102,11 @@ class Database {
     /**
      * Database constructor.
      *
-     * @param Config $config
+     * @param Config      $config
      * @param Datasources $datasources
+     * @param null        $sourceName
+     *
+     * @throws \Exception
      */
     public function __construct(Config $config, Datasources $datasources, $sourceName = null)
     {
@@ -114,59 +118,69 @@ class Database {
     }
 
     /**
-     * @param Config $config
+     * @param Config      $config
      * @param Datasources $datasources
+     * @param             $sourceName
      *
      * @throws \Exception
      */
-    private function setConfiguration(Config $config, Datasources $datasources, $sourceName) {
-        $this->setDefaultSettings($datasources->databases[$sourceName]);
+    private function setConfiguration(Config $config, Datasources $datasources, $sourceName)
+    {
+        $databases = $datasources->getDatabases();
+        $this->setDefaultSettings($databases[$sourceName]);
         $this->allowCaching = $config->useQueryCaching;
     }
 
     /**
      * @return mixed
      */
-    public function getHost() {
+    public function getHost()
+    {
         return $this->defaultSettings['host'];
     }
 
     /**
      * @return mixed
      */
-    public function getName() {
+    public function getName()
+    {
         return $this->defaultSettings['name'];
     }
 
     /**
      * @return mixed
      */
-    public function getUsername() {
+    public function getUsername()
+    {
         return $this->defaultSettings['username'];
     }
 
     /**
      * @return mixed
      */
-    public function getPassword() {
+    public function getPassword()
+    {
         return $this->defaultSettings['password'];
     }
 
     /**
      * @return mixed
      */
-    public function getCharset() {
+    public function getCharset()
+    {
         return $this->defaultSettings['charset'];
     }
 
     /**
      * @return mixed
      */
-    public function getLastInsertId() {
+    public function getLastInsertId()
+    {
         return $this->lastInsertId;
     }
 
-    public function getLastAffectedRows() {
+    public function getLastAffectedRows()
+    {
         return $this->lastAffectedRows;
     }
 
@@ -176,11 +190,12 @@ class Database {
      * @return null
      * @throws \Exception
      */
-    public function setDefaultSettings(array $defaultSettings) {
+    public function setDefaultSettings(array $defaultSettings)
+    {
         $requiredKeys = array_keys($this->defaultSettings);
         foreach ($requiredKeys as $requiredKey) {
-            if (!array_key_exists($requiredKey,$defaultSettings)) {
-                throw new \Exception("Required key '$requiredKey' missing",500);
+            if (!array_key_exists($requiredKey, $defaultSettings)) {
+                throw new \Exception("Required key '$requiredKey' missing", 500);
             }
         }
         $this->defaultSettings = $defaultSettings;
@@ -193,11 +208,12 @@ class Database {
      * @return null
      * @throws \Exception
      */
-    public function setCacheSettings(array $cacheTableSettings) {
+    public function setCacheSettings(array $cacheTableSettings)
+    {
         $requiredKeys = array_keys($this->cacheTableSettings);
         foreach ($requiredKeys as $requiredKey) {
-            if (!array_key_exists($requiredKey,$cacheTableSettings)) {
-                throw new \Exception("Required key '$requiredKey' missing",500);
+            if (!array_key_exists($requiredKey, $cacheTableSettings)) {
+                throw new \Exception("Required key '$requiredKey' missing", 500);
             }
         }
         $this->cacheTableSettings = $cacheTableSettings;
@@ -207,21 +223,24 @@ class Database {
     /**
      * @return array
      */
-    public function getDefaultSettings() {
+    public function getDefaultSettings()
+    {
         return (array)$this->defaultSettings;
     }
 
     /**
      * @return array
      */
-    public function getCacheTableSettings() {
+    public function getCacheTableSettings()
+    {
         return (array)$this->cacheTableSettings;
     }
 
     /**
      * @return \PDO
      */
-    public function getConnection() {
+    public function getConnection()
+    {
         return $this->connection;
     }
 
@@ -232,9 +251,12 @@ class Database {
      * @return bool
      * @throws \Exception
      */
-    public function transactionOpen (\PDO $connection = null, $stayAlive = true) {
+    public function transactionOpen(\PDO $connection = null, $stayAlive = true)
+    {
         $this->verifyConnection();
-        $connection = $this->connection;
+        if (is_null($connection)) {
+            $connection = $this->connection;
+        }
         if (!empty($this->transactionDepth)) {
             $this->transactionDepth++;
             return true;
@@ -243,7 +265,7 @@ class Database {
             /** @var $connection \PDO */
             $connection->beginTransaction();
         } catch (\PDOException $e) {
-            throw new \Exception($e->getMessage(),500);
+            throw new \Exception($e->getMessage(), 500);
         }
         $this->transactionDepth++;
         $this->stayAlive = true;
@@ -254,9 +276,10 @@ class Database {
      * @return bool
      * @throws \Exception
      */
-    private function verifyConnection() {
+    private function verifyConnection()
+    {
         if (empty($this->connection)) {
-            throw new \Exception(__METHOD__ . ": connection does not exist",500);
+            throw new \Exception(__METHOD__ . ": connection does not exist", 500);
         }
         return true;
     }
@@ -265,11 +288,12 @@ class Database {
      * @return bool
      * @throws \Exception
      */
-    public function transactionClose () {
+    public function transactionClose()
+    {
         $this->verifyConnection();
         $connection = $this->connection;
         if ($this->transactionDepth < 1) {
-            throw new \Exception(__METHOD__ . ": transaction does not exist",500);
+            throw new \Exception(__METHOD__ . ": transaction does not exist", 500);
         }
         if ($this->transactionDepth > 1) {
             $this->transactionDepth--;
@@ -280,7 +304,7 @@ class Database {
             $connection->commit();
         } catch (\PDOException $e) {
             $error = $e->getCode();
-            throw new \Exception("PDO Exception (code $error)",500);
+            throw new \Exception("PDO Exception (code $error)", 500);
         }
         return true;
     }
@@ -289,18 +313,19 @@ class Database {
      * @return bool
      * @throws \Exception
      */
-    private function transactionRollback () {
+    private function transactionRollback()
+    {
         $this->verifyConnection();
         $connection = $this->connection;
         if ($this->transactionDepth < 1) {
-            throw new \Exception(__METHOD__ . ": transaction does not exist",500);
+            throw new \Exception(__METHOD__ . ": transaction does not exist", 500);
         }
         try {
             /** @var $connection \PDO */
             $connection->rollBack();
         } catch (\PDOException $e) {
             $error = $e->getCode();
-            throw new \Exception("PDO Exception (code $error)",500);
+            throw new \Exception("PDO Exception (code $error)", 500);
         }
         $this->transactionDepth--;
         return true;
@@ -309,12 +334,21 @@ class Database {
     /**
      * @return array
      */
-    public function getAttributes() {
+    public function getAttributes()
+    {
         $connection = $this->connection;
         $attributes = [
-            "AUTOCOMMIT", "ERRMODE", "CASE", "CLIENT_VERSION", "CONNECTION_STATUS",
-            "ORACLE_NULLS", "PERSISTENT", "PREFETCH", "SERVER_INFO", "SERVER_VERSION",
-            "TIMEOUT"
+            "AUTOCOMMIT",
+            "ERRMODE",
+            "CASE",
+            "CLIENT_VERSION",
+            "CONNECTION_STATUS",
+            "ORACLE_NULLS",
+            "PERSISTENT",
+            "PREFETCH",
+            "SERVER_INFO",
+            "SERVER_VERSION",
+            "TIMEOUT",
         ];
 
         $response = [];
@@ -337,7 +371,8 @@ class Database {
      * @return \PDO
      * @throws \Exception
      */
-    public function connect(\PDO $connection = null, $stayAlive = false) {
+    public function connect(\PDO $connection = null, $stayAlive = false)
+    {
         if (is_null($connection)) {
             $connection = $this->createConnection();
         }
@@ -350,19 +385,17 @@ class Database {
      * @return \PDO
      * @throws \Exception
      */
-    public function createConnection() {
-        $host = $this->getHost();
-        $name = $this->getName();
+    public function createConnection()
+    {
+        $host    = $this->getHost();
+        $name    = $this->getName();
         $charset = $this->getCharset();
         try {
-            $connection = new \PDO(
-                "mysql:host=$host;dbname=$name;charset=$charset",
-                $this->getUsername(),
-                $this->getPassword()
-            );
+            $connection = new \PDO("mysql:host=$host;dbname=$name;charset=$charset", $this->getUsername(),
+                $this->getPassword());
         } catch (\PDOException $e) {
             $error = $e->getMessage();
-            throw new \Exception("PDO Exception (code $error)",500);
+            throw new \Exception("PDO Exception (code $error)", 500);
         }
         $connection->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         return $connection;
@@ -372,13 +405,14 @@ class Database {
      * @return bool
      * @throws \Exception
      */
-    public function disconnect() {
+    public function disconnect()
+    {
         if ($this->transactionDepth > 0) {
             $this->transactionRollback();
         }
-        $this->stayAlive = false;
+        $this->stayAlive        = false;
         $this->transactionDepth = 0;
-        $this->connection = null;
+        $this->connection       = null;
         return true;
     }
 
@@ -387,10 +421,11 @@ class Database {
      *
      * @return array
      */
-    public function splitStatement($rawSql) {
-        $splitSqlArray = array();
+    public function splitStatement($rawSql)
+    {
+        $splitSqlArray   = [];
         $multipleQueries = preg_split('#[\;]+#', $rawSql, -1, PREG_SPLIT_NO_EMPTY);
-        foreach ($multipleQueries as $key=>$splitSql) {
+        foreach ($multipleQueries as $key => $splitSql) {
             $trimmedSplitSql = trim($splitSql);
             if (!empty($trimmedSplitSql)) {
                 $splitSqlArray[] = $trimmedSplitSql;
@@ -404,7 +439,8 @@ class Database {
      *
      * @return array|null
      */
-    public function getTransactionProblemStatements($rawSql) {
+    public function getTransactionProblemStatements($rawSql)
+    {
         $problemStatements = null;
 
         // list of statements that cause an implicit commit
@@ -437,9 +473,9 @@ class Database {
         foreach ($implicitCommitStatements as $problemStatement) {
 
             if (function_exists('mb_stripos')) {
-                $problemStatementExists = (mb_stripos($rawSql,$problemStatement) !== false);
+                $problemStatementExists = (mb_stripos($rawSql, $problemStatement) !== false);
             } else {
-                $problemStatementExists = (stripos($rawSql,$problemStatement) !== false);
+                $problemStatementExists = (stripos($rawSql, $problemStatement) !== false);
             }
 
             if ($problemStatementExists) {
@@ -459,7 +495,13 @@ class Database {
      * @return array|mixed
      * @throws \Exception
      */
-    public function query($rawSql, array $varsToPrepare = array(), $queryType = 'query', $useCaching = false, $cacheTimeout = null) {
+    public function query(
+        $rawSql,
+        array $varsToPrepare = [],
+        $queryType = 'query',
+        $useCaching = false,
+        $cacheTimeout = null
+    ) {
         // check global caching settings
         if ($this->allowCaching === false) {
             $useCaching = false;
@@ -469,7 +511,7 @@ class Database {
         if (!$this->connection) {
             // connect to the default connection settings if necessary
             if (!$this->connect()) {
-                throw new \Exception("Connection could not be created",500);
+                throw new \Exception("Connection could not be created", 500);
             }
         } else {
             $this->stayAlive = true;
@@ -479,7 +521,7 @@ class Database {
             if (!is_numeric($cacheTimeout)) {
                 $cacheTimeout = $this->defaultCacheTimeout;
             }
-            $cache = $this->cacheLookup($rawSql,$varsToPrepare,$queryType);
+            $cache = $this->cacheLookup($rawSql, $varsToPrepare, $queryType);
             if ($cache) {
                 return $cache;
             }
@@ -489,15 +531,16 @@ class Database {
         if ($this->transactionDepth > 0) {
             $problemStatements = $this->getTransactionProblemStatements($rawSql);
             if (is_array($problemStatements)) {
-                $problems = implode(', ',$problemStatements);
-                throw new \Exception("Transactions used when implicit commit statements exist in query: $problems",500);
+                $problems = implode(', ', $problemStatements);
+                throw new \Exception("Transactions used when implicit commit statements exist in query: $problems",
+                    500);
             }
         }
 
         // prepare the statement
         $preparedStatement = $this->prepare($rawSql);
         if (!$preparedStatement) {
-            throw new \Exception("Could not prepare statement",500);
+            throw new \Exception("Could not prepare statement", 500);
         }
 
         // check for values to bind
@@ -505,30 +548,32 @@ class Database {
             // bind values to the the prepared statement
             $preparedStatement = $this->bind($preparedStatement, $rawSql, $varsToPrepare);
             if (!$preparedStatement) {
-                throw new \Exception("Could not bind prepared statement",500);
+                throw new \Exception("Could not bind prepared statement", 500);
             }
         }
 
         // execute the statement
-        $timeStart = microtime(true);
+        $timeStart         = microtime(true);
         $executedStatement = $this->execute($preparedStatement);
-        $timeElapsed = microtime(true) - $timeStart;
+        $timeElapsed       = microtime(true) - $timeStart;
 
         // set the static 'lastInsertId' property
-        $connection = $this->connection; /** @var $connection \PDO */
-        $this->lastInsertId = $connection->lastInsertId();
+        $connection = $this->connection;
+        /** @var $connection \PDO */
+        $this->lastInsertId     = $connection->lastInsertId();
         $this->lastAffectedRows = $executedStatement->rowCount();
 
         // validate the response
         if (!$executedStatement) {
-            $varString = implode("','",$varsToPrepare);
-            throw new \Exception("Could not execute prepared statement: '$rawSql' (prepared values: '$varString')",500);
+            $varString = implode("','", $varsToPrepare);
+            throw new \Exception("Could not execute prepared statement: '$rawSql' (prepared values: '$varString')",
+                500);
         }
 
         // log the execution event
-        $this->executionSeconds = round($this->executionSeconds + $timeElapsed,4);
+        $this->executionSeconds = round($this->executionSeconds + $timeElapsed, 4);
         $this->executionCount++;
-        $this->logQuery($preparedStatement->queryString, $varsToPrepare, $timeElapsed,null,null);
+        $this->logQuery($preparedStatement->queryString, $varsToPrepare, $timeElapsed, null, null);
 
         // check to see if the connection should close after execution
         if (!$this->stayAlive) {
@@ -543,23 +588,23 @@ class Database {
             case "fetchAll":
                 $result = $executedStatement->fetchAll(\PDO::FETCH_ASSOC);
                 if ($useCaching) {
-                    $this->cacheResult($rawSql,$varsToPrepare,$queryType,$cacheTimeout,$result,$timeElapsed);
+                    $this->cacheResult($rawSql, $varsToPrepare, $queryType, $cacheTimeout, $result, $timeElapsed);
                 }
                 return $result;
             case "fetchArray":
                 $result = $executedStatement->fetchAll(\PDO::FETCH_COLUMN);
                 if ($useCaching) {
-                    $this->cacheResult($rawSql,$varsToPrepare,$queryType,$cacheTimeout,$result,$timeElapsed);
+                    $this->cacheResult($rawSql, $varsToPrepare, $queryType, $cacheTimeout, $result, $timeElapsed);
                 }
                 return $result;
             case "fetch":
                 $result = $executedStatement->fetch(\PDO::FETCH_ASSOC);
                 if ($useCaching) {
-                    $this->cacheResult($rawSql,$varsToPrepare,$queryType,$cacheTimeout,$result,$timeElapsed);
+                    $this->cacheResult($rawSql, $varsToPrepare, $queryType, $cacheTimeout, $result, $timeElapsed);
                 }
                 return $result;
             default:
-                throw new \Exception("Incorrect query type '$queryType''",500);
+                throw new \Exception("Incorrect query type '$queryType''", 500);
         }
     }
 
@@ -572,9 +617,10 @@ class Database {
      * @return array|mixed
      * @throws \Exception
      */
-    public function fetchAll($rawSql, array $varsToPrepare = array(), $cacheResult = false, $cacheTimeout = null) {
+    public function fetchAll($rawSql, array $varsToPrepare = [], $cacheResult = false, $cacheTimeout = null)
+    {
         $queryType = "fetchAll";
-        return $this->query($rawSql,$varsToPrepare,$queryType,$cacheResult,$cacheTimeout);
+        return $this->query($rawSql, $varsToPrepare, $queryType, $cacheResult, $cacheTimeout);
     }
 
     /**
@@ -586,9 +632,10 @@ class Database {
      * @return array|mixed
      * @throws \Exception
      */
-    public function fetch($rawSql, array $varsToPrepare = array(), $cacheResult = false, $cacheTimeout = null) {
+    public function fetch($rawSql, array $varsToPrepare = [], $cacheResult = false, $cacheTimeout = null)
+    {
         $queryType = "fetch";
-        return $this->query($rawSql,$varsToPrepare,$queryType,$cacheResult,$cacheTimeout);
+        return $this->query($rawSql, $varsToPrepare, $queryType, $cacheResult, $cacheTimeout);
     }
 
     /**
@@ -600,9 +647,10 @@ class Database {
      * @return array|mixed
      * @throws \Exception
      */
-    public function fetchArray($rawSql, array $varsToPrepare = array(), $cacheResult = false, $cacheTimeout = null) {
+    public function fetchArray($rawSql, array $varsToPrepare = [], $cacheResult = false, $cacheTimeout = null)
+    {
         $queryType = "fetchArray";
-        return $this->query($rawSql,$varsToPrepare,$queryType,$cacheResult,$cacheTimeout);
+        return $this->query($rawSql, $varsToPrepare, $queryType, $cacheResult, $cacheTimeout);
     }
 
     /**
@@ -611,14 +659,15 @@ class Database {
      * @return \PDOStatement
      * @throws \Exception
      */
-    private function prepare($rawSql) {
+    private function prepare($rawSql)
+    {
         // prepare the statement
         try {
             /** @noinspection PhpUndefinedMethodInspection */
             $statement = $this->connection->prepare($rawSql);
         } catch (\PDOException $e) {
             $error = $e->getCode();
-            throw new \Exception("PDO Exception (code $error)",500);
+            throw new \Exception("PDO Exception (code $error)", 500);
         }
         return $statement;
     }
@@ -640,7 +689,7 @@ class Database {
                     $statement->bindValue(trim($key), trim($value));
                 } catch (\PDOException $e) {
                     $error = $e->getMessage();
-                    throw new \Exception("PDO Exception ($error)",500);
+                    throw new \Exception("PDO Exception ($error)", 500);
                 }
             }
         } else { // non-associative binding with "?" (e.g., [0] => "prepared value")
@@ -648,18 +697,19 @@ class Database {
             // fail if the raw sql has an incorrect number of binding points
             $bindingSize = count($varsToPrepare);
             if ($arraySize != $bindingSize) {
-                throw new \Exception("Trying to bind '$bindingSize' properties when sql statement has '$arraySize' binding points",500);
+                throw new \Exception("Trying to bind '$bindingSize' properties when sql statement has '$arraySize' binding points",
+                    500);
             }
             foreach ($varsToPrepare as $key => $value) {
                 if (!is_string($value) && !is_null($value) && !is_int($value) && !is_float($value)) {
-                    throw new \Exception("Can only bind types: string, null, int, float",500);
+                    throw new \Exception("Can only bind types: string, null, int, float", 500);
                 }
                 $nextKey = $key + 1;
                 try {
                     $statement->bindValue($nextKey, trim($value));
                 } catch (\PDOException $e) {
                     $error = $e->getMessage();
-                    throw new \Exception("PDO Exception ($error)",500);
+                    throw new \Exception("PDO Exception ($error)", 500);
                 }
             }
         }
@@ -672,13 +722,14 @@ class Database {
      * @return \PDOStatement
      * @throws \Exception
      */
-    private function execute(\PDOStatement $statement) {
+    private function execute(\PDOStatement $statement)
+    {
         // execute the statement
         try {
             $statement->execute();
         } catch (\PDOException $e) {
             $error = $e->getMessage();
-            throw new \Exception("PDO Exception ($error)",500);
+            throw new \Exception("PDO Exception ($error)", 500);
         }
         return $statement;
     }
@@ -692,13 +743,14 @@ class Database {
      *
      * @return array
      */
-    public function defineDefaultSettings($host,$name,$username,$password,$charset='utf8') {
+    public function defineDefaultSettings($host, $name, $username, $password, $charset = 'utf8')
+    {
         $defaultSettings = [
-            'host' => $host,
-            'name' => $name,
+            'host'     => $host,
+            'name'     => $name,
             'username' => $username,
             'password' => $password,
-            'charset' => $charset,
+            'charset'  => $charset,
         ];
         return $defaultSettings;
     }
@@ -707,9 +759,10 @@ class Database {
      * @return bool
      * @throws \Exception
      */
-    public function clearCache() {
-        $cacheTable = $this->cacheTableSettings['table'];
-        $truncateSql = "TRUNCATE TABLE `$cacheTable`;";
+    public function clearCache()
+    {
+        $cacheTable     = $this->cacheTableSettings['table'];
+        $truncateSql    = "TRUNCATE TABLE `$cacheTable`;";
         $truncateResult = $this->query($truncateSql);
         if (!$truncateResult) {
             return false;
@@ -723,19 +776,21 @@ class Database {
      * @param       $queryType
      *
      * @return bool|mixed
+     * @throws \Exception
      */
-    private function cacheLookup($rawSql, array $varsToPrepare, $queryType) {
+    private function cacheLookup($rawSql, array $varsToPrepare, $queryType)
+    {
         // hash the raw SQL and values array
-        $sqlHash = md5(serialize($rawSql));
+        $sqlHash   = md5(serialize($rawSql));
         $paramHash = md5(serialize($varsToPrepare));
 
-        $table = $this->cacheTableSettings['table'];
-        $sqlColumn = $this->cacheTableSettings['sqlColumn'];
-        $paramColumn = $this->cacheTableSettings['paramColumn'];
-        $typeColumn = $this->cacheTableSettings['typeColumn'];
+        $table         = $this->cacheTableSettings['table'];
+        $sqlColumn     = $this->cacheTableSettings['sqlColumn'];
+        $paramColumn   = $this->cacheTableSettings['paramColumn'];
+        $typeColumn    = $this->cacheTableSettings['typeColumn'];
         $expiresColumn = $this->cacheTableSettings['expiresColumn'];
 
-        $findSql = "
+        $findSql    = "
             SELECT *
             FROM `$table`
             WHERE `$sqlColumn` LIKE :sqlHash
@@ -744,14 +799,14 @@ class Database {
                 AND `$expiresColumn` > NOW()
         ";
         $bindParams = [
-            'sqlHash'=>$sqlHash,
-            'paramHash'=>$paramHash,
-            'queryType'=>$queryType
+            'sqlHash'   => $sqlHash,
+            'paramHash' => $paramHash,
+            'queryType' => $queryType,
         ];
-        $findResult = $this->fetch($findSql,$bindParams,false);
+        $findResult = $this->fetch($findSql, $bindParams, false);
 
         // log the lookup
-        $this->logCacheLookup($rawSql,$varsToPrepare,$queryType);
+        $this->logCacheLookup($rawSql, $varsToPrepare, $queryType);
 
         if ($findResult) {
             return unserialize($findResult['package']);
@@ -770,24 +825,25 @@ class Database {
      * @return bool
      * @throws \Exception
      */
-    private function cacheResult($rawSql, array $varsToPrepare, $queryType, $cacheTimeout, $result, $timeElapsed) {
+    private function cacheResult($rawSql, array $varsToPrepare, $queryType, $cacheTimeout, $result, $timeElapsed)
+    {
         // sanitize cacheTimeout
         if (!is_numeric($cacheTimeout)) {
-            throw new \Exception(__METHOD__ . ": cache timeout needs to be numeric",500);
+            throw new \Exception(__METHOD__ . ": cache timeout needs to be numeric", 500);
         }
 
         $serializedResult = serialize($result);
-        $sqlHash = md5(serialize($rawSql));
-        $paramHash = md5(serialize($varsToPrepare));
-        $table =$this->cacheTableSettings['table'];
-        $timestampColumn = $this->cacheTableSettings['timestampColumn'];
-        $expiresColumn = $this->cacheTableSettings['expiresColumn'];
-        $sqlColumn = $this->cacheTableSettings['sqlColumn'];
-        $paramColumn = $this->cacheTableSettings['paramColumn'];
-        $typeColumn = $this->cacheTableSettings['typeColumn'];
-        $packageColumn = $this->cacheTableSettings['packageColumn'];
-        $elapsedColumn = $this->cacheTableSettings['elapsedColumn'];
-        $insertSql = "
+        $sqlHash          = md5(serialize($rawSql));
+        $paramHash        = md5(serialize($varsToPrepare));
+        $table            = $this->cacheTableSettings['table'];
+        $timestampColumn  = $this->cacheTableSettings['timestampColumn'];
+        $expiresColumn    = $this->cacheTableSettings['expiresColumn'];
+        $sqlColumn        = $this->cacheTableSettings['sqlColumn'];
+        $paramColumn      = $this->cacheTableSettings['paramColumn'];
+        $typeColumn       = $this->cacheTableSettings['typeColumn'];
+        $packageColumn    = $this->cacheTableSettings['packageColumn'];
+        $elapsedColumn    = $this->cacheTableSettings['elapsedColumn'];
+        $insertSql        = "
             INSERT INTO `$table`
                 (`$expiresColumn`,`$sqlColumn`,`$paramColumn`,`$typeColumn`,`$packageColumn`,`$elapsedColumn`)
             VALUES
@@ -798,15 +854,15 @@ class Database {
                     `$packageColumn` = :serializedResultUpdate,
                     `$expiresColumn` = NOW() + interval $cacheTimeout minute
         ";
-        $bindParams = [
-            "sqlHash" => $sqlHash,
-            "paramHash" => $paramHash,
-            "queryType" => $queryType,
-            "serializedResult" => $serializedResult,
+        $bindParams       = [
+            "sqlHash"                => $sqlHash,
+            "paramHash"              => $paramHash,
+            "queryType"              => $queryType,
+            "serializedResult"       => $serializedResult,
             "serializedResultUpdate" => $serializedResult,
-            "queryTime" => $timeElapsed,
+            "queryTime"              => $timeElapsed,
         ];
-        $insertResult = $this->query($insertSql,$bindParams,'query',false);
+        $insertResult     = $this->query($insertSql, $bindParams, 'query', false);
         if ($insertResult) {
             return true;
         }
@@ -820,13 +876,14 @@ class Database {
      * @param $file
      * @param $line
      */
-    public function logQuery($query,$boundVars,$elapsed,$file,$line) {
+    public function logQuery($query, $boundVars, $elapsed, $file, $line)
+    {
         $this->queries[] = [
-            'query' => $query,
-            'params' => $boundVars,
+            'query'   => $query,
+            'params'  => $boundVars,
             'elapsed' => $elapsed,
-            'file' => $file,
-            'line' => $line,
+            'file'    => $file,
+            'line'    => $line,
         ];
     }
 
@@ -835,9 +892,10 @@ class Database {
      * @param $boundVars
      * @param $queryType
      */
-    public function logCacheLookup($query,$boundVars,$queryType) {
+    public function logCacheLookup($query, $boundVars, $queryType)
+    {
         $this->cacheLookups[] = [
-            'query' => $query,
+            'query'  => $query,
             'params' => $boundVars,
             'type',
         ];

@@ -3,13 +3,13 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Service;
 
 use \Rxn\Api\Request;
-use \Rxn\Config;
+use \Rxn\ApplicationConfig as Config;
 use \Rxn\Api\Controller;
 use \Rxn\Api\Controller\Response;
 
@@ -39,7 +39,8 @@ class Api
      *
      * @return string
      */
-    public function findController(Request $request) {
+    public function findController(Request $request)
+    {
         return $request->getControllerRef();
     }
 }

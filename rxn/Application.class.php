@@ -3,7 +3,7 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn;
@@ -83,12 +83,13 @@ class Application
     /**
      * Application constructor.
      *
-     * @param Config   $config
+     * @param Config      $config
      * @param Datasources $datasources
-     * @param Service $service
-     * @param float $timeStart
+     * @param Service     $service
+     * @param float       $timeStart
      */
-    public function __construct(Config $config, Datasources $datasources, Service $service, $timeStart) {
+    public function __construct(Config $config, Datasources $datasources, Service $service, $timeStart)
+    {
         $this->initialize($config, $datasources, $service);
         $servicesToLoad = $config->getServices();
         $this->loadServices($servicesToLoad);
@@ -96,26 +97,28 @@ class Application
     }
 
     /**
-     * @param Config   $config
+     * @param Config      $config
      * @param Datasources $datasources
-     * @param Service  $service
+     * @param Service     $service
      *
      * @throws \Exception
      */
-    private function initialize(Config $config, Datasources $datasources, Service $service) {
-        $this->config = $config;
-        $this->service = $service;
-        $this->databases = $this->registerDatabases($config,$datasources);
-        $this->service->addInstance(Datasources::class,$datasources);
-        $this->service->addInstance(Config::class,$config);
+    private function initialize(Config $config, Datasources $datasources, Service $service)
+    {
+        $this->config    = $config;
+        $this->service   = $service;
+        $this->databases = $this->registerDatabases($config, $datasources);
+        $this->service->addInstance(Datasources::class, $datasources);
+        $this->service->addInstance(Config::class, $config);
         $this->registry = $this->service->get(Service\Registry::class);
         date_default_timezone_set($config->timezone);
     }
 
-    private function registerDatabases(Config $config, Datasources $datasources) {
+    private function registerDatabases(Config $config, Datasources $datasources)
+    {
         $databases = [];
-        foreach ($datasources->databases as $datasourceName=>$connectionSettings) {
-            $databases[] = new Database($config,$datasources,$datasourceName);
+        foreach ($datasources->databases as $datasourceName => $connectionSettings) {
+            $databases[] = new Database($config, $datasources, $datasourceName);
         }
         return $databases;
     }
@@ -123,8 +126,9 @@ class Application
     /**
      * @param $services
      */
-    private function loadServices(array $services) {
-        foreach ($services as $serviceName=>$serviceClass) {
+    private function loadServices(array $services)
+    {
+        foreach ($services as $serviceName => $serviceClass) {
             try {
                 $this->{$serviceName} = $this->service->get($serviceClass);
             } catch (\Exception $e) {
@@ -138,7 +142,8 @@ class Application
      *
      * @param                  $timeStart
      */
-    private function finalize(Service\Registry $registry, $timeStart) {
+    private function finalize(Service\Registry $registry, $timeStart)
+    {
         $registry->sortClasses();
         $this->stats->stop($timeStart);
         if (!empty(self::$environmentErrors)) {
@@ -149,7 +154,8 @@ class Application
     /**
      * Runs the application
      */
-    public function run() {
+    public function run()
+    {
         try {
             $responseToRender = $this->getSuccessResponse();
         } catch (\Exception $e) {
@@ -163,7 +169,8 @@ class Application
      * @return array
      * @throws \Exception
      */
-    private function getSuccessResponse() {
+    private function getSuccessResponse()
+    {
         // instantiate request model
         $this->api->request = $this->service->get(Request::class);
 
@@ -186,7 +193,8 @@ class Application
      * @return mixed
      * @throws \Exception
      */
-    private function getFailureResponse(\Exception $e) {
+    private function getFailureResponse(\Exception $e)
+    {
         // instantiate request model using the DI service container
         $response = $this->service->get(Response::class);
 
@@ -206,7 +214,8 @@ class Application
      * @param        $responseToRender
      * @param Config $config
      */
-    private function render($responseToRender, Config $config) {
+    private function render($responseToRender, Config $config)
+    {
         if (ob_get_contents()) {
             die();
         }
@@ -215,7 +224,7 @@ class Application
         $responseCode = $responseToRender[$config->responseLeaderKey]->code;
 
         // encode the response to JSON
-        $json = json_encode((object)$responseToRender,JSON_PRETTY_PRINT);
+        $json = json_encode((object)$responseToRender, JSON_PRETTY_PRINT);
 
         // remove null bytes, which can be a gotcha upon decoding
         $json = str_replace('\\u0000', '', $json);
@@ -235,12 +244,10 @@ class Application
     /**
      * @return mixed
      */
-    static public function getElapsedMs() {
-        $now = microtime(true);
-        $elapsedMs = round(
-            ($now - \RXN_START) * 1000,
-            3
-        );
+    static public function getElapsedMs()
+    {
+        $now       = microtime(true);
+        $elapsedMs = round(($now - \RXN_START) * 1000, 3);
         return (string)$elapsedMs . " ms";
     }
 
@@ -249,15 +256,17 @@ class Application
      *
      * @return bool
      */
-    private function isJson($json) {
+    private function isJson($json)
+    {
         json_decode($json);
-        return (json_last_error()===JSON_ERROR_NONE);
+        return (json_last_error() === JSON_ERROR_NONE);
     }
 
     /**
      * @return bool
      */
-    static public function hasEnvironmentErrors() {
+    static public function hasEnvironmentErrors()
+    {
         if (!empty(self::$environmentErrors)) {
             return true;
         }
@@ -267,7 +276,8 @@ class Application
     /**
      * Renders environment errrors and dies
      */
-    static public function renderEnvironmentErrors() {
+    static public function renderEnvironmentErrors()
+    {
         $response = [
             '_rxn' => [
                 'success' => false,
@@ -275,23 +285,25 @@ class Application
                 'result'  => 'Internal Server Error',
                 'elapsed' => self::getElapsedMs(),
                 'message' => [
-                    'environment errors on initialization' => self::$environmentErrors
+                    'environment errors on initialization' => self::$environmentErrors,
                 ],
             ],
         ];
         http_response_code(500);
         header('content-type: application/json');
-        echo json_encode($response,JSON_PRETTY_PRINT);
+        echo json_encode($response, JSON_PRETTY_PRINT);
         die();
     }
 
     /**
      * @param \Exception $e
+     *
      * @internal param $errorFile
      * @internal param $errorLine
      * @internal param $errorMessage
      */
-    static public function appendEnvironmentError(\Exception $e) {
+    static public function appendEnvironmentError(\Exception $e)
+    {
         self::$environmentErrors[] = [
             'file'    => $e->getFile(),
             'line'    => $e->getLine(),
@@ -303,9 +315,10 @@ class Application
      * @param $root
      * @param $appRoot
      */
-    static public function includeCoreComponents($root, $appRoot) {
+    static public function includeCoreComponents($root, $appRoot)
+    {
         $coreComponentPaths = ApplicationConfig::getCoreComponentPaths();
-        foreach ($coreComponentPaths as $name=>$coreComponentPath) {
+        foreach ($coreComponentPaths as $name => $coreComponentPath) {
             if (!file_exists("$root/$appRoot/$coreComponentPath")) {
                 try {
                     throw new \Exception("Rxn core component '$name' expected at '$coreComponentPath'");
@@ -323,7 +336,8 @@ class Application
      * @param $root
      * @param $appRoot
      */
-    static public function validateEnvironment($root, $appRoot) {
+    static public function validateEnvironment($root, $appRoot)
+    {
 
         // validate PHP INI file settings
         $iniRequirements = ApplicationConfig::getIniRequirements();
@@ -358,16 +372,17 @@ class Application
 
         if (!function_exists('mb_strtolower')
             && isset($iniRequirements['zend.multibyte'])
-            && $iniRequirements['zend.multibyte'] === true) {
-                try {
-                    throw new \Exception("Rxn requires the PHP mbstring extension to be installed/enabled");
-                } catch (\Exception $e) {
-                    self::appendEnvironmentError($e);
-                }
+            && $iniRequirements['zend.multibyte'] === true
+        ) {
+            try {
+                throw new \Exception("Rxn requires the PHP mbstring extension to be installed/enabled");
+            } catch (\Exception $e) {
+                self::appendEnvironmentError($e);
+            }
         }
 
         if (function_exists('apache_get_modules')) {
-            if (!in_array('mod_rewrite',apache_get_modules())) {
+            if (!in_array('mod_rewrite', apache_get_modules())) {
                 try {
                     throw new \Exception("Rxn requires Apache module 'mod_rewrite' to be enabled");
                 } catch (\Exception $e) {

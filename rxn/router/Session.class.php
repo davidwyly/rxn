@@ -3,7 +3,7 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Router;
@@ -19,14 +19,16 @@ class Session
     /**
      * Session constructor.
      */
-    public function __construct() {
+    public function __construct()
+    {
         $this->startSession();
     }
 
     /**
      * @return void
      */
-    public function startSession() {
+    public function startSession()
+    {
         // server should keep session data for AT LEAST 40 minutes
         ini_set('session.gc_maxlifetime', 2400);
 
@@ -43,25 +45,26 @@ class Session
         $this->decodeAngular();
 
         if (!isset($_SESSION['_start'])
-            || !($_SESSION['_start'] instanceof \DateTime)) {
+            || !($_SESSION['_start'] instanceof \DateTime)
+        ) {
             $this->createNewSession($now);
         }
 
         if (isset($_SESSION['_expires'])
             && $_SESSION['_expires'] instanceof \DateTime
-            && ($now > $_SESSION['_expires'])) {
-                $this->createNewSession($now);
+            && ($now > $_SESSION['_expires'])
+        ) {
+            $this->createNewSession($now);
         }
 
-        $interval = $now->diff($_SESSION['_start']);
+        $interval            = $now->diff($_SESSION['_start']);
         $_SESSION['_active'] = $interval->format('%H:%I:%S');
 
-        $newExpires = new \DateTime('now +40 minutes');
+        $newExpires           = new \DateTime('now +40 minutes');
         $_SESSION['_expires'] = $newExpires;
 
         if (version_compare(PHP_VERSION, '5.4.0', '>=')) {
-            ob_start(null, 0, PHP_OUTPUT_HANDLER_STDFLAGS ^
-                         PHP_OUTPUT_HANDLER_REMOVABLE);
+            ob_start(null, 0, PHP_OUTPUT_HANDLER_STDFLAGS ^ PHP_OUTPUT_HANDLER_REMOVABLE);
         } else {
             ob_start(null, 0, false);
         }
@@ -70,7 +73,8 @@ class Session
     /**
      * @param \DateTime $start
      */
-    private function createNewSession(\DateTime $start) {
+    private function createNewSession(\DateTime $start)
+    {
         session_unset();
         session_destroy();
         session_start();
@@ -80,10 +84,11 @@ class Session
     /**
      * @return void
      */
-    private function decodeAngular() {
-        if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($_POST)){
+    private function decodeAngular()
+    {
+        if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($_POST)) {
             $decoded = json_decode(file_get_contents('php://input'), true);
-            if($decoded != null) {
+            if ($decoded != null) {
                 $_POST = $decoded;
             }
         }
@@ -92,13 +97,14 @@ class Session
     /**
      * @return null
      */
-    static public function getSessionParams() {
+    static public function getSessionParams()
+    {
         if (!isset($_SESSION) || empty($_SESSION)) {
             return null;
         }
-        foreach ($_SESSION as $key=>$value) {
+        foreach ($_SESSION as $key => $value) {
             if (is_string($value)) {
-                $decoded = json_decode($value,true);
+                $decoded = json_decode($value, true);
                 if ($decoded) {
                     $_SESSION[$key] = $decoded;
                 }

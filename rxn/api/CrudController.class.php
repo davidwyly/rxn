@@ -3,13 +3,13 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Api;
 
 use \Rxn\Service;
-use \Rxn\Config;
+use \Rxn\ApplicationConfig as Config;
 use \Rxn\Data\Database;
 use \Rxn\Api\Controller\Response;
 use \Rxn\Api\Controller\Crud;
@@ -17,6 +17,7 @@ use \Rxn\Utility\Debug;
 
 /**
  * Class CrudController
+ *
  * @package Rxn\Api
  */
 class CrudController extends Controller implements Crud
@@ -33,9 +34,12 @@ class CrudController extends Controller implements Crud
      * @param Request  $request
      * @param Response $response
      * @param Service  $service
+     *
+     * @throws \Exception
      */
-    public function __construct(Config $config, Request $request, Response $response, Service $service) {
-        parent::__construct($request,$response,$service);
+    public function __construct(Config $config, Request $request, Response $response, Service $service)
+    {
+        parent::__construct($request, $response, $service);
 
         // if a record class is not explicitly defined, assume the short name of the crud controller
         if (empty($this->recordClass)) {
@@ -52,10 +56,11 @@ class CrudController extends Controller implements Crud
      * @return array
      * @throws \Exception
      */
-    public function create_vx(Request $request, Service $service, Database $database) {
+    public function create_vx(Request $request, Service $service, Database $database)
+    {
         $keyValues = $request->collectAll();
-        $order = $service->get($this->recordClass);
-        $createdId = $order->create($database,$keyValues);
+        $order     = $service->get($this->recordClass);
+        $createdId = $order->create($database, $keyValues);
         return ['created_id' => $createdId];
     }
 
@@ -67,10 +72,11 @@ class CrudController extends Controller implements Crud
      * @return mixed
      * @throws \Exception
      */
-    public function read_vx(Request $request, Service $service, Database $database) {
-        $id = $request->collect('id');
+    public function read_vx(Request $request, Service $service, Database $database)
+    {
+        $id    = $request->collect('id');
         $order = $service->get($this->recordClass);
-        return $order->read($database,$id);
+        return $order->read($database, $id);
     }
 
     /**
@@ -81,12 +87,13 @@ class CrudController extends Controller implements Crud
      * @return array
      * @throws \Exception
      */
-    public function update_vx(Request $request, Service $service, Database $database) {
-        $id = $request->collect('id');
+    public function update_vx(Request $request, Service $service, Database $database)
+    {
+        $id        = $request->collect('id');
         $keyValues = $request->collectAll();
         unset($keyValues['id']);
-        $order = $service->get($this->recordClass);
-        $updatedId = $order->update($database,$id,$keyValues);
+        $order     = $service->get($this->recordClass);
+        $updatedId = $order->update($database, $id, $keyValues);
         return ['updated_id' => $updatedId];
     }
 
@@ -98,10 +105,11 @@ class CrudController extends Controller implements Crud
      * @return array
      * @throws \Exception
      */
-    public function delete_vx(Request $request, Service $service, Database $database) {
-        $id = $request->collect('id');
-        $order = $service->get($this->recordClass);
-        $deletedId = $order->delete($database,$id);
+    public function delete_vx(Request $request, Service $service, Database $database)
+    {
+        $id        = $request->collect('id');
+        $order     = $service->get($this->recordClass);
+        $deletedId = $order->delete($database, $id);
         return ['deleted_id' => $deletedId];
     }
 
@@ -110,10 +118,11 @@ class CrudController extends Controller implements Crud
      *
      * @return string
      */
-    protected function guessRecordClass(Config $config) {
-        $calledClass = get_called_class();
-        $reflection = new \ReflectionClass($calledClass);
-        $shortName = $reflection->getShortName();
+    protected function guessRecordClass(Config $config)
+    {
+        $calledClass     = get_called_class();
+        $reflection      = new \ReflectionClass($calledClass);
+        $shortName       = $reflection->getShortName();
         $potentialRecord = "{$config->productNamespace}\\Model\\$shortName";
         return $potentialRecord;
     }
@@ -121,10 +130,12 @@ class CrudController extends Controller implements Crud
     /**
      * @throws \Exception
      */
-    protected function validateRecordClass() {
+    protected function validateRecordClass()
+    {
         $calledClass = get_called_class();
-        if (!class_exists($this->recordClass,true)) {
-            throw new \Exception("CrudController '$calledClass' references nonexistent model '$this->recordClass'",500);
+        if (!class_exists($this->recordClass, true)) {
+            throw new \Exception("CrudController '$calledClass' references nonexistent model '$this->recordClass'",
+                500);
         }
     }
 }

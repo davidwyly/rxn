@@ -8,7 +8,8 @@
 
 namespace Rxn;
 
-class Datasources extends ApplicationDatasources {
+class Datasources extends ApplicationDatasources
+{
 
     public $defaultRead  = 'read-only';
 

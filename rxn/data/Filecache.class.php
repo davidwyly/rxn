@@ -3,12 +3,12 @@
  * This file is part of Reaction (RXN).
  *
  * @license MIT License (MIT)
- * @author David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
  */
 
 namespace Rxn\Data;
 
-use \Rxn\Config;
+use \Rxn\ApplicationConfig as Config;
 use \Rxn\Utility\Debug;
 
 /**
@@ -29,8 +29,11 @@ class Filecache
      * Filecache constructor.
      *
      * @param Config $config
+     *
+     * @throws \Exception
      */
-    public function __construct(Config $config) {
+    public function __construct(Config $config)
+    {
         $this->setDirectory($config);
     }
 
@@ -39,33 +42,35 @@ class Filecache
      *
      * @throws \Exception
      */
-    private function setDirectory(Config $config) {
+    private function setDirectory(Config $config)
+    {
         $directory = __DIR__ . "/" . $config->fileCacheDirectory;
         if (!file_exists($directory)) {
-            throw new \Exception("Cache $directory doesn't exist; it may need to be created",500);
+            throw new \Exception("Cache $directory doesn't exist; it may need to be created", 500);
         }
         $this->directory = realpath(__DIR__ . "/" . $config->fileCacheDirectory);
     }
 
     /**
-     * @param string  $class
-     * @param array   $parameters
+     * @param string $class
+     * @param array  $parameters
      *
      * @return bool|mixed
      * @throws \Exception
      */
-    public function getObject($class, array $parameters) {
+    public function getObject($class, array $parameters)
+    {
         if (!class_exists($class)) {
-            throw new \Exception("Invalid class name '$class'",500);
+            throw new \Exception("Invalid class name '$class'", 500);
         }
-        $reflection = new \ReflectionClass($class);
-        $shortName = $reflection->getShortName();
+        $reflection    = new \ReflectionClass($class);
+        $shortName     = $reflection->getShortName();
         $parameterHash = $this->getParametersHash($parameters);
-        $fileName = $this->getFileName($parameterHash);
-        $directory = $this->getDirectory($shortName);
-        $filePath = $this->getFilePath($directory,$fileName);
+        $fileName      = $this->getFileName($parameterHash);
+        $directory     = $this->getDirectory($shortName);
+        $filePath      = $this->getFilePath($directory, $fileName);
         if (!is_readable($this->directory)) {
-            throw new \Exception("$directory must be readable to cache; check owner and permissions",500);
+            throw new \Exception("$directory must be readable to cache; check owner and permissions", 500);
         }
         if (!file_exists($filePath)) {
             return false;
@@ -75,52 +80,55 @@ class Filecache
     }
 
     /**
-     * @param object  $object
-     * @param array   $parameters
+     * @param object $object
+     * @param array  $parameters
      *
      * @return bool
      * @throws \Exception
      */
-    public function cacheObject($object, array $parameters) {
+    public function cacheObject($object, array $parameters)
+    {
         $serializedObject = serialize($object);
-        $reflection = new \ReflectionObject($object);
-        $shortName = $reflection->getShortName();
-        $parameterHash = $this->getParametersHash($parameters);
-        $fileName = $this->getFileName($parameterHash);
-        $directory = $this->getDirectory($shortName);
-        $filePath = $this->getFilePath($directory,$fileName);
+        $reflection       = new \ReflectionObject($object);
+        $shortName        = $reflection->getShortName();
+        $parameterHash    = $this->getParametersHash($parameters);
+        $fileName         = $this->getFileName($parameterHash);
+        $directory        = $this->getDirectory($shortName);
+        $filePath         = $this->getFilePath($directory, $fileName);
         if (!is_writable($this->directory)) {
-            throw new \Exception("$directory must be writable to cache; check owner and permissions",500);
+            throw new \Exception("$directory must be writable to cache; check owner and permissions", 500);
         }
         if (!file_exists($directory)) {
-            mkdir($directory,0777);
+            mkdir($directory, 0777);
         }
         if (file_exists($filePath)) {
-            throw new \Exception("Trying to cache a file that is already cached; use 'isClassCached()' method first",500);
+            throw new \Exception("Trying to cache a file that is already cached; use 'isClassCached()' method first",
+                500);
         }
-        file_put_contents($filePath,$serializedObject);
+        file_put_contents($filePath, $serializedObject);
         return true;
     }
 
     /**
-     * @param string  $class
-     * @param array   $parameters
+     * @param string $class
+     * @param array  $parameters
      *
      * @return bool
      * @throws \Exception
      */
-    public function isClassCached($class, array $parameters) {
+    public function isClassCached($class, array $parameters)
+    {
         if (!class_exists($class)) {
-            throw new \Exception("Invalid class name '$class'",500);
+            throw new \Exception("Invalid class name '$class'", 500);
         }
-        $reflection = new \ReflectionClass($class);
-        $shortName = $reflection->getShortName();
+        $reflection    = new \ReflectionClass($class);
+        $shortName     = $reflection->getShortName();
         $parameterHash = $this->getParametersHash($parameters);
-        $fileName = $this->getFileName($parameterHash);
-        $directory = $this->getDirectory($shortName);
-        $filePath = $this->getFilePath($directory,$fileName);
+        $fileName      = $this->getFileName($parameterHash);
+        $directory     = $this->getDirectory($shortName);
+        $filePath      = $this->getFilePath($directory, $fileName);
         if (!is_readable($this->directory)) {
-            throw new \Exception("$directory must be readable to cache; check owner and permissions",500);
+            throw new \Exception("$directory must be readable to cache; check owner and permissions", 500);
         }
         if (!file_exists($filePath)) {
             return false;
@@ -133,7 +141,8 @@ class Filecache
      *
      * @return string
      */
-    private function getParametersHash(array $parameters) {
+    private function getParametersHash(array $parameters)
+    {
         return md5(serialize($parameters));
     }
 
@@ -142,7 +151,8 @@ class Filecache
      *
      * @return string
      */
-    private function getFileName($parameterHash) {
+    private function getFileName($parameterHash)
+    {
         return $parameterHash . "." . self::EXTENSION;
     }
 
@@ -151,7 +161,8 @@ class Filecache
      *
      * @return string
      */
-    private function getDirectory($shortName) {
+    private function getDirectory($shortName)
+    {
         return $this->directory . "/" . $shortName;
     }
 
@@ -161,7 +172,8 @@ class Filecache
      *
      * @return string
      */
-    private function getFilePath($directory, $fileName) {
+    private function getFilePath($directory, $fileName)
+    {
         return $directory . "/" . $fileName;
     }
 }
