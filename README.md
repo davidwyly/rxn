@@ -84,7 +84,7 @@ Rxn is released under the permissive and free [MIT](http://flightphp.com/license
 
 Rxn uses a namespacing structure that explicitly matches the directory structure of the class files. While also convenient, it is mainly used to implement some pretty cool autoloading features.
 
-Say, for example, that you created a class named `\Vendor\Product\Model\MyAwesomeModel`. Just put the file in a directory structure that follows the namespace convention (e.g., `{root}/organization/product/model/MyAwesomeModel.php`). When you need to call the class, just invoke the class by calling it directly. There's no need to put a `require` anywhere.
+Say, for example, that you created a class named `\Organization\Product\Model\MyAwesomeModel`. Just put the file in a directory structure that follows the namespace convention (e.g., `{root}/organization/product/model/MyAwesomeModel.php`). When you need to call the class, just invoke the class by calling it directly. There's no need to put a `require` anywhere.
 
 **BEFORE (not using autoloading):**
 ```php
@@ -189,17 +189,17 @@ class Order extends \Rxn\Api\Controller
 
 ## Scaffolding
 
-Want to experiment and explore with your newfangled backend architecture? No problem, as long as you have a database schema, you have a suite of scaffolding APIs to toy with! Scaffolding endpoints are accessed using URIs that are similar to the following (note the `.x` version):
+Want to experiment and explore with your newfangled backend architecture? No problem, as long as you have a database schema, you have a suite of scaffolding APIs to toy with! Scaffolding endpoints are accessed using URIs that are similar to the following (note the `api` instead of the version number):
 ```
-https://yourapp.tld/v1.x/order/create
-https://yourapp.tld/v1.x/order/read/id/{id}
-https://yourapp.tld/v1.x/order/update/id/{id}
-https://yourapp.tld/v1.x/order/delete/id/{id}
-https://yourapp.tld/v1.x/order/search
+https://yourapp.tld/api/order/create
+https://yourapp.tld/api/order/read/id/{id}
+https://yourapp.tld/api/order/update/id/{id}
+https://yourapp.tld/api/order/delete/id/{id}
+https://yourapp.tld/api/order/search
 ```
 Scaffolding APIs are version-less APIs, and are designed to allow frontend developers full access to the backend in the form of Create, Read, Update, and Delete (CRUD) operations and searches. Their main benefit is that you don't have to spend a ton of time manually crafting CRUD endpoints during the early phases of application development. (As it is these early phases of development when requirements are changing, and things are constantly in flux.)
 
-**Warning:** Because Scaffolding APIs are version-less, they inheret all the problems associated with version-less APIs. As soon as the backend is altered, these APIs are altered as well; this can potentially break an application in unexpected or hidden ways. For this reason, Scaffolding APIs should eventually be transitioned over to versioned APIs as the development process nears completion.
+**Warning:** Because Scaffolding APIs are version-less, they inheret all the problems associated with version-less APIs. As soon as the backend is altered, these APIs are altered as well; this can potentially break an application in unexpected or hidden ways. For this reason, it is wise to transition versionless APIs to versioned APIs as the development process nears completion.
 
 ## Dependency Injection (DI) Service Container
 While most people practice some form of dependency injection without even thinking about it, the fact is, manually instantiating and injecting classes with a lot of dependencies can be a pretty big hassle. The following examples should help demonstrate the benefit of automatic dependency injection via the service container.
@@ -207,11 +207,11 @@ While most people practice some form of dependency injection without even thinki
 **BEFORE (manual DI):**
 ```php
 // instantiate the dependencies
-$config = new Config();
-$database = new Database($config);
-$registry = new Registry($config,$database);
+$config    = new Config();
+$database  = new Database($config);
+$registry  = new Registry($config,$database);
 $filecache = new Filecache($config);
-$map = new Map($registry,$database,$filecache);
+$map       = new Map($registry,$database,$filecache);
 
 // call the action method
 $this->doSomething_v1($registry,$database,$map);
