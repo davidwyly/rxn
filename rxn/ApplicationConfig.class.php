@@ -42,6 +42,15 @@ abstract class ApplicationConfig
     public $root;
 
     /**
+     * Enable or disable file caching of objects
+     *
+     * Default value: false
+     *
+     * @var bool
+     */
+    public $useFileCaching = false;
+
+    /**
      * Defines the root of the rxn and organization folders relative to this file
      *
      * @var string
@@ -81,18 +90,27 @@ abstract class ApplicationConfig
     public $responseLeaderKey = '_rxn';
 
     /**
+     * Use a valid \DateTime timezone
+     *
+     * Default value: 'America/Denver'
+     *
+     * @var string
+     */
+    public $timezone = 'America/Denver';
+
+    /**
      * Defines default core components on startup
      * Warning: Changing this can have unexpected results!
      *
      * @var array
      */
     static private $coreComponentPaths = [
-        'Config'    => 'Config.class.php',
-        'Databases' => 'Datasources.class.php',
-        'Service'   => 'Service.class.php',
-        'Registry'  => 'service/Registry.class.php',
-        'Debug'     => 'utility/Debug.class.php',
-        'Database'  => 'data/Database.class.php',
+        'Config.class' => 'Config.class.php',
+        'Databases'    => 'Datasources.class.php',
+        'Service'      => 'Service.class.php',
+        'Registry'     => 'service/Registry.class.php',
+        'Debug'        => 'utility/Debug.class.php',
+        'Database'     => 'data/Database.class.php',
     ];
 
     static private $iniRequirements = [

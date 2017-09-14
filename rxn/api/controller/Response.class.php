@@ -8,8 +8,9 @@
 
 namespace Rxn\Api\Controller;
 
-use \Rxn\ApplicationConfig as Config;
+use \Rxn\Config;
 use \Rxn\Api\Request;
+use \Rxn\Application;
 use \Rxn\Utility\Debug;
 
 /**
@@ -151,26 +152,24 @@ class Response
     }
 
     /**
-     * @return array
+     * @return Response
      */
-    public function getSuccess()
+    public function getSuccess(): Response
     {
         $this->success   = true;
         $this->code      = self::DEFAULT_SUCCESS_CODE;
         $this->result    = self::getResponseCodeResult($this->code);
         $this->rendered  = true;
-        $this->elapsedMs = \Rxn\Application::getElapsedMs();
-        return [
-            $this->responseLeaderKey => $this,
-        ];
+        $this->elapsedMs = Application::getElapsedMs();
+        return $this;
     }
 
     /**
      * @param \Exception $e
      *
-     * @return array
+     * @return Response
      */
-    public function getFailure(\Exception $e)
+    public function getFailure(\Exception $e): Response
     {
         $this->success  = false;
         $this->code     = $e->getCode();
@@ -178,9 +177,7 @@ class Response
         $this->message  = $e->getMessage();
         $this->trace    = self::getErrorTrace($e);
         $this->rendered = true;
-        return [
-            $this->responseLeaderKey => $this,
-        ];
+        return $this;
     }
 
     /**

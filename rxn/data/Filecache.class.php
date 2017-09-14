@@ -8,7 +8,7 @@
 
 namespace Rxn\Data;
 
-use \Rxn\ApplicationConfig as Config;
+use \Rxn\Config;
 use \Rxn\Utility\Debug;
 
 /**

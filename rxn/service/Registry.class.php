@@ -8,7 +8,7 @@
 
 namespace Rxn\Service;
 
-use \Rxn\ApplicationConfig as Config;
+use \Rxn\Config;
 use \Rxn\Data\Database;
 use \Rxn\Api\Controller;
 use \Rxn\Utility\Debug;
@@ -21,7 +21,7 @@ use \Rxn\Utility\Debug;
 class Registry
 {
     /**
-     * @var Config
+     * @var class
      */
     public $config;
 

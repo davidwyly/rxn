@@ -8,13 +8,17 @@
 
 namespace Rxn;
 
+use \Rxn\Config;
+use \Rxn\ApplicationConfig;
+use \Rxn\ApplicationDatasources;
+use \Rxn\Service\Registry;
 use \Rxn\Api\Request;
 use \Rxn\Api\Controller\Response;
 use \Rxn\Data\Database;
 use \Rxn\Utility\Debug;
 
 /**
- * Class Application
+ * Class Application.class
  *
  * @package Rxn
  */
@@ -76,23 +80,25 @@ class Application
     public $service;
 
     /**
-     * @var array $environmentErrors
+     * @var array $environment_errors
      */
-    static private $environmentErrors = [];
+    static private $environment_errors = [];
 
     /**
-     * Application constructor.
+     * Application.class constructor.
      *
      * @param Config      $config
      * @param Datasources $datasources
      * @param Service     $service
      * @param float       $timeStart
+     *
+     * @throws \Exception
      */
     public function __construct(Config $config, Datasources $datasources, Service $service, $timeStart)
     {
         $this->initialize($config, $datasources, $service);
-        $servicesToLoad = $config->getServices();
-        $this->loadServices($servicesToLoad);
+        $services_to_load = $config->getServices();
+        $this->loadServices($services_to_load);
         $this->finalize($this->registry, $timeStart);
     }
 
@@ -110,15 +116,15 @@ class Application
         $this->databases = $this->registerDatabases($config, $datasources);
         $this->service->addInstance(Datasources::class, $datasources);
         $this->service->addInstance(Config::class, $config);
-        $this->registry = $this->service->get(Service\Registry::class);
+        $this->registry = $this->service->get(Registry::class);
         date_default_timezone_set($config->timezone);
     }
 
     private function registerDatabases(Config $config, Datasources $datasources)
     {
         $databases = [];
-        foreach ($datasources->databases as $datasourceName => $connectionSettings) {
-            $databases[] = new Database($config, $datasources, $datasourceName);
+        foreach ($datasources->getDatabases() as $datasource_name => $connectionSettings) {
+            $databases[] = new Database($config, $datasources, $datasource_name);
         }
         return $databases;
     }
@@ -128,9 +134,9 @@ class Application
      */
     private function loadServices(array $services)
     {
-        foreach ($services as $serviceName => $serviceClass) {
+        foreach ($services as $service_name => $service_class) {
             try {
-                $this->{$serviceName} = $this->service->get($serviceClass);
+                $this->{$service_name} = $this->service->get($service_class);
             } catch (\Exception $e) {
                 self::appendEnvironmentError($e);
             }
@@ -138,15 +144,14 @@ class Application
     }
 
     /**
-     * @param Service\Registry $registry
-     *
-     * @param                  $timeStart
+     * @param Registry $registry
+     * @param          $time_start
      */
-    private function finalize(Service\Registry $registry, $timeStart)
+    private function finalize(Registry $registry, $time_start)
     {
         $registry->sortClasses();
-        $this->stats->stop($timeStart);
-        if (!empty(self::$environmentErrors)) {
+        $this->stats->stop($time_start);
+        if (!empty(self::$environment_errors)) {
             self::renderEnvironmentErrors();
         }
     }
@@ -157,11 +162,11 @@ class Application
     public function run()
     {
         try {
-            $responseToRender = $this->getSuccessResponse();
+            $response_to_render = $this->getSuccessResponse();
         } catch (\Exception $e) {
-            $responseToRender = $this->getFailureResponse($e);
+            $response_to_render = $this->getFailureResponse($e);
         }
-        $this->render($responseToRender, $this->config);
+        $this->render($response_to_render, $this->config);
         die();
     }
 
@@ -175,16 +180,16 @@ class Application
         $this->api->request = $this->service->get(Request::class);
 
         // find the correct controller to use; this is determined from the request
-        $controllerRef = $this->api->findController($this->api->request);
+        $controller_ref = $this->api->findController($this->api->request);
 
         // instantiate the controller
-        $this->api->controller = $this->service->get($controllerRef);
+        $this->api->controller = $this->service->get($controller_ref);
 
         // trigger the controller to build a response
-        $responseToRender = $this->api->controller->trigger($this->service);
+        $response_to_render = $this->api->controller->trigger($this->service);
 
         // return response
-        return $responseToRender;
+        return $response_to_render;
     }
 
     /**
@@ -200,38 +205,40 @@ class Application
 
         // build a response
         if (!$response->isRendered()) {
-            $responseToRender = $response->getFailure($e);
+            $response_to_render = $response->getFailure($e);
         } else {
             // sometimes, the request itself will not validate, so grab that response
-            $responseToRender = $response->getFailureResponse();
+            $response_to_render = $response->getFailureResponse();
         }
 
         // return response
-        return $responseToRender;
+        return $response_to_render;
     }
 
     /**
-     * @param        $responseToRender
+     * @param        $response_to_render
      * @param Config $config
+     *
+     * @throws \Exception
      */
-    private function render($responseToRender, Config $config)
+    private function render($response_to_render, Config $config)
     {
         if (ob_get_contents()) {
             die();
         }
 
         // determine response code
-        $responseCode = $responseToRender[$config->responseLeaderKey]->code;
+        $responseCode = $response_to_render->code;
 
         // encode the response to JSON
-        $json = json_encode((object)$responseToRender, JSON_PRETTY_PRINT);
+        $json = json_encode((object)$response_to_render, JSON_PRETTY_PRINT);
 
         // remove null bytes, which can be a gotcha upon decoding
         $json = str_replace('\\u0000', '', $json);
 
         // if the JSON is invalid, dump the raw response
         if (!$this->isJson($json)) {
-            Debug::dump($responseToRender);
+            Debug::dump($response_to_render);
             die();
         }
 
@@ -267,7 +274,7 @@ class Application
      */
     static public function hasEnvironmentErrors()
     {
-        if (!empty(self::$environmentErrors)) {
+        if (!empty(self::$environment_errors)) {
             return true;
         }
         return false;
@@ -285,7 +292,7 @@ class Application
                 'result'  => 'Internal Server Error',
                 'elapsed' => self::getElapsedMs(),
                 'message' => [
-                    'environment errors on initialization' => self::$environmentErrors,
+                    'environment errors on initialization' => self::$environment_errors,
                 ],
             ],
         ];
@@ -304,7 +311,7 @@ class Application
      */
     static public function appendEnvironmentError(\Exception $e)
     {
-        self::$environmentErrors[] = [
+        self::$environment_errors[] = [
             'file'    => $e->getFile(),
             'line'    => $e->getLine(),
             'message' => $e->getMessage(),
@@ -333,14 +340,15 @@ class Application
     }
 
     /**
-     * @param $root
-     * @param $appRoot
+     * @param        $root
+     * @param        $appRoot
+     * @param Config $config
      */
-    static public function validateEnvironment($root, $appRoot)
+    static public function validateEnvironment($root, $appRoot, Config $config)
     {
 
         // validate PHP INI file settings
-        $iniRequirements = ApplicationConfig::getIniRequirements();
+        $iniRequirements = Config::getIniRequirements();
         foreach ($iniRequirements as $iniKey => $requirement) {
             if (ini_get($iniKey) != $requirement) {
                 if (is_bool($requirement)) {
@@ -354,19 +362,22 @@ class Application
             }
         }
 
-        if (!file_exists("$root/$appRoot/data/filecache")) {
-            try {
-                throw new \Exception("Rxn requires for folder '$root/$appRoot/data/filecache' to exist");
-            } catch (\Exception $e) {
-                self::appendEnvironmentError($e);
+        // validate that file caching is enabled
+        if ($config->useFileCaching) {
+            if (!file_exists("$root/$appRoot/data/filecache")) {
+                try {
+                    throw new \Exception("Rxn requires for folder '$root/$appRoot/data/filecache' to exist");
+                } catch (\Exception $e) {
+                    self::appendEnvironmentError($e);
+                }
             }
-        }
 
-        if (!is_writable("$root/$appRoot/data/filecache")) {
-            try {
-                throw new \Exception("Rxn requires for folder '$root/$appRoot/data/filecache' to be writable");
-            } catch (\Exception $e) {
-                self::appendEnvironmentError($e);
+            if (!is_writable("$root/$appRoot/data/filecache")) {
+                try {
+                    throw new \Exception("Rxn requires for folder '$root/$appRoot/data/filecache' to be writable");
+                } catch (\Exception $e) {
+                    self::appendEnvironmentError($e);
+                }
             }
         }
 

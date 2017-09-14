@@ -8,8 +8,8 @@
 
 namespace Rxn\Data;
 
-use \Rxn\ApplicationConfig as Config;
-use Rxn\ApplicationDatasources as Datasources;
+use \Rxn\Config;
+use \Rxn\Datasources;
 use \Rxn\Utility\Debug as Debug;
 
 /**

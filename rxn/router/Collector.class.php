@@ -8,7 +8,7 @@
 
 namespace Rxn\Router;
 
-use \Rxn\ApplicationConfig as Config;
+use \Rxn\Config;
 
 /**
  * Class Collector

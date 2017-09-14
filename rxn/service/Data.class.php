@@ -10,8 +10,8 @@ namespace Rxn\Service;
 
 use \Rxn\Service;
 use \Rxn\Data\Database;
-use \Rxn\Data\Filecache;
-use \Rxn\Data\Map;
+//use \Rxn\Data\Filecache;
+//use \Rxn\Data\Map;
 use \Rxn\Data\Chain;
 use \Rxn\Data\Mold;
 
@@ -53,7 +53,8 @@ class Data
      */
     public function __construct(Registry $registry, Database $database, Service $service)
     {
-        $this->filecache = $service->get(Filecache::class);
-        $this->map       = $service->get(Map::class);
+        //currenly disabled
+        //$this->filecache = $service->get(Filecache::class);
+        //$this->map       = $service->get(Map::class);
     }
 }

@@ -27,7 +27,7 @@ class Service
      */
     public function __construct()
     {
-        //nothing is intentionally here
+        //intentionally left blank
     }
 
     /**

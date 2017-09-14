@@ -45,9 +45,7 @@ abstract class ApplicationDatasources
                 throw new \Exception ("'Databases' param is malformed");
             }
             foreach ($this->requiredFields as $requiredField) {
-                if (!isset($connectionSettings[$requiredField])
-                    || empty($connectionSettings[$requiredField])
-                ) {
+                if (!isset($connectionSettings[$requiredField])) {
                     throw new \Exception("Database config with key '$databaseName' is missing required field '$requiredField'");
                 }
             }

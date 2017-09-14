@@ -8,7 +8,7 @@
 
 namespace Rxn\Api;
 
-use \Rxn\ApplicationConfig as Config;
+use \Rxn\Config;
 use \Rxn\Router\Collector;
 use \Rxn\Utility\Debug;
 
@@ -94,15 +94,21 @@ class Request
         }
 
         // assign from collector
-        $this->controllerName    = $this->createControllerName($collector);
-        $this->controllerVersion = $this->createControllerVersion($collector);
-        $this->controllerRef     = $this->createControllerRef($config, $this->controllerName, $this->controllerVersion);
-        $this->actionName        = $this->createActionName($collector);
-        $this->actionVersion     = $this->createActionVersion($collector);
-        $this->url               = (array)$this->getSanitizedUrl($collector, $config);
-        $this->get               = (array)$this->getSanitizedGet($collector, $config);
-        $this->post              = (array)$collector->post;
-        $this->header            = (array)$collector->header;
+        try {
+            $this->controllerName    = $this->createControllerName($collector);
+            $this->controllerVersion = $this->createControllerVersion($collector);
+            $this->controllerRef     = $this->createControllerRef($config, $this->controllerName,
+                $this->controllerVersion);
+            $this->actionName        = $this->createActionName($collector);
+            $this->actionVersion     = $this->createActionVersion($collector);
+            $this->url               = (array)$this->getSanitizedUrl($collector, $config);
+            $this->get               = (array)$this->getSanitizedGet($collector, $config);
+            $this->post              = (array)$collector->post;
+            $this->header            = (array)$collector->header;
+        } catch (\Exception $e) {
+            $this->validated = true;
+            $this->exception = $e;
+        }
     }
 
     public function isValidated()

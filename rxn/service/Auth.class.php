@@ -9,7 +9,7 @@
 namespace Rxn\Service;
 
 use \Rxn\Service;
-use \Rxn\ApplicationConfig as Config;
+use \Rxn\Config;
 use \Rxn\Auth\Key;
 use \Rxn\Utility\Debug;
 

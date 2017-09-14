@@ -9,7 +9,7 @@
 namespace Rxn\Api;
 
 use \Rxn\Service;
-use \Rxn\ApplicationConfig as Config;
+use \Rxn\Config;
 use \Rxn\Data\Database;
 use \Rxn\Api\Controller\Response;
 use \Rxn\Api\Controller\Crud;
