@@ -76,7 +76,7 @@ abstract class ApplicationConfig
      *
      * @var array
      */
-    public $endpointParameters = [
+    public $endpoint_parameters = [
         "version",
         "controller",
         "action",
@@ -87,7 +87,7 @@ abstract class ApplicationConfig
      *
      * @var string
      */
-    public $responseLeaderKey = '_rxn';
+    public $response_leader_key = '_rxn';
 
     /**
      * Use a valid \DateTime timezone

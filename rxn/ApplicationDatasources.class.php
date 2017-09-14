@@ -11,7 +11,7 @@ namespace Rxn;
 abstract class ApplicationDatasources
 {
 
-    public $defaultRead;
+    public $default_read;
 
     public $defaultWrite;
 

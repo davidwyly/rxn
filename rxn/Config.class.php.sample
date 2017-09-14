@@ -39,7 +39,7 @@ class Config extends ApplicationConfig
      *
      * @var string
      */
-    public $productNamespace = '\\Organization\\Product';
+    public $product_namespace = '\\Organization\\Product';
 
     /**
      * Uncomment this below to define an application key for encryption

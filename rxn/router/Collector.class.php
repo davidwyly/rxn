@@ -118,31 +118,31 @@ class Collector
     {
 
         // assign version, controller, and action
-        $processedParams = [];
-        foreach ($config->endpointParameters as $mapParameter) {
-            $processedParams[$mapParameter] = array_shift($params);
+        $processed_params = [];
+        foreach ($config->endpoint_parameters as $map_parameter) {
+            $processed_params[$map_parameter] = array_shift($params);
         }
 
         // check to see if there are remaining params
-        $paramCount = count($params);
-        if ($paramCount > 0) {
+        $param_count = count($params);
+        if ($param_count > 0) {
 
             // split params into key-value pairs
             foreach ($params as $key => $value) {
                 if ($this->isEven($key)) {
-                    $pairedKey = $value;
-                    $nextKey   = $key + 1;
-                    if (isset($params[$nextKey])) {
-                        $pairedValue                 = $params[$nextKey];
-                        $processedParams[$pairedKey] = $pairedValue;
+                    $paired_key = $value;
+                    $next_key   = $key + 1;
+                    if (isset($params[$next_key])) {
+                        $paired_value                  = $params[$next_key];
+                        $processed_params[$paired_key] = $paired_value;
                     } else {
-                        $processedParams[$pairedKey] = null;
+                        $processed_params[$paired_key] = null;
                     }
 
                 }
             }
         }
-        return $processedParams;
+        return $processed_params;
     }
 
     /**
@@ -163,16 +163,16 @@ class Collector
             $params = explode('/', $params);
 
             // determine the version, controller, and action from the parameters
-            $processedParams = $this->processParams($config, $params);
+            $processed_params = $this->processParams($config, $params);
 
             // tack on the other GET params
-            $otherParams = $_GET;
-            unset($otherParams['params']);
-            foreach ($otherParams as $key => $value) {
-                $processedParams[$key] = $value;
+            $other_params = $_GET;
+            unset($other_params['params']);
+            foreach ($other_params as $key => $value) {
+                $processed_params[$key] = $value;
             }
 
-            return $processedParams;
+            return $processed_params;
 
         }
         return (array)$_GET;
@@ -183,28 +183,28 @@ class Collector
      */
     public function getRequestHeaderParams()
     {
-        $headerParams = null;
+        $header_params = null;
         foreach ($_SERVER as $key => $value) {
 
             if (function_exists('mb_stripos')) {
-                $headerKeyExists = (mb_stripos($key, 'HTTP_RXN') !== false);
+                $header_key_exists = (mb_stripos($key, 'HTTP_RXN') !== false);
             } else {
-                $headerKeyExists = (stripos($key, 'HTTP_RXN') !== false);
+                $header_key_exists = (stripos($key, 'HTTP_RXN') !== false);
             }
 
-            if ($headerKeyExists) {
+            if ($header_key_exists) {
 
                 if (function_exists('mb_strtolower')) {
-                    $lowerKey = mb_strtolower($key);
+                    $lower_key = mb_strtolower($key);
                 } else {
-                    $lowerKey = strtolower($key);
+                    $lower_key = strtolower($key);
                 }
 
-                $lowerKey                = preg_replace("#http\_#", '', $lowerKey);
-                $headerParams[$lowerKey] = $value;
+                $lower_key                 = preg_replace("#http\_#", '', $lower_key);
+                $header_params[$lower_key] = $value;
             }
         }
-        return (array)$headerParams;
+        return (array)$header_params;
     }
 
     /**
@@ -217,8 +217,8 @@ class Collector
     {
         $get = $this->getRequestUrlParams($config);
         if (!isset($get['version'])) {
-            $urlStyle = self::URL_STYLE;
-            throw new \Exception("Cannot detect version from URL; URL style is '$urlStyle'", 400);
+            $url_style = self::URL_STYLE;
+            throw new \Exception("Cannot detect version from URL; URL style is '$url_style'", 400);
 
         }
         return $get['version'];
@@ -234,8 +234,8 @@ class Collector
     {
         $get = $this->getRequestUrlParams($config);
         if (!isset($get['controller'])) {
-            $urlStyle = self::URL_STYLE;
-            throw new \Exception("Cannot detect controller from URL; URL style is '$urlStyle'", 400);
+            $url_style = self::URL_STYLE;
+            throw new \Exception("Cannot detect controller from URL; URL style is '$url_style'", 400);
         }
         return $get['controller'];
     }
@@ -250,8 +250,8 @@ class Collector
     {
         $get = $this->getRequestUrlParams($config);
         if (!isset($get['action'])) {
-            $urlStyle = self::URL_STYLE;
-            throw new \Exception("Cannot detect action from URL; URL style is '$urlStyle'", 400);
+            $url_style = self::URL_STYLE;
+            throw new \Exception("Cannot detect action from URL; URL style is '$url_style'", 400);
         }
         return $get['action'];
     }

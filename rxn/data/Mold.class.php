@@ -30,8 +30,8 @@ class Mold
     private function createReadContracts(Map $map)
     {
         foreach ($map->tables as $tableName => $tableMap) {
-            if (isset($tableMap->columnInfo)) {
-                foreach ($tableMap->columnInfo as $column => $columnInfo) {
+            if (isset($tableMap->column_info)) {
+                foreach ($tableMap->column_info as $column => $columnInfo) {
                     $this->tables[$tableName][$column] = $this->getValidationType($columnInfo);
                 }
             }

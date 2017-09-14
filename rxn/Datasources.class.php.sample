@@ -11,7 +11,7 @@ namespace Rxn;
 class Datasources extends ApplicationDatasources
 {
 
-    public $defaultRead  = 'read-only';
+    public $default_read  = 'read-only';
 
     public $defaultWrite = 'read-write';
 

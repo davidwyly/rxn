@@ -10,9 +10,9 @@ namespace Rxn\Auth;
 
 class Key
 {
-    static private $encryptionMinLength = 32;
-    private        $encryptionKey;
-    private        $encryptionMethod;
+    static private $encryption_min_length = 32;
+    private        $encryption_key;
+    private        $encryption_method;
 
     public function __construct()
     {
@@ -20,25 +20,25 @@ class Key
     }
 
     /**
-     * @param string $encryptionKey
+     * @param string $encryption_key
      *
      * @return null
      * @throws \Exception
      */
-    public function setEncryptionKey($encryptionKey)
+    public function setEncryptionKey($encryption_key)
     {
-        $minLength = self::$encryptionMinLength;
+        $min_length = self::$encryption_min_length;
 
         if (function_exists('mb_strlen')) {
-            $encryptionKeyLength = mb_strlen($encryptionKey);
+            $encryption_key_length = mb_strlen($encryption_key);
         } else {
-            $encryptionKeyLength = strlen($encryptionKey);
+            $encryption_key_length = strlen($encryption_key);
         }
 
-        if ($encryptionKeyLength < $minLength) {
-            throw new \Exception("Encryption key must be at least $minLength characters", 500);
+        if ($encryption_key_length < $min_length) {
+            throw new \Exception("Encryption key must be at least $min_length characters", 500);
         }
-        $this->encryptionKey = $encryptionKey;
+        $this->encryption_key = $encryption_key;
         return null;
     }
 }

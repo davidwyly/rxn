@@ -25,12 +25,12 @@ class Chain
     /**
      * @var array
      */
-    public $linksToRecords;
+    public $links_to_records;
 
     /**
      * @var array
      */
-    public $linksFromRecords;
+    public $links_from_records;
 
     /**
      * Chain constructor.
@@ -62,15 +62,15 @@ class Chain
      */
     private function registerLinksToRecords(Map $map)
     {
-        foreach ($map->tables as $tableName => $tableMap) {
-            if (isset($tableMap->fieldReferences)) {
-                foreach ($tableMap->fieldReferences as $column => $referenceTableInfo) {
+        foreach ($map->tables as $table_name => $table_map) {
+            if (isset($table_map->field_references)) {
+                foreach ($table_map->field_references as $column => $referenceTableInfo) {
                     $referenceTable = $referenceTableInfo['table'];
                     if (array_key_exists($referenceTable, $map->tables)) {
                         $matchingTable     = $map->tables[$referenceTable];
                         $matchingTableName = $matchingTable->name;
 
-                        $this->linksToRecords[$tableName][$column] = $matchingTableName;
+                        $this->links_to_records[$table_name][$column] = $matchingTableName;
                     }
                 }
             }
@@ -84,14 +84,14 @@ class Chain
     {
 
         foreach ($map->tables as $tableName => $tableMap) {
-            if (isset($tableMap->fieldReferences)) {
-                foreach ($tableMap->fieldReferences as $column => $referenceTableInfo) {
+            if (isset($tableMap->field_references)) {
+                foreach ($tableMap->field_references as $column => $referenceTableInfo) {
                     $referenceTable = $referenceTableInfo['table'];
                     if (array_key_exists($referenceTable, $map->tables)) {
                         $matchingTable     = $map->tables[$referenceTable];
                         $matchingTableName = $matchingTable->name;
 
-                        $this->linksFromRecords[$matchingTableName][$tableName] = $column;
+                        $this->links_from_records[$matchingTableName][$tableName] = $column;
                     }
                 }
             }

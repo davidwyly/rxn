@@ -104,7 +104,7 @@ abstract class Record extends Model
         if (!$result) {
             throw new \Exception("Failed to create record on database '{$database->getName()}'", 500);
         }
-        $createdId = $database->getLastInsertId();
+        $createdId = $database->getLastInsertid();
         $database->transactionClose();
         return $createdId;
     }
@@ -163,7 +163,7 @@ abstract class Record extends Model
         if (!$result) {
             throw new \Exception("Failed to delete record '$id' on database '{$database->getName()}'", 500);
         }
-        $lastAffectedRows = $database->getLastAffectedRows();
+        $lastAffectedRows = $database->getLastAffectedrows();
         if (empty($lastAffectedRows)) {
             throw new \Exception("Failed to find record '$id' on database '{$database->getName()}'", 404);
         }
@@ -209,7 +209,7 @@ abstract class Record extends Model
     {
 
         $columns = [];
-        foreach ($table->columnInfo as $columnName => $columnData) {
+        foreach ($table->column_info as $columnName => $columnData) {
             $columns[$columnName] = $columnData['column_type'];
         }
         $this->_columns = $columns;
@@ -222,7 +222,7 @@ abstract class Record extends Model
     {
 
         $requiredColumns = [];
-        foreach ($table->columnInfo as $columnName => $columnData) {
+        foreach ($table->column_info as $columnName => $columnData) {
 
             if ($columnData['is_nullable'] != "NO" || $columnData['column_key'] == 'PRI') {
                 continue;
@@ -288,6 +288,6 @@ abstract class Record extends Model
      */
     protected function getPrimaryKey(Table $table)
     {
-        return implode("-", $table->primaryKeys);
+        return implode("-", $table->primary_keys);
     }
 }

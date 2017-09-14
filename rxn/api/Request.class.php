@@ -32,27 +32,27 @@ class Request
     /**
      * @var null|string
      */
-    protected $controllerVersion;
+    protected $controller_version;
 
     /**
      * @var null|string
      */
-    protected $controllerName;
+    protected $controller_name;
 
     /**
      * @var string
      */
-    protected $controllerRef;
+    protected $controller_ref;
 
     /**
      * @var null|string
      */
-    protected $actionName;
+    protected $action_name;
 
     /**
      * @var null|string
      */
-    protected $actionVersion;
+    protected $action_version;
 
     /**
      * @var array
@@ -95,45 +95,65 @@ class Request
 
         // assign from collector
         try {
-            $this->controllerName    = $this->createControllerName($collector);
-            $this->controllerVersion = $this->createControllerVersion($collector);
-            $this->controllerRef     = $this->createControllerRef($config, $this->controllerName,
-                $this->controllerVersion);
-            $this->actionName        = $this->createActionName($collector);
-            $this->actionVersion     = $this->createActionVersion($collector);
-            $this->url               = (array)$this->getSanitizedUrl($collector, $config);
-            $this->get               = (array)$this->getSanitizedGet($collector, $config);
-            $this->post              = (array)$collector->post;
-            $this->header            = (array)$collector->header;
+            $this->controller_name    = $this->createControllerName($collector);
+            $this->controller_version = $this->createControllerVersion($collector);
+            $this->controller_ref     = $this->createControllerRef($config, $this->controller_name,
+                $this->controller_version);
+            $this->action_name        = $this->createActionName($collector);
+            $this->action_version     = $this->createActionVersion($collector);
+            $this->url                = (array)$this->getSanitizedUrl($collector, $config);
+            $this->get                = (array)$this->getSanitizedGet($collector, $config);
+            $this->post               = (array)$collector->post;
+            $this->header             = (array)$collector->header;
         } catch (\Exception $e) {
             $this->validated = true;
             $this->exception = $e;
         }
     }
 
+    /**
+     * @return bool
+     */
     public function isValidated()
     {
         return $this->validated;
     }
 
+    /**
+     * @return \Exception
+     */
     public function getException()
     {
         return $this->exception;
     }
 
-    public function collectFromGet($targetKey, $triggerException = true)
+    /**
+     * @param      $target_key
+     * @param bool $trigger_exception
+     *
+     * @return mixed|null
+     * @throws \Exception
+     */
+    public function collectFromGet($target_key, $trigger_exception = true)
     {
         foreach ($this->get as $key => $value) {
-            if ($targetKey == $key) {
+            if ($target_key == $key) {
                 return $value;
             }
         }
-        if ($triggerException) {
-            throw new \Exception("Param '$targetKey' is missing from GET request", 400);
+        if ($trigger_exception) {
+            throw new \Exception("Param '$target_key' is missing from GET request", 400);
         }
         return null;
     }
 
+    /**
+     * @param      $targetKey
+     * @param bool $triggerException
+     *
+     * @return mixed|null
+     * @throws \Exception
+     */
     public function collectFromPost($targetKey, $triggerException = true)
     {
         foreach ($this->get as $key => $value) {
@@ -147,6 +167,13 @@ class Request
         return null;
     }
 
+    /**
+     * @param      $targetKey
+     * @param bool $triggerException
+     *
+     * @return mixed|null
+     * @throws \Exception
+     */
     public function collectFromHeader($targetKey, $triggerException = true)
     {
         foreach ($this->get as $key => $value) {
@@ -160,6 +187,12 @@ class Request
         return null;
     }
 
+    /**
+     * @param $targetKey
+     *
+     * @return mixed|null
+     * @throws \Exception
+     */
     public function collect($targetKey)
     {
         $value = $this->collectFromGet($targetKey, false);
@@ -177,6 +210,9 @@ class Request
         throw new \Exception("Param '$targetKey' is missing from request", 400);
     }
 
+    /**
+     * @return array
+     */
     public function collectAll()
     {
         $args = [];
@@ -201,16 +237,16 @@ class Request
      */
     private function getSanitizedUrl(Collector $collector, Config $config)
     {
-        $getParameters = $collector->get;
-        if (!is_array($getParameters)) {
+        $get_parameters = $collector->get;
+        if (!is_array($get_parameters)) {
             throw new \Exception("Cannot get sanitized URL, verify virtual hosts");
         }
-        foreach ($getParameters as $getParameterKey => $getParameterValue) {
-            if (!in_array($getParameterKey, $config->endpointParameters)) {
-                unset($getParameters[$getParameterKey]);
+        foreach ($get_parameters as $get_parameter_key => $getParameterValue) {
+            if (!in_array($get_parameter_key, $config->endpoint_parameters)) {
+                unset($get_parameters[$get_parameter_key]);
             }
         }
-        return $getParameters;
+        return $get_parameters;
     }
 
     /**
@@ -221,13 +257,13 @@ class Request
      */
     private function getSanitizedGet(Collector $collector, Config $config)
     {
-        $getParameters = $collector->get;
-        foreach ($config->endpointParameters as $endpointParameter) {
-            if (isset($getParameters[$endpointParameter])) {
-                unset($getParameters[$endpointParameter]);
+        $get_parameters = $collector->get;
+        foreach ($config->endpoint_parameters as $endpoint_parameter) {
+            if (isset($get_parameters[$endpoint_parameter])) {
+                unset($get_parameters[$endpoint_parameter]);
             }
         }
-        return $getParameters;
+        return $get_parameters;
     }
 
     /**
@@ -239,7 +275,7 @@ class Request
      */
     private function validateRequiredParams(Collector $collector, Config $config)
     {
-        foreach ($config->endpointParameters as $parameter) {
+        foreach ($config->endpoint_parameters as $parameter) {
             if (!isset($collector->get[$parameter])) {
                 throw new \Exception("Required parameter $parameter is missing from request", 400);
             }
@@ -252,7 +288,7 @@ class Request
      */
     public function getControllerVersion()
     {
-        return $this->controllerVersion;
+        return $this->controller_version;
     }
 
     /**
@@ -260,7 +296,7 @@ class Request
      */
     public function getControllerName()
     {
-        return $this->controllerName;
+        return $this->controller_name;
     }
 
     /**
@@ -268,7 +304,7 @@ class Request
      */
     public function getControllerRef()
     {
-        return $this->controllerRef;
+        return $this->controller_ref;
     }
 
     /**
@@ -276,7 +312,7 @@ class Request
      */
     public function getActionName()
     {
-        return $this->actionName;
+        return $this->action_name;
     }
 
     /**
@@ -284,7 +320,7 @@ class Request
      */
     public function getActionVersion()
     {
-        return $this->actionVersion;
+        return $this->action_version;
     }
 
     /**
@@ -295,7 +331,7 @@ class Request
     public function createControllerVersion(Collector $collector)
     {
         try {
-            $fullVersion = $collector->getUrlParam('version');
+            $full_version = $collector->getUrlParam('version');
         } catch (\Exception $e) {
             return null;
         }
@@ -303,14 +339,14 @@ class Request
         if (function_exists('mb_strpos')
             && function_exists('mb_substr')
         ) {
-            $periodPosition    = mb_strpos($fullVersion, ".");
-            $controllerVersion = mb_substr($fullVersion, 0, $periodPosition);
+            $period_position    = mb_strpos($full_version, ".");
+            $controller_version = mb_substr($full_version, 0, $period_position);
         } else {
-            $periodPosition    = strpos($fullVersion, ".");
-            $controllerVersion = substr($fullVersion, 0, $periodPosition);
+            $period_position    = strpos($full_version, ".");
+            $controller_version = substr($full_version, 0, $period_position);
         }
 
-        return $controllerVersion;
+        return $controller_version;
     }
 
     /**
@@ -321,7 +357,7 @@ class Request
     public function createActionVersion(Collector $collector)
     {
         try {
-            $fullVersion = $collector->getUrlParam('version');
+            $full_version = $collector->getUrlParam('version');
         } catch (\Exception $e) {
             return null;
         }
@@ -329,15 +365,15 @@ class Request
         if (function_exists('mb_strpos')
             && function_exists('mb_substr')
         ) {
-            $periodPosition      = mb_strpos($fullVersion, ".");
-            $actionVersionNumber = mb_substr($fullVersion, $periodPosition + 1);
+            $period_position       = mb_strpos($full_version, ".");
+            $action_version_number = mb_substr($full_version, $period_position + 1);
         } else {
-            $periodPosition      = strpos($fullVersion, ".");
-            $actionVersionNumber = substr($fullVersion, $periodPosition + 1);
+            $period_position       = strpos($full_version, ".");
+            $action_version_number = substr($full_version, $period_position + 1);
         }
 
-        $actionVersion = "v$actionVersionNumber";
-        return $actionVersion;
+        $action_version = "v$action_version_number";
+        return $action_version;
     }
 
     /**
@@ -348,11 +384,11 @@ class Request
     public function createControllerName(Collector $collector)
     {
         try {
-            $controllerName = $collector->getUrlParam('controller');
+            $controller_name = $collector->getUrlParam('controller');
         } catch (\Exception $e) {
             return null;
         }
-        return $controllerName;
+        return $controller_name;
     }
 
     /**
@@ -363,25 +399,25 @@ class Request
     public function createActionName(Collector $collector)
     {
         try {
-            $actionName = $collector->getUrlParam('action');
+            $action_name = $collector->getUrlParam('action');
         } catch (\Exception $e) {
             return null;
         }
-        return $actionName;
+        return $action_name;
     }
 
     /**
      * @param Config $config
-     * @param        $controllerName
-     * @param        $controllerVersion
+     * @param        $controller_name
+     * @param        $controller_version
      *
      * @return string
      */
-    public function createControllerRef(Config $config, $controllerName, $controllerVersion)
+    public function createControllerRef(Config $config, $controller_name, $controller_version)
     {
-        $processedName = $this->stringToUpperCamel($controllerName, "_");
-        $controllerRef = $config->productNamespace . "\\Controller\\$controllerVersion\\$processedName";
-        return $controllerRef;
+        $processed_name = $this->stringToUpperCamel($controller_name, "_");
+        $controller_ref = $config->product_namespace . "\\Controller\\$controller_version\\$processed_name";
+        return $controller_ref;
     }
 
     /**
@@ -395,18 +431,18 @@ class Request
         if (!empty($delimiter)) {
 
             if (function_exists('mb_stripos')) {
-                $delimiterExists = (mb_stripos($string, $delimiter) !== false);
+                $delimiter_exists = (mb_stripos($string, $delimiter) !== false);
             } else {
-                $delimiterExists = (stripos($string, $delimiter) !== false);
+                $delimiter_exists = (stripos($string, $delimiter) !== false);
             }
 
-            if ($delimiterExists) {
-                $stringArray   = explode($delimiter, $string);
-                $fragmentArray = [];
-                foreach ($stringArray as $stringFragment) {
-                    $fragmentArray[] = ucfirst($stringFragment);
+            if ($delimiter_exists) {
+                $string_array   = explode($delimiter, $string);
+                $fragment_array = [];
+                foreach ($string_array as $string_fragment) {
+                    $fragment_array[] = ucfirst($string_fragment);
                 }
-                return implode($delimiter, $fragmentArray);
+                return implode($delimiter, $fragment_array);
             }
         }
         return ucfirst($string);

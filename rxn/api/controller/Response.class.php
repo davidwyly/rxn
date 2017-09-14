@@ -30,12 +30,12 @@ class Response
     /**
      * @var array
      */
-    protected $failureResponse;
+    protected $failure_response;
 
     /**
      * @var string
      */
-    private $responseLeaderKey;
+    private $response_leader_key;
 
     /**
      * @var bool
@@ -70,12 +70,12 @@ class Response
     /**
      * @var
      */
-    public $elapsedMs;
+    public $elapsed_ms;
 
     /**
      * @var array
      */
-    static public $responseCodes = [
+    static public $response_codes = [
         100 => "Continue",
         101 => "Switching Protocols",
         102 => "Processing",
@@ -143,11 +143,11 @@ class Response
      */
     public function __construct(Request $request, Config $config)
     {
-        $this->responseLeaderKey = $config->responseLeaderKey;
-        $this->request           = $request;
+        $this->response_leader_key = $config->response_leader_key;
+        $this->request             = $request;
         if (!$this->request->isValidated()) {
-            $e                     = $this->request->getException();
-            $this->failureResponse = $this->getFailure($e);
+            $e                      = $this->request->getException();
+            $this->failure_response = $this->getFailure($e);
         }
     }
 
@@ -156,11 +156,11 @@ class Response
      */
     public function getSuccess(): Response
     {
-        $this->success   = true;
-        $this->code      = self::DEFAULT_SUCCESS_CODE;
-        $this->result    = self::getResponseCodeResult($this->code);
-        $this->rendered  = true;
-        $this->elapsedMs = Application::getElapsedMs();
+        $this->success    = true;
+        $this->code       = self::DEFAULT_SUCCESS_CODE;
+        $this->result     = self::getResponseCodeResult($this->code);
+        $this->rendered   = true;
+        $this->elapsed_ms = Application::getElapsedMs();
         return $this;
     }
 
@@ -185,7 +185,7 @@ class Response
      */
     public function getFailureResponse()
     {
-        return $this->failureResponse;
+        return $this->failure_response;
     }
 
     /**
@@ -217,26 +217,26 @@ class Response
      */
     static public function getErrorTrace(\Exception $e)
     {
-        $fullTrace        = $e->getTrace();
-        $allowedDebugKeys = [
+        $full_trace         = $e->getTrace();
+        $allowed_debug_keys = [
             'file',
             'line',
             'function',
             'class',
         ];
-        $trace            = [];
-        foreach ($allowedDebugKeys as $allowedKey) {
-            foreach ($fullTrace as $traceKey => $traceGroup) {
-                if (isset($traceGroup[$allowedKey])) {
-                    $trace[$traceKey][$allowedKey] = $traceGroup[$allowedKey];
+        $trace              = [];
+        foreach ($allowed_debug_keys as $allowed_key) {
+            foreach ($full_trace as $trace_key => $trace_group) {
+                if (isset($trace_group[$allowed_key])) {
+                    $trace[$trace_key][$allowed_key] = $trace_group[$allowed_key];
                 }
             }
         }
-        foreach ($trace as $key => $traceGroup) {
-            if (isset($traceGroup['file'])) {
+        foreach ($trace as $key => $trace_group) {
+            if (isset($trace_group['file'])) {
                 $regex               = '^.+\/';
-                $trimmedFile         = preg_replace("#$regex#", '', $traceGroup['file']);
-                $trace[$key]['file'] = $trimmedFile;
+                $trimmed_file        = preg_replace("#$regex#", '', $trace_group['file']);
+                $trace[$key]['file'] = $trimmed_file;
             }
         }
         return $trace;
@@ -249,9 +249,9 @@ class Response
      */
     static public function getResponseCodeResult($code)
     {
-        if (!isset(self::$responseCodes[$code])) {
+        if (!isset(self::$response_codes[$code])) {
             return 'Unsupported Response Code';
         }
-        return self::$responseCodes[$code];
+        return self::$response_codes[$code];
     }
 }

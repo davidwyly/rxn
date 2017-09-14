@@ -10,19 +10,20 @@ namespace Rxn\Data;
 
 use \Rxn\Service\Registry;
 use \Rxn\Data\Map\Table;
-use \Rxn\Utility\Debug;
 
 /**
- * Class Map
+ * Class TableFacade
+ *
+ * Stores the basic information we need for a table
  *
  * @package Rxn\Data
  */
 class Map
 {
     /**
-     * @var string
+     * @var Registry
      */
-    public $fingerprint;
+    public $registry;
 
     /**
      * @var Table[]
@@ -65,9 +66,9 @@ class Map
             return false;
         }
         foreach ($registry->tables[$database_name] as $table_name) {
-            $is_cached = $filecache->isClassCached(Table::class, [$database_name, $table_name]);
+            $is_cached = $filecache->isClassCached(Map\Table::class, [$database_name, $table_name]);
             if ($is_cached === true) {
-                $table = $filecache->getObject(Table::class, [$database_name, $table_name]);
+                $table = $filecache->getObject(Map\Table::class, [$database_name, $table_name]);
             } else {
                 $table = $this->createTable($registry, $database, $table_name);
                 $filecache->cacheObject($table, [$database_name, $table_name]);
