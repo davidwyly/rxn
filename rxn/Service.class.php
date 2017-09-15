@@ -31,51 +31,51 @@ class Service
     }
 
     /**
-     * @param string $className
+     * @param string $class_name
      *
      * @return object
      * @throws \Exception
      */
-    public function get($className)
+    public function get($class_name)
     {
         // validate that the class name actually exists
-        if (!class_exists($className)) {
-            throw new \Exception("$className is not a valid class name", 500);
+        if (!class_exists($class_name)) {
+            throw new \Exception("$class_name is not a valid class name", 500);
         }
 
-        // in the event that we're looking up the service class itself, return the service class
-        if ($className == Service::class) {
+        // in the event that we're looking up the service class, return itself
+        if ($class_name == Service::class) {
             return $this;
         }
 
-        // if the service has already stored an instance of the class, return it
-        if (self::has($className)) {
-            return $this->instances[$className];
+        // if we already stored an instance of the class, return it
+        if (self::has($class_name)) {
+            return $this->instances[$class_name];
         }
 
         // generate an instance of the class
-        $instance = $this->generateInstance($className);
+        $instance = $this->generateInstance($class_name);
 
         // add the instance into memory
-        $this->addInstance($className, $instance);
+        $this->addInstance($class_name, $instance);
 
         // return the class instance
         return $instance;
     }
 
     /**
-     * @param $className
+     * @param $class_name
      *
      * @return object
      * @throws \Exception
      */
-    private function generateInstance($className)
+    private function generateInstance($class_name)
     {
-        $reflection  = new \ReflectionClass($className);
-        $className   = $reflection->getName();
+        $reflection  = new \ReflectionClass($class_name);
+        $class_name  = $reflection->getName();
         $constructor = $reflection->getConstructor();
         if (!$constructor) {
-            throw new \Exception("Class '$className' does not have a valid constructor", 500);
+            throw new \Exception("Class '$class_name' does not have a valid constructor", 500);
         }
         $parameters = $constructor->getParameters();
         $args       = [];
@@ -89,26 +89,26 @@ class Service
     }
 
     /**
-     * @param $className
+     * @param $class_name
      *
      * @return bool
      */
-    public function has($className)
+    public function has($class_name)
     {
-        if (isset($this->instances[$className])) {
+        if (isset($this->instances[$class_name])) {
             return true;
         }
         return false;
     }
 
     /**
-     * @param string $className
+     * @param string $class_name
      * @param object $instance
      *
      * @return void
      */
-    public function addInstance($className, $instance)
+    public function addInstance($class_name, $instance)
     {
-        $this->instances[$className] = $instance;
+        $this->instances[$class_name] = $instance;
     }
 }

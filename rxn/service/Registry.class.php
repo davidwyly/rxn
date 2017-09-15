@@ -8,6 +8,7 @@
 
 namespace Rxn\Service;
 
+use \Rxn\MultiByte;
 use \Rxn\Config;
 use \Rxn\Data\Database;
 use \Rxn\Api\Controller;
@@ -193,8 +194,7 @@ class Registry
             WHERE t.table_schema LIKE ?
                 AND t.table_type = 'BASE TABLE'
             ";
-
-        $tables = $database->fetchArray($sql, [$databaseName], true, 1);
+        $tables = $database->fetchArray($sql, [$databaseName], true);
         if (!$tables) {
             return false;
         }
@@ -257,14 +257,10 @@ class Registry
         $pathArray = explode("\\", $classReference);
 
         // remove the root namespace from the array
-        if (function_exists('mb_strtolower')) {
-            $root = mb_strtolower(array_shift($pathArray));
-        } else {
-            $root = strtolower(array_shift($pathArray));
-        }
+        $root = MultiByte::strtolower(array_shift($pathArray));
 
         if ($root != $config->appFolder) {
-            if ($root != $config->organizationFolder) {
+            if ($root != $config->organization_folder) {
                 throw new \Exception("Root path '$root' in reference '$classReference' not defined in config", 500);
             }
         }
@@ -273,16 +269,9 @@ class Registry
         $classShortName = array_pop($pathArray);
 
         // convert the namespaces into lowercase
-        if (function_exists('mb_strtolower')) {
-            foreach ($pathArray as $key => $value) {
-                $pathArray[$key] = mb_strtolower($value);
-            }
-        } else {
-            foreach ($pathArray as $key => $value) {
-                $pathArray[$key] = strtolower($value);
-            }
+        foreach ($pathArray as $key => $value) {
+            $pathArray[$key] = MultiByte::strtolower($value);
         }
-
 
         // tack the short name of the class back onto the end
         array_push($pathArray, $classShortName);
@@ -296,11 +285,7 @@ class Registry
         if (!file_exists($loadPath)) {
             // 400 level error if the controller is incorrect
 
-            if (function_exists('mb_strpos')) {
-                $controllerExists = (mb_strpos($classPath, 'controller') !== false);
-            } else {
-                $controllerExists = (strpos($classPath, 'controller') !== false);
-            }
+            $controllerExists = (MultiByte::strpos($classPath, 'controller') !== false);
 
             if (!$controllerExists) {
                 throw new \Exception("Controller '$classReference' does not exist", 400);

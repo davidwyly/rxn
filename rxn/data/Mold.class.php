@@ -29,44 +29,44 @@ class Mold
 
     private function createReadContracts(Map $map)
     {
-        foreach ($map->tables as $tableName => $tableMap) {
-            if (isset($tableMap->column_info)) {
-                foreach ($tableMap->column_info as $column => $columnInfo) {
-                    $this->tables[$tableName][$column] = $this->getValidationType($columnInfo);
+        foreach ($map->tables as $table_name => $table_map) {
+            if (isset($table_map->column_info)) {
+                foreach ($table_map->column_info as $column => $column_info) {
+                    $this->tables[$table_name][$column] = $this->getValidationType($column_info);
                 }
             }
         }
     }
 
-    private function isPrimary(array $columnInfo)
+    private function isPrimary(array $column_info)
     {
-        if ($columnInfo['column_key'] === 'PRI') {
+        if ($column_info['column_key'] === 'PRI') {
             return true;
         }
         return false;
     }
 
-    private function isRequired(array $columnInfo)
+    private function isRequired(array $column_info)
     {
-        if ($columnInfo['is_nullable'] === 'NO') {
+        if ($column_info['is_nullable'] === 'NO') {
             return true;
         }
         return false;
     }
 
-    private function isReference(array $columnInfo)
+    private function isReference(array $column_info)
     {
-        if (!empty($columnInfo['referenced_table_name'])) {
+        if (!empty($column_info['referenced_table_name'])) {
             return true;
         }
         return false;
     }
 
-    private function getValidationType(array $columnInfo)
+    private function getValidationType(array $column_info)
     {
-        $columnType       = $columnInfo['column_type'];
-        $columnTypeSimple = preg_replace('#\(.+#', '', $columnType);
-        switch ($columnTypeSimple) {
+        $column_type        = $column_info['column_type'];
+        $column_type_simple = preg_replace('#\(.+#', '', $column_type);
+        switch ($column_type_simple) {
             case 'varchar':
                 $validationType = '[string]';
                 break;

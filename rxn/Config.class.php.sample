@@ -21,7 +21,7 @@ class Config extends ApplicationConfig
      *
      * @var string
      */
-    public $organizationFolder = 'organization';
+    public $organization_folder = 'organization';
 
     /**
      * Defines the root product folder, typically the name of your application
@@ -30,7 +30,7 @@ class Config extends ApplicationConfig
      *
      * @var string
      */
-    public $productFolder = 'product';
+    public $product_folder = 'product';
 
     /**
      * Defines the organization/product namespace for your application's models and controllers
@@ -53,7 +53,7 @@ class Config extends ApplicationConfig
      *
      * @var bool
      */
-    public $useFileCaching = false;
+    public $use_file_caching = false;
 
     /**
      * Enable or disable query caching of queries
@@ -62,7 +62,7 @@ class Config extends ApplicationConfig
      *
      * @var bool
      */
-    public $useQueryCaching = false;
+    public $use_query_caching = false;
 
     /**
      * enable or disable IO sanitization to help stop XSS attacks
@@ -71,7 +71,7 @@ class Config extends ApplicationConfig
      *
      * @var bool
      */
-    public $useInputOutputSanitization = true;
+    public $use_input_output_sanitization = true;
 
     /**
      * Use a valid \DateTime timezone

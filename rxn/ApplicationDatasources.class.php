@@ -13,13 +13,13 @@ abstract class ApplicationDatasources
 
     public $default_read;
 
-    public $defaultWrite;
+    public $default_write;
 
-    public $defaultAdmin;
+    public $default_admin;
 
     protected $databases;
 
-    private $requiredFields = [
+    private $required_fields = [
         'host',
         'name',
         'username',
@@ -29,24 +29,24 @@ abstract class ApplicationDatasources
 
     public function __construct()
     {
-        $this->validateDatabaseArray($this->databases);
-        foreach ($this->databases as $databaseName => $connectionSettings) {
+        $this->validateDatabases($this->databases);
+        foreach ($this->databases as $database_name => $connection_settings) {
 
         }
     }
 
-    private function validateDatabaseArray(array $databaseArray)
+    private function validateDatabases(array $databases)
     {
         if (empty($this->databases)) {
             throw new \Exception("'Databases' param cannot be set to empty");
         }
-        foreach ($databaseArray as $databaseName => $connectionSettings) {
-            if (!is_array($connectionSettings)) {
+        foreach ($databases as $database_name => $connection_settings) {
+            if (!is_array($connection_settings)) {
                 throw new \Exception ("'Databases' param is malformed");
             }
-            foreach ($this->requiredFields as $requiredField) {
-                if (!isset($connectionSettings[$requiredField])) {
-                    throw new \Exception("Database config with key '$databaseName' is missing required field '$requiredField'");
+            foreach ($this->required_fields as $required_field) {
+                if (!isset($connection_settings[$required_field])) {
+                    throw new \Exception("Database config with key '$database_name' is missing required field '$required_field'");
                 }
             }
         }

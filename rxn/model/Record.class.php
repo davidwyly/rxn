@@ -104,7 +104,7 @@ abstract class Record extends Model
         if (!$result) {
             throw new \Exception("Failed to create record on database '{$database->getName()}'", 500);
         }
-        $createdId = $database->getLastInsertid();
+        $createdId = $database->getLastInsertId();
         $database->transactionClose();
         return $createdId;
     }
@@ -163,7 +163,7 @@ abstract class Record extends Model
         if (!$result) {
             throw new \Exception("Failed to delete record '$id' on database '{$database->getName()}'", 500);
         }
-        $lastAffectedRows = $database->getLastAffectedrows();
+        $lastAffectedRows = $database->getLastAffectedRows();
         if (empty($lastAffectedRows)) {
             throw new \Exception("Failed to find record '$id' on database '{$database->getName()}'", 404);
         }

@@ -13,9 +13,9 @@ class Datasources extends ApplicationDatasources
 
     public $default_read  = 'read-only';
 
-    public $defaultWrite = 'read-write';
+    public $default_write = 'read-write';
 
-    public $defaultAdmin = 'admin';
+    public $default_admin = 'admin';
 
     public $databases = [
         'read-only' => [

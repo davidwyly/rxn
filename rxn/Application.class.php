@@ -171,7 +171,7 @@ class Application
     }
 
     /**
-     * @return array
+     * @return Response
      * @throws \Exception
      */
     private function getSuccessResponse()
@@ -195,7 +195,7 @@ class Application
     /**
      * @param \Exception $e
      *
-     * @return mixed
+     * @return Response
      * @throws \Exception
      */
     private function getFailureResponse(\Exception $e)
@@ -216,35 +216,35 @@ class Application
     }
 
     /**
-     * @param        $response_to_render
-     * @param Config $config
+     * @param Response    $response
+     * @param \Rxn\Config $config
      *
      * @throws \Exception
      */
-    private function render($response_to_render, Config $config)
+    private function render(Response $response, Config $config)
     {
         if (ob_get_contents()) {
             die();
         }
 
         // determine response code
-        $responseCode = $response_to_render->code;
+        $response_code = $response->code;
 
         // encode the response to JSON
-        $json = json_encode((object)$response_to_render, JSON_PRETTY_PRINT);
+        $json = json_encode((object)$response, JSON_PRETTY_PRINT);
 
         // remove null bytes, which can be a gotcha upon decoding
         $json = str_replace('\\u0000', '', $json);
 
         // if the JSON is invalid, dump the raw response
         if (!$this->isJson($json)) {
-            Debug::dump($response_to_render);
+            Debug::dump($response);
             die();
         }
 
         // render as JSON
         header('content-type: application/json');
-        http_response_code($responseCode);
+        http_response_code($response_code);
         echo($json);
     }
 
@@ -320,42 +320,42 @@ class Application
 
     /**
      * @param $root
-     * @param $appRoot
+     * @param $app_root
      */
-    static public function includeCoreComponents($root, $appRoot)
+    static public function includeCoreComponents($root, $app_root)
     {
-        $coreComponentPaths = ApplicationConfig::getCoreComponentPaths();
-        foreach ($coreComponentPaths as $name => $coreComponentPath) {
-            if (!file_exists("$root/$appRoot/$coreComponentPath")) {
+        $core_component_paths = ApplicationConfig::getCoreComponentPaths();
+        foreach ($core_component_paths as $name => $core_component_path) {
+            if (!file_exists("$root/$app_root/$core_component_path")) {
                 try {
-                    throw new \Exception("Rxn core component '$name' expected at '$coreComponentPath'");
+                    throw new \Exception("Rxn core component '$name' expected at '$core_component_path'");
                 } catch (\Exception $e) {
                     self::appendEnvironmentError($e);
                 }
             } else {
                 /** @noinspection PhpIncludeInspection */
-                require_once("$root/$appRoot/$coreComponentPath");
+                require_once("$root/$app_root/$core_component_path");
             }
         }
     }
 
     /**
      * @param        $root
-     * @param        $appRoot
+     * @param        $app_root
      * @param Config $config
      */
-    static public function validateEnvironment($root, $appRoot, Config $config)
+    static public function validateEnvironment($root, $app_root, Config $config)
     {
 
         // validate PHP INI file settings
-        $iniRequirements = Config::getIniRequirements();
-        foreach ($iniRequirements as $iniKey => $requirement) {
-            if (ini_get($iniKey) != $requirement) {
+        $ini_requirements = Config::getIniRequirements();
+        foreach ($ini_requirements as $ini_key => $requirement) {
+            if (ini_get($ini_key) != $requirement) {
                 if (is_bool($requirement)) {
                     $requirement = ($requirement) ? 'On' : 'Off';
                 }
                 try {
-                    throw new \Exception("Rxn requires PHP ini setting '$iniKey' = '$requirement'");
+                    throw new \Exception("Rxn requires PHP ini setting '$ini_key' = '$requirement'");
                 } catch (\Exception $e) {
                     self::appendEnvironmentError($e);
                 }
@@ -363,18 +363,18 @@ class Application
         }
 
         // validate that file caching is enabled
-        if ($config->useFileCaching) {
-            if (!file_exists("$root/$appRoot/data/filecache")) {
+        if ($config->use_file_caching) {
+            if (!file_exists("$root/$app_root/data/filecache")) {
                 try {
-                    throw new \Exception("Rxn requires for folder '$root/$appRoot/data/filecache' to exist");
+                    throw new \Exception("Rxn requires for folder '$root/$app_root/data/filecache' to exist");
                 } catch (\Exception $e) {
                     self::appendEnvironmentError($e);
                 }
             }
 
-            if (!is_writable("$root/$appRoot/data/filecache")) {
+            if (!is_writable("$root/$app_root/data/filecache")) {
                 try {
-                    throw new \Exception("Rxn requires for folder '$root/$appRoot/data/filecache' to be writable");
+                    throw new \Exception("Rxn requires for folder '$root/$app_root/data/filecache' to be writable");
                 } catch (\Exception $e) {
                     self::appendEnvironmentError($e);
                 }
@@ -382,8 +382,8 @@ class Application
         }
 
         if (!function_exists('mb_strtolower')
-            && isset($iniRequirements['zend.multibyte'])
-            && $iniRequirements['zend.multibyte'] === true
+            && isset($ini_requirements['zend.multibyte'])
+            && $ini_requirements['zend.multibyte'] === true
         ) {
             try {
                 throw new \Exception("Rxn requires the PHP mbstring extension to be installed/enabled");

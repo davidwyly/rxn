@@ -22,7 +22,7 @@ abstract class ApplicationConfig
      *
      * @var string
      */
-    public $organizationFolder = 'organization';
+    public $organization_folder = 'organization';
 
     /**
      * Defines the root application folder
@@ -48,7 +48,7 @@ abstract class ApplicationConfig
      *
      * @var bool
      */
-    public $useFileCaching = false;
+    public $use_file_caching = false;
 
     /**
      * Defines the root of the rxn and organization folders relative to this file
@@ -105,12 +105,14 @@ abstract class ApplicationConfig
      * @var array
      */
     static private $coreComponentPaths = [
-        'Config.class' => 'Config.class.php',
+        'MultiByte'    => 'MultiByte.class.php',
+        'Config'       => 'Config.class.php',
         'Databases'    => 'Datasources.class.php',
         'Service'      => 'Service.class.php',
         'Registry'     => 'service/Registry.class.php',
         'Debug'        => 'utility/Debug.class.php',
         'Database'     => 'data/Database.class.php',
+        'Query'        => 'data/Query.class.php',
     ];
 
     static private $iniRequirements = [
