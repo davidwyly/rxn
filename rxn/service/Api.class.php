@@ -9,9 +9,7 @@
 namespace Rxn\Service;
 
 use \Rxn\Api\Request;
-use \Rxn\Config;
 use \Rxn\Api\Controller;
-use \Rxn\Api\Controller\Response;
 
 class Api
 {

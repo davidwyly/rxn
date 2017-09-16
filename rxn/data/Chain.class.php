@@ -8,8 +8,6 @@
 
 namespace Rxn\Data;
 
-use \Rxn\Utility\Debug;
-
 /**
  * Class Chain
  *

@@ -8,9 +8,6 @@
 
 namespace Rxn\Service;
 
-use \Rxn\Service;
-use \Rxn\Utility\Debug;
-
 /**
  * Class Utility
  *

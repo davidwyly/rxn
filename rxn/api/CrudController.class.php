@@ -13,7 +13,6 @@ use \Rxn\Config;
 use \Rxn\Data\Database;
 use \Rxn\Api\Controller\Response;
 use \Rxn\Api\Controller\Crud;
-use \Rxn\Utility\Debug;
 
 /**
  * Class CrudController

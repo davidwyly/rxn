@@ -8,6 +8,8 @@
 
 namespace Rxn\Utility;
 
+use \Rxn\Error\DebugException;
+
 /**
  * Class Debug
  *
@@ -31,7 +33,7 @@ class Debug
      * @param null $append_name
      *
      * @return bool
-     * @throws \Exception
+     * @throws DebugException
      */
     static public function dump($var, $append_name = null)
     {
@@ -75,14 +77,14 @@ class Debug
      * @param $var
      *
      * @return mixed
-     * @throws \Exception
+     * @throws DebugException
      */
     static protected function lookupVarInfo($var)
     {
         $backtrace = debug_backtrace();
         $depth     = self::$depth;
         if (!$backtrace[$depth]) {
-            throw new \Exception("Debug depth '$depth' gives inconsistent results", 500);
+            throw new DebugException("Debug depth '$depth' gives inconsistent results", 500);
         }
         $v_line = file($backtrace[$depth]['file']);
         $f_line = $v_line[$backtrace[$depth]['line'] - 1];
@@ -120,12 +122,12 @@ class Debug
      * @param $var_map_type
      *
      * @return array
-     * @throws \Exception
+     * @throws DebugException
      */
     static protected function buildRenderInfo($var_map_type)
     {
         if (!is_string($var_map_type)) {
-            throw new \Exception("Returning false in " . __METHOD__, 500);
+            throw new DebugException("Returning false in " . __METHOD__, 500);
         }
         $var_object_position = mb_strpos(mb_strtolower($var_map_type), "object");
         if ($var_object_position) {
@@ -147,13 +149,13 @@ class Debug
      * @param $value
      *
      * @return bool|string
-     * @throws \Exception
+     * @throws DebugException
      */
     static public function buildRenderValue($key, $value)
     {
         $valueRenderInfo = self::buildRenderInfo($value['__type']);
         if (!$valueRenderInfo) {
-            throw new \Exception("No value render info available during debug", 500);
+            throw new DebugException("No value render info available during debug", 500);
         }
         $arrow          = "=&gt;";
         $value_map_type = $valueRenderInfo['var_map_type'];
@@ -243,20 +245,19 @@ class Debug
                 ";
         }
 
-        return
-        $html;
+        return $html;
     }
 
     /**
      * @param array $var_map
      *
      * @return bool|string
-     * @throws \Exception
+     * @throws DebugException
      */
     static protected function buildRender(array $var_map)
     {
         if (!isset($var_map["__type"])) {
-            throw new \Exception("No type to debug", 500);
+            throw new DebugException("No type to debug", 500);
         }
         if (!isset($var_map["__data"])) {
             //No data to debug
@@ -334,7 +335,7 @@ class Debug
      * @param $var
      *
      * @return array|bool
-     * @throws \Exception
+     * @throws DebugException
      */
     static protected function inspect($var)
     {
@@ -372,7 +373,7 @@ class Debug
      * @param $array
      *
      * @return array|bool
-     * @throws \Exception
+     * @throws DebugException
      */
     static private function inspectArray($array)
     {
@@ -500,18 +501,18 @@ class Debug
      * @param $object
      *
      * @return array
-     * @throws \Exception
+     * @throws DebugException
      */
     static private function inspectObject($object)
     {
         if (!is_object($object)) {
-            throw new \Exception("Trying to inspect an object that isn't an object", 500);
+            throw new DebugException("Trying to inspect an object that isn't an object", 500);
         }
         $reflection            = new \ReflectionObject($object);
         $reflection_properties = $reflection->getProperties(\ReflectionProperty::IS_PROTECTED
             | \ReflectionProperty::IS_PUBLIC | \ReflectionProperty::IS_STATIC | \ReflectionProperty::IS_PRIVATE);
 
-        // RARELY, reflection->getProperties fails (e.g., \DateTime), so we need an exception array
+        // RARELY, reflection->getProperties fails (e.g., \DateTime), so we need an error array
         $object_array     = get_object_vars($object);
         $reflection_array = [];
         foreach ($reflection_properties as $key => $reflection_property) {
@@ -523,7 +524,7 @@ class Debug
                 $exception_array[$property_name] = $property_value;
             }
         }
-        // end exception array check
+        // end error array check
 
         $array = [];
         foreach ($reflection_properties as $key => $reflection_property) {

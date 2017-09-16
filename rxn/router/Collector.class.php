@@ -9,6 +9,7 @@
 namespace Rxn\Router;
 
 use \Rxn\Config;
+use \Rxn\Utility\MultiByte;
 
 /**
  * Class Collector
@@ -116,7 +117,6 @@ class Collector
      */
     private function processParams(Config $config, $params)
     {
-
         // assign version, controller, and action
         $processed_params = [];
         foreach ($config->endpoint_parameters as $map_parameter) {
@@ -155,6 +155,15 @@ class Collector
         if (!isset($_GET) || empty($_GET)) {
             return null;
         }
+
+        if (isset($_GET['api_version'])
+            && !empty($_GET['api_version'])
+            && isset($_GET['api_endpoint'])
+            && !empty($_GET['api_endpoint'])
+        ) {
+
+        }
+
         if (isset($_GET['params']) && !empty($_GET['params'])) {
             // trim any trailing forward slash
             $params = preg_replace('#\/$#', '', $_GET['params']);
@@ -185,21 +194,10 @@ class Collector
     {
         $header_params = null;
         foreach ($_SERVER as $key => $value) {
-
-            if (function_exists('mb_stripos')) {
-                $header_key_exists = (mb_stripos($key, 'HTTP_RXN') !== false);
-            } else {
-                $header_key_exists = (stripos($key, 'HTTP_RXN') !== false);
-            }
+            $header_key_exists = (MultiByte::stripos($key, 'HTTP_RXN') !== false);
 
             if ($header_key_exists) {
-
-                if (function_exists('mb_strtolower')) {
-                    $lower_key = mb_strtolower($key);
-                } else {
-                    $lower_key = strtolower($key);
-                }
-
+                $lower_key                 = MultiByte::strtolower($key);
                 $lower_key                 = preg_replace("#http\_#", '', $lower_key);
                 $header_params[$lower_key] = $value;
             }

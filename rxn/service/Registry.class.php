@@ -8,11 +8,10 @@
 
 namespace Rxn\Service;
 
-use \Rxn\MultiByte;
 use \Rxn\Config;
 use \Rxn\Data\Database;
-use \Rxn\Api\Controller;
-use \Rxn\Utility\Debug;
+use \Rxn\Utility\MultiByte;
+use \Rxn\Error\RegistryException;
 
 /**
  * Class Registry
@@ -22,7 +21,7 @@ use \Rxn\Utility\Debug;
 class Registry
 {
     /**
-     * @var class
+     * @var Config
      */
     public $config;
 
@@ -40,7 +39,8 @@ class Registry
      * @param Config   $config
      * @param Database $database
      *
-     * @throws \Exception
+     * @throws RegistryException
+     * @throws \Rxn\Error\QueryException
      */
     public function __construct(Config $config, Database $database)
     {
@@ -56,7 +56,7 @@ class Registry
      * @param object $object
      *
      * @return void
-     * @throws \Exception
+     * @throws RegistryException
      */
     private function registerObject($object)
     {
@@ -68,12 +68,12 @@ class Registry
      * @param object $object
      *
      * @return string
-     * @throws \Exception
+     * @throws RegistryException
      */
     private function getClassByObject($object)
     {
         if (!is_object($object)) {
-            throw new \Exception("Expected object", 500);
+            throw new RegistryException("Expected object");
         }
         $reflection = new \ReflectionObject($object);
         return $reflection->getName();
@@ -82,7 +82,7 @@ class Registry
     /**
      * @param Database $database
      *
-     * @return void
+     * @throws \Rxn\Error\QueryException
      */
     public function initialize(Database $database)
     {
@@ -90,32 +90,33 @@ class Registry
     }
 
     /**
-     * @param string $classReference
+     * @param string $class_reference
      *
      * @return void
-     * @throws \Exception
+     * @throws RegistryException
      */
-    public function registerClass($classReference)
+    public function registerClass($class_reference)
     {
-        if (!class_exists($classReference)) {
-            if (!interface_exists($classReference)) {
-                throw new \Exception("Class or interface '$classReference' has not been instantiated", 500);
+        if (!class_exists($class_reference)) {
+            if (!interface_exists($class_reference)) {
+                throw new RegistryException("Class or interface '$class_reference' has not been instantiated");
             }
         }
-        $classReflection                = new \ReflectionClass($classReference);
-        $classPath                      = $classReflection->getFileName();
-        $shortname                      = $this->getShortnameByReference($classReference);
-        $namespace                      = $this->getNamespaceByReference($classReference);
-        $directory                      = $this->getDirectoryByPath($classPath);
-        $file                           = $this->getFileByPath($classPath);
-        $extension                      = $this->getExtensionByPath($classPath);
-        $this->classes[$classReference] = [
+        $class_reflection = new \ReflectionClass($class_reference);
+        $class_path       = $class_reflection->getFileName();
+        $shortname        = $this->getShortnameByReference($class_reference);
+        $namespace        = $this->getNamespaceByReference($class_reference);
+        $directory        = $this->getDirectoryByPath($class_path);
+        $file             = $this->getFileByPath($class_path);
+        $extension        = $this->getExtensionByPath($class_path);
+
+        $this->classes[$class_reference] = [
             'shortname' => $shortname,
             'namespace' => $namespace,
             'directory' => $directory,
             'file'      => $file,
             'extension' => $extension,
-            'path'      => $classPath,
+            'path'      => $class_path,
         ];
     }
 
@@ -181,12 +182,11 @@ class Registry
      * @param Database $database
      *
      * @return bool
-     * @throws \Exception
+     * @throws \Rxn\Error\QueryException
      */
     private function fetchTables(Database $database)
     {
-        $databaseName = $database->getName();
-        $sql          = /** @lang SQL * */
+        $sql = /** @lang SQL * */
             "
             SELECT
                 `TABLE_NAME`
@@ -194,12 +194,16 @@ class Registry
             WHERE t.table_schema LIKE ?
                 AND t.table_type = 'BASE TABLE'
             ";
-        $tables = $database->fetchArray($sql, [$databaseName], true);
+
+        $database_name = $database->getName();
+        $params        = [$database_name];
+        $tables        = $database->fetchArray($sql, $params, $database->allow_caching);
+
         if (!$tables) {
             return false;
         }
-        $this->tables[$databaseName] = $tables;
 
+        $this->tables[$database_name] = $tables;
         return true;
     }
 
@@ -208,98 +212,98 @@ class Registry
      */
     private function registerAutoload(Config $config)
     {
-        spl_autoload_register(function ($className) use ($config) {
-            $this->load($config, $className);
+        spl_autoload_register(function ($class_name) use ($config) {
+            $this->load($config, $class_name);
         });
     }
 
     /**
      * @param Config $config
-     * @param        $classReference
+     * @param        $class_reference
      *
      * @return bool
-     * @throws \Exception
+     * @throws RegistryException
      */
-    private function load(Config $config, $classReference)
+    private function load(Config $config, $class_reference)
     {
-        foreach ($config->autoloadExtensions as $extension) {
+        foreach ($config->autoload_extensions as $extension) {
             try {
-                $classPath = $this->getClassPathByClassReference($config, $classReference, $extension);
+                $class_path = $this->getClassPathByClassReference($config, $class_reference, $extension);
             } catch (\Exception $e) {
                 continue;
             }
         }
 
-        if (!isset($classPath)) {
+        if (!isset($class_path)) {
             return false;
         }
 
         // load the class
-        include($classPath);
+        /** @noinspection PhpIncludeInspection */
+        include($class_path);
 
         // register the class
-        $this->registerClass($classReference);
+        $this->registerClass($class_reference);
 
         return true;
     }
 
     /**
      * @param Config $config
-     * @param string $classReference
+     * @param string $class_reference
      * @param string $extension
      *
      * @return string
-     * @throws \Exception
+     * @throws RegistryException
      */
-    private function getClassPathByClassReference(Config $config, $classReference, $extension)
+    private function getClassPathByClassReference(Config $config, $class_reference, $extension)
     {
         // break the class namespace into an array
-        $pathArray = explode("\\", $classReference);
+        $path_array = explode("\\", $class_reference);
 
         // remove the root namespace from the array
-        $root = MultiByte::strtolower(array_shift($pathArray));
+        $root = MultiByte::strtolower(array_shift($path_array));
 
-        if ($root != $config->appFolder) {
+        if ($root != $config->app_folder) {
             if ($root != $config->organization_folder) {
-                throw new \Exception("Root path '$root' in reference '$classReference' not defined in config", 500);
+                throw new RegistryException("Root path '$root' in reference '$class_reference' not defined in config");
             }
         }
 
         // determine the name of the class without the namespace
-        $classShortName = array_pop($pathArray);
+        $class_short_name = array_pop($path_array);
 
         // convert the namespaces into lowercase
-        foreach ($pathArray as $key => $value) {
-            $pathArray[$key] = MultiByte::strtolower($value);
+        foreach ($path_array as $key => $value) {
+            $path_array[$key] = MultiByte::strtolower($value);
         }
 
         // tack the short name of the class back onto the end
-        array_push($pathArray, $classShortName);
+        array_push($path_array, $class_short_name);
 
         // convert back into a string for directory reference
-        $classPath     = implode("/", $pathArray);
-        $loadPathRoot  = realpath(__DIR__ . "/../../");
-        $loadPathClass = "/" . $root . "/" . $classPath . $extension;
-        $loadPath      = $loadPathRoot . $loadPathClass;
+        $class_path      = implode("/", $path_array);
+        $load_path_root  = realpath(__DIR__ . "/../../");
+        $load_path_class = "/" . $root . "/" . $class_path . $extension;
+        $load_path       = $load_path_root . $load_path_class;
 
-        if (!file_exists($loadPath)) {
+        if (!file_exists($load_path)) {
+            $controller_exists = (MultiByte::strpos($class_path, 'controller') !== false);
+
             // 400 level error if the controller is incorrect
-
-            $controllerExists = (MultiByte::strpos($classPath, 'controller') !== false);
-
-            if (!$controllerExists) {
-                throw new \Exception("Controller '$classReference' does not exist", 400);
+            if (!$controller_exists) {
+                throw new RegistryException("Controller '$class_reference' does not exist", 400);
             }
 
             // 500 level error otherwise; only throw the partial path for security purposes
-            throw new \Exception("Load path '$loadPathClass' does not exist", 501);
+            throw new RegistryException("Load path '$load_path_class' does not exist", 501);
         }
-        $loadPath = realpath($loadPath);
+        $load_path = realpath($load_path);
 
         // validate the path
-        if (!file_exists($loadPath)) {
-            throw new \Exception("Cannot autoload path '$loadPath'", 500);
+        if (!file_exists($load_path)) {
+            throw new RegistryException("Cannot autoload path '$load_path'");
         }
-        return $loadPath;
+        return $load_path;
     }
 }

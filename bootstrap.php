@@ -33,11 +33,13 @@ require_once(RXN_ROOT . "ApplicationConfig.class.php");
 require_once(RXN_ROOT . "ApplicationDatasources.class.php");
 
 /**
- * Require core components
+ * Require core components an validate
  */
+\Rxn\Application::includeCoreDirectories(RXN_BASE_ROOT, RXN_APP_ROOT);
 \Rxn\Application::includeCoreComponents(RXN_BASE_ROOT, RXN_APP_ROOT);
 
-/**
- *  Validate environment
- */
-\Rxn\Application::validateEnvironment(RXN_BASE_ROOT, RXN_APP_ROOT, new \Rxn\Config());
+// instantiate config
+$config = new \Rxn\Config();
+
+// validate environment
+\Rxn\Application::validateEnvironment(RXN_BASE_ROOT, RXN_APP_ROOT, $config);

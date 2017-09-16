@@ -8,10 +8,8 @@
 
 namespace Rxn\Data\Map;
 
-use \Rxn\Data\Map;
 use \Rxn\Data\Database;
 use \Rxn\Service\Registry;
-use \Rxn\Utility\Debug;
 
 /**
  * Class Table

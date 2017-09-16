@@ -8,14 +8,12 @@
 
 namespace Rxn;
 
-use \Rxn\Config;
-use \Rxn\ApplicationConfig;
-use \Rxn\ApplicationDatasources;
-use \Rxn\Service\Registry;
 use \Rxn\Api\Request;
-use \Rxn\Api\Controller\Response;
 use \Rxn\Data\Database;
 use \Rxn\Utility\Debug;
+use \Rxn\Service\Registry;
+use \Rxn\Api\Controller\Response;
+use \Rxn\Error\ApplicationException;
 
 /**
  * Class Application.class
@@ -80,7 +78,7 @@ class Application
     public $service;
 
     /**
-     * @var array $environment_errors
+     * @var \Exception[]
      */
     static private $environment_errors = [];
 
@@ -92,14 +90,14 @@ class Application
      * @param Service     $service
      * @param float       $timeStart
      *
-     * @throws \Exception
+     * @throws Error\ServiceException
      */
     public function __construct(Config $config, Datasources $datasources, Service $service, $timeStart)
     {
         $this->initialize($config, $datasources, $service);
         $services_to_load = $config->getServices();
         $this->loadServices($services_to_load);
-        $this->finalize($this->registry, $timeStart);
+        $this->finalize($this->registry, $config, $timeStart);
     }
 
     /**
@@ -107,7 +105,7 @@ class Application
      * @param Datasources $datasources
      * @param Service     $service
      *
-     * @throws \Exception
+     * @throws Error\ServiceException
      */
     private function initialize(Config $config, Datasources $datasources, Service $service)
     {
@@ -145,14 +143,18 @@ class Application
 
     /**
      * @param Registry $registry
+     * @param Config   $config
      * @param          $time_start
+     *
+     * @throws ApplicationException
+     * @throws Error\DebugException
      */
-    private function finalize(Registry $registry, $time_start)
+    private function finalize(Registry $registry, Config $config, $time_start)
     {
         $registry->sortClasses();
         $this->stats->stop($time_start);
         if (!empty(self::$environment_errors)) {
-            self::renderEnvironmentErrors();
+            self::renderEnvironmentErrors($config);
         }
     }
 
@@ -162,17 +164,20 @@ class Application
     public function run()
     {
         try {
+            if (empty($this->api->controller)) {
+                throw new ApplicationException("No controller has been associated with the application");
+            }
             $response_to_render = $this->getSuccessResponse();
         } catch (\Exception $e) {
             $response_to_render = $this->getFailureResponse($e);
         }
-        $this->render($response_to_render, $this->config);
+        self::render($response_to_render, $this->config);
         die();
     }
 
     /**
      * @return Response
-     * @throws \Exception
+     * @throws Error\ServiceException
      */
     private function getSuccessResponse()
     {
@@ -196,7 +201,7 @@ class Application
      * @param \Exception $e
      *
      * @return Response
-     * @throws \Exception
+     * @throws Error\ServiceException
      */
     private function getFailureResponse(\Exception $e)
     {
@@ -219,25 +224,26 @@ class Application
      * @param Response    $response
      * @param \Rxn\Config $config
      *
-     * @throws \Exception
+     * @throws ApplicationException
+     * @throws Error\DebugException
      */
-    private function render(Response $response, Config $config)
+    static private function render(Response $response, Config $config)
     {
         if (ob_get_contents()) {
-            die();
+            throw new ApplicationException("Output buffer already has content; cannot render");
         }
 
         // determine response code
-        $response_code = $response->code;
+        $response_code = $response->getCode();
 
         // encode the response to JSON
-        $json = json_encode((object)$response, JSON_PRETTY_PRINT);
+        $json = json_encode((object)$response->stripEmptyParams(), JSON_PRETTY_PRINT);
 
         // remove null bytes, which can be a gotcha upon decoding
         $json = str_replace('\\u0000', '', $json);
 
         // if the JSON is invalid, dump the raw response
-        if (!$this->isJson($json)) {
+        if (!self::isJson($json)) {
             Debug::dump($response);
             die();
         }
@@ -245,7 +251,7 @@ class Application
         // render as JSON
         header('content-type: application/json');
         http_response_code($response_code);
-        echo($json);
+        die($json);
     }
 
     /**
@@ -263,7 +269,7 @@ class Application
      *
      * @return bool
      */
-    private function isJson($json)
+    static private function isJson($json)
     {
         json_decode($json);
         return (json_last_error() === JSON_ERROR_NONE);
@@ -281,25 +287,23 @@ class Application
     }
 
     /**
-     * Renders environment errrors and dies
+     * Renders environment errors and dies
+     *
+     * @param Config $config
+     *
+     * @throws ApplicationException
+     * @throws Error\DebugException
      */
-    static public function renderEnvironmentErrors()
+    static public function renderEnvironmentErrors(Config $config)
     {
-        $response = [
-            '_rxn' => [
-                'success' => false,
-                'code'    => 500,
-                'result'  => 'Internal Server Error',
-                'elapsed' => self::getElapsedMs(),
-                'message' => [
-                    'environment errors on initialization' => self::$environment_errors,
-                ],
-            ],
-        ];
-        http_response_code(500);
-        header('content-type: application/json');
-        echo json_encode($response, JSON_PRETTY_PRINT);
-        die();
+        try {
+            throw new ApplicationException("Environment errors on startup");
+        } catch (ApplicationException $e) {
+            $response = new Response(null);
+            $response->getFailure($e);
+        }
+        $response->meta['startup_errors'] = self::$environment_errors;
+        self::render($response, $config);
     }
 
     /**
@@ -326,37 +330,78 @@ class Application
     {
         $core_component_paths = ApplicationConfig::getCoreComponentPaths();
         foreach ($core_component_paths as $name => $core_component_path) {
-            if (!file_exists("$root/$app_root/$core_component_path")) {
+            $file_path = "$root/$app_root/$core_component_path";
+            if (!file_exists($file_path)) {
                 try {
-                    throw new \Exception("Rxn core component '$name' expected at '$core_component_path'");
-                } catch (\Exception $e) {
+                    throw new ApplicationException("Rxn core component '$name' expected at '$core_component_path'");
+                } catch (ApplicationException $e) {
                     self::appendEnvironmentError($e);
                 }
             } else {
-                /** @noinspection PhpIncludeInspection */
-                require_once("$root/$app_root/$core_component_path");
+                spl_autoload_register(function () use ($file_path) {
+                    /** @noinspection PhpIncludeInspection */
+                    require_once($file_path);
+                });
             }
         }
     }
 
     /**
-     * @param        $root
-     * @param        $app_root
-     * @param Config $config
+     * @param $root
+     * @param $app_root
+     *
+     * @throws ApplicationException
+     */
+    static public function includeCoreDirectories($root, $app_root)
+    {
+        $core_component_directories = ApplicationConfig::getCoreComponentDirectories();
+        foreach ($core_component_directories as $core_component_directory) {
+            $directory_path = "$root/$app_root/$core_component_directory/";
+            if (!file_exists($directory_path)) {
+                try {
+                    throw new ApplicationException("Rxn core components directory expected at '$core_component_directory'");
+                } catch (ApplicationException $e) {
+                    self::appendEnvironmentError($e);
+                }
+            } elseif (!is_dir($directory_path)) {
+                throw new ApplicationException("'$core_component_directory' should be a directory");
+            } else {
+                $directory_contents = array_slice(scandir($directory_path), 2);
+                foreach ($directory_contents as $file_or_directory) {
+                    $file_path = "$root/$app_root/$core_component_directory/$file_or_directory";
+                    if (is_file($file_path)) {
+                        spl_autoload_register(function () use ($file_path) {
+                            /** @noinspection PhpIncludeInspection */
+                            require_once($file_path);
+                        });
+                    }
+                }
+
+            }
+        }
+    }
+
+    /**
+     * @param             $root
+     * @param             $app_root
+     * @param \Rxn\Config $config
+     *
+     * @throws ApplicationException
+     * @throws Error\DebugException
      */
     static public function validateEnvironment($root, $app_root, Config $config)
     {
 
         // validate PHP INI file settings
-        $ini_requirements = Config::getIniRequirements();
+        $ini_requirements = Config::getPhpIniRequirements();
         foreach ($ini_requirements as $ini_key => $requirement) {
             if (ini_get($ini_key) != $requirement) {
                 if (is_bool($requirement)) {
                     $requirement = ($requirement) ? 'On' : 'Off';
                 }
                 try {
-                    throw new \Exception("Rxn requires PHP ini setting '$ini_key' = '$requirement'");
-                } catch (\Exception $e) {
+                    throw new ApplicationException("Rxn requires PHP ini setting '$ini_key' = '$requirement'");
+                } catch (ApplicationException $e) {
                     self::appendEnvironmentError($e);
                 }
             }
@@ -366,16 +411,16 @@ class Application
         if ($config->use_file_caching) {
             if (!file_exists("$root/$app_root/data/filecache")) {
                 try {
-                    throw new \Exception("Rxn requires for folder '$root/$app_root/data/filecache' to exist");
-                } catch (\Exception $e) {
+                    throw new ApplicationException("Rxn requires for folder '$root/$app_root/data/filecache' to exist");
+                } catch (ApplicationException $e) {
                     self::appendEnvironmentError($e);
                 }
             }
 
             if (!is_writable("$root/$app_root/data/filecache")) {
                 try {
-                    throw new \Exception("Rxn requires for folder '$root/$app_root/data/filecache' to be writable");
-                } catch (\Exception $e) {
+                    throw new ApplicationException("Rxn requires for folder '$root/$app_root/data/filecache' to be writable");
+                } catch (ApplicationException $e) {
                     self::appendEnvironmentError($e);
                 }
             }
@@ -386,8 +431,8 @@ class Application
             && $ini_requirements['zend.multibyte'] === true
         ) {
             try {
-                throw new \Exception("Rxn requires the PHP mbstring extension to be installed/enabled");
-            } catch (\Exception $e) {
+                throw new ApplicationException("Rxn requires the PHP mbstring extension to be installed/enabled");
+            } catch (ApplicationException $e) {
                 self::appendEnvironmentError($e);
             }
         }
@@ -395,8 +440,8 @@ class Application
         if (function_exists('apache_get_modules')) {
             if (!in_array('mod_rewrite', apache_get_modules())) {
                 try {
-                    throw new \Exception("Rxn requires Apache module 'mod_rewrite' to be enabled");
-                } catch (\Exception $e) {
+                    throw new ApplicationException("Rxn requires Apache module 'mod_rewrite' to be enabled");
+                } catch (ApplicationException $e) {
                     self::appendEnvironmentError($e);
                 }
             }
@@ -406,7 +451,7 @@ class Application
          * Render errors when finished
          */
         if (self::hasEnvironmentErrors()) {
-            self::renderEnvironmentErrors();
+            self::renderEnvironmentErrors($config);
         }
     }
 }

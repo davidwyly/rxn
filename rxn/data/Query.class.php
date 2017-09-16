@@ -8,10 +8,8 @@
 
 namespace Rxn\Data;
 
-use \Rxn\MultiByte;
-use \Rxn\Config;
-use \Rxn\Datasources;
-use \Rxn\Utility\Debug as Debug;
+use \Rxn\Error\QueryException;
+use \Rxn\Utility\MultiByte;
 
 /**
  * Class Query
@@ -25,6 +23,13 @@ class Query
     const TYPE_FETCH_ALL        = 'fetchAll';
     const TYPE_FETCH_ARRAY      = 'fetchArray';
     const DEFAULT_CACHE_TIMEOUT = 5;
+
+    public $allowed_types = [
+        self::TYPE_QUERY,
+        self::TYPE_FETCH,
+        self::TYPE_FETCH_ALL,
+        self::TYPE_FETCH_ARRAY,
+    ];
 
     /**
      * @var string
@@ -88,24 +93,24 @@ class Query
      * @param string $sql
      * @param array  $bindings
      * @param string $type
-     * @param        $cache
+     * @param bool   $caching
      * @param        $timeout
      *
-     * @throws \Exception
+     * @throws QueryException
      */
     public function __construct(
         \PDO $connection,
         string $sql,
         array $bindings,
         string $type,
-        bool $cache = false,
+        bool $caching = false,
         $timeout = null
     ) {
         $this->setConnection($connection);
         $this->sql        = $sql;
         $this->bindings   = $bindings;
         $this->type       = $type;
-        $this->cache      = $cache;
+        $this->caching    = $caching;
         $this->timeout    = $timeout;
         $this->attributes = $this->getAttributes();
     }
@@ -120,14 +125,16 @@ class Query
 
     /**
      * @param \PDO $connection
-     *
-     * @throws \Exception
      */
     public function setConnection(\PDO $connection)
     {
         $this->connection = $connection;
     }
 
+    /**
+     * @return bool
+     * @throws QueryException
+     */
     public function transactionOpen()
     {
         if (!empty($this->transaction_depth)) {
@@ -137,7 +144,7 @@ class Query
         try {
             $this->connection->beginTransaction();
         } catch (\PDOException $e) {
-            throw new \Exception($e->getMessage(), 500);
+            throw new QueryException($e->getMessage(), 500, $e);
         }
         $this->transaction_depth++;
         $this->in_transaction = true;
@@ -146,12 +153,12 @@ class Query
 
     /**
      * @return bool
-     * @throws \Exception
+     * @throws QueryException
      */
     public function transactionClose()
     {
         if ($this->transaction_depth < 1) {
-            throw new \Exception(__METHOD__ . ": transaction does not exist", 500);
+            throw new QueryException(__METHOD__ . ": transaction does not exist", 500);
         }
         if ($this->transaction_depth > 1) {
             $this->transaction_depth--;
@@ -161,25 +168,25 @@ class Query
             $this->connection->commit();
         } catch (\PDOException $e) {
             $error = $e->getCode();
-            throw new \Exception("PDO Exception (code $error)", 500);
+            throw new QueryException("PDO Exception (code $error)", 500, $e);
         }
         return true;
     }
 
     /**
      * @return bool
-     * @throws \Exception
+     * @throws QueryException
      */
     private function transactionRollback()
     {
         if ($this->transaction_depth < 1) {
-            throw new \Exception(__METHOD__ . ": transaction does not exist", 500);
+            throw new QueryException(__METHOD__ . ": transaction does not exist", 500);
         }
         try {
             $this->connection->rollBack();
         } catch (\PDOException $e) {
             $error = $e->getCode();
-            throw new \Exception("PDO Exception (code $error)", 500);
+            throw new QueryException("PDO Exception (code $error)", 500, $e);
         }
         $this->transaction_depth--;
         return true;
@@ -218,7 +225,7 @@ class Query
 
     /**
      * @return bool
-     * @throws \Exception
+     * @throws QueryException
      */
     public function disconnect()
     {
@@ -249,6 +256,11 @@ class Query
         return $split_sql_array;
     }
 
+    /**
+     * @param string $sql
+     *
+     * @return array|null
+     */
     private function getTransactionProblemStatements(string $sql)
     {
         $problem_statements = null;
@@ -289,17 +301,29 @@ class Query
         return $problem_statements;
     }
 
+    private function isLookup()
+    {
+        if ($this->type == self::TYPE_FETCH || $this->type == self::TYPE_FETCH_ARRAY
+            || $this->type == self::TYPE_FETCH_ALL
+        ) {
+            return true;
+        }
+        return false;
+    }
+
     /**
      * @return array|mixed
-     * @throws \Exception
+     * @throws QueryException
      */
     public function run()
     {
-        if ($this->caching) {
+        if ($this->caching
+            && $this->isLookup()
+        ) {
             if (!is_numeric($this->timeout)) {
                 $cache_timeout = self::DEFAULT_CACHE_TIMEOUT;
             }
-            $cache = $this->cacheLookup($this->sql,$this->bindings,$this->type);
+            $cache = $this->cacheLookup($this->sql, $this->bindings, $this->type);
             if ($cache) {
                 return $cache;
             }
@@ -310,15 +334,14 @@ class Query
             $problem_statements = $this->getTransactionProblemStatements($this->sql);
             if (is_array($problem_statements)) {
                 $problems = implode(', ', $problem_statements);
-                throw new \Exception("Transactions used when implicit commit statements exist in query: $problems",
-                    500);
+                throw new QueryException("Transactions with implicit commit statements: $problems", 500);
             }
         }
 
         // prepare the statement
         $prepared_statement = $this->prepare($this->sql);
         if (!$prepared_statement) {
-            throw new \Exception("Could not prepare statement", 500);
+            throw new QueryException("Could not prepare statement", 500);
         }
 
         // check for values to bind
@@ -326,7 +349,7 @@ class Query
             // bind values to the the prepared statement
             $prepared_statement = $this->bind($prepared_statement, $this->sql, $this->bindings);
             if (!$prepared_statement) {
-                throw new \Exception("Could not bind prepared statement", 500);
+                throw new QueryException("Could not bind prepared statement", 500);
             }
         }
 
@@ -344,7 +367,7 @@ class Query
         // validate the response
         if (!$executed_statement) {
             $var_string = implode("','", $this->bindings);
-            throw new \Exception("Could not execute prepared statement: '{$this->sql}'"
+            throw new QueryException("Could not execute prepared statement: '{$this->sql}'"
                 . " (prepared values: '$var_string')", 500);
         }
 
@@ -377,7 +400,7 @@ class Query
                 }
                 return $result;
             default:
-                throw new \Exception("Incorrect query type '{$this->type}'", 500);
+                throw new QueryException("Incorrect query type '{$this->type}'", 500);
         }
     }
 
@@ -385,7 +408,7 @@ class Query
      * @param string $sql
      *
      * @return \PDOStatement
-     * @throws \Exception
+     * @throws QueryException
      */
     private function prepare(string $sql): \PDOStatement
     {
@@ -394,7 +417,7 @@ class Query
             $statement = $this->connection->prepare($sql);
         } catch (\PDOException $e) {
             $error = $e->getCode();
-            throw new \Exception("PDO Exception (code $error)", 500);
+            throw new QueryException("PDO Exception (code $error)", 500, $e);
         }
         return $statement;
     }
@@ -405,7 +428,7 @@ class Query
      * @param array         $bindings
      *
      * @return \PDOStatement
-     * @throws \Exception
+     * @throws QueryException
      */
     private function bind(\PDOStatement $statement, string $sql, array $bindings): \PDOStatement
     {
@@ -416,7 +439,7 @@ class Query
                     $statement->bindValue(trim($key), trim($value));
                 } catch (\PDOException $e) {
                     $error = $e->getMessage();
-                    throw new \Exception("PDO Exception ($error)", 500);
+                    throw new QueryException("PDO Exception ($error)", 500, $e);
                 }
             }
         } else { // non-associative binding with "?" (e.g., [0] => "prepared value")
@@ -424,7 +447,7 @@ class Query
             // fail if the raw sql has an incorrect number of binding points
             $binding_size = count($bindings);
             if ($array_size != $binding_size) {
-                throw new \Exception("Trying to bind '$binding_size' properties "
+                throw new QueryException("Trying to bind '$binding_size' properties "
                     . "when sql statement has '$array_size' binding points", 500);
             }
             foreach ($bindings as $key => $value) {
@@ -433,14 +456,14 @@ class Query
                     && !is_int($value)
                     && !is_float($value)
                 ) {
-                    throw new \Exception("Can only bind types: string, null, int, float", 500);
+                    throw new QueryException("Can only bind types: string, null, int, float", 500);
                 }
                 $next_key = $key + 1;
                 try {
                     $statement->bindValue($next_key, trim($value));
                 } catch (\PDOException $e) {
                     $error = $e->getMessage();
-                    throw new \Exception("PDO Exception ($error)", 500);
+                    throw new QueryException("PDO Exception ($error)", 500, $e);
                 }
             }
         }
@@ -451,7 +474,7 @@ class Query
      * @param \PDOStatement $statement
      *
      * @return \PDOStatement
-     * @throws \Exception
+     * @throws QueryException
      */
     private function execute(\PDOStatement $statement)
     {
@@ -460,7 +483,7 @@ class Query
             $statement->execute();
         } catch (\PDOException $e) {
             $error = $e->getMessage();
-            throw new \Exception("PDO Exception ($error)", 500);
+            throw new QueryException("PDO Exception ($error)", 500);
         }
         return $statement;
     }
@@ -488,7 +511,7 @@ class Query
 
     /**
      * @return bool
-     * @throws \Exception
+     * @throws QueryException
      */
     public function clearCache()
     {
@@ -537,17 +560,17 @@ class Query
     }
 
     /**
-     * @param                         $result
-     * @param float                   $time_elapsed
+     * @param       $result
+     * @param float $time_elapsed
      *
      * @return bool
-     * @throws \Exception
+     * @throws QueryException
      */
     private function cacheResult($result, float $time_elapsed): bool
     {
         // sanitize timeout
         if (!is_numeric($this->timeout)) {
-            throw new \Exception(__METHOD__ . ": cache timeout needs to be numeric", 500);
+            throw new QueryException(__METHOD__ . ": cache timeout needs to be numeric", 500);
         }
 
         $serialized_result = serialize($result);
@@ -595,12 +618,25 @@ class Query
             "queryTime"              => $time_elapsed,
         ];
 
-        $insert_query = new Query($this->connection, $insert_sql, $bind_params, 'query');
+        $insert_query  = new Query($this->connection, $insert_sql, $bind_params, 'query');
         $insert_result = $insert_query->run();
         if ($insert_result) {
             return true;
         }
         return false;
+    }
+
+    /**
+     * @param string $type
+     *
+     * @throws QueryException
+     */
+    public function setType(string $type)
+    {
+        if (!in_array($type, $this->allowed_types)) {
+            throw new QueryException("Query type '$type' is not allowed", 500);
+        }
+        $this->type = $type;
     }
 
 }

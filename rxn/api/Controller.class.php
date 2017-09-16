@@ -10,7 +10,6 @@ namespace Rxn\Api;
 
 use \Rxn\Service;
 use \Rxn\Api\Controller\Response;
-use \Rxn\Utility\Debug;
 
 /**
  * Class Controller

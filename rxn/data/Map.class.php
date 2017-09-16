@@ -10,7 +10,6 @@ namespace Rxn\Data;
 
 use \Rxn\Service\Registry;
 use \Rxn\Data\Map\Table;
-use \Rxn\Utility\Debug;
 
 /**
  * Class Map

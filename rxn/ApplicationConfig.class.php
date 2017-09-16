@@ -32,14 +32,22 @@ abstract class ApplicationConfig
      *
      * @var string
      */
-    public $appFolder = 'rxn';
+    public $app_folder = 'rxn';
+
 
     /**
      * Do not edit; this is set by the constructor
      *
      * @var string
      */
-    public $root;
+    protected $root;
+
+    /**
+     * Defines the root of the rxn and organization folders relative to this file
+     *
+     * @var string
+     */
+    public $relative_root = "/../";
 
     /**
      * Enable or disable file caching of objects
@@ -51,18 +59,11 @@ abstract class ApplicationConfig
     public $use_file_caching = false;
 
     /**
-     * Defines the root of the rxn and organization folders relative to this file
-     *
-     * @var string
-     */
-    public $relativeRoot = "/../";
-
-    /**
      * Extensions that work with the autoloader
      *
      * @var array
      */
-    public $autoloadExtensions = [
+    public $autoload_extensions = [
         '.class.php',
         '.php',
         '.controller.php',
@@ -104,18 +105,31 @@ abstract class ApplicationConfig
      *
      * @var array
      */
-    static private $coreComponentPaths = [
-        'MultiByte'    => 'MultiByte.class.php',
-        'Config'       => 'Config.class.php',
-        'Databases'    => 'Datasources.class.php',
-        'Service'      => 'Service.class.php',
-        'Registry'     => 'service/Registry.class.php',
-        'Debug'        => 'utility/Debug.class.php',
-        'Database'     => 'data/Database.class.php',
-        'Query'        => 'data/Query.class.php',
+    static private $core_component_paths = [
+        'MultiByte' => 'utility/MultiByte.class.php',
+        'Config'    => 'Config.class.php',
+        'Databases' => 'Datasources.class.php',
+        'Service'   => 'Service.class.php',
+        'Registry'  => 'service/Registry.class.php',
+        'Debug'     => 'utility/Debug.class.php',
+        'Database'  => 'data/Database.class.php',
+        'Query'     => 'data/Query.class.php',
+        'Collector' => 'router/Collector.class.php',
+        'Request'   => 'api/Request.class.php',
+        'Response'  => 'api/controller/Response.class.php',
     ];
 
-    static private $iniRequirements = [
+    /**
+     * Defines default core directories on startup
+     * Warning: Changing this can have unexpected results!
+     *
+     * @var array
+     */
+    static private $core_component_directories = [
+        'error',
+    ];
+
+    static private $php_ini_requirements = [
         'zend.multibyte' => false,
         'display_errors' => true,
     ];
@@ -144,27 +158,37 @@ abstract class ApplicationConfig
     public $fileCacheDirectory = 'filecache';
 
     /**
-     * Getter for private services array
+     * Getter for static private $php_ini_requirements array
      *
      * @return array
      */
-    static public function getIniRequirements()
+    static public function getPhpIniRequirements()
     {
-        return self::$iniRequirements;
+        return self::$php_ini_requirements;
     }
 
     /**
-     * Getter for private services array
+     * Getter for static private $core_component_paths array
      *
      * @return array
      */
     static public function getCoreComponentPaths()
     {
-        return self::$coreComponentPaths;
+        return self::$core_component_paths;
     }
 
     /**
-     * Getter for private services array
+     * Getter for static private $core_component_directories array
+     *
+     * @return array
+     */
+    static public function getCoreComponentDirectories()
+    {
+        return self::$core_component_directories;
+    }
+
+    /**
+     * Getter for private $services array
      *
      * @return array
      */
@@ -175,6 +199,6 @@ abstract class ApplicationConfig
 
     public function __construct()
     {
-        $this->root = realpath(__DIR__ . $this->relativeRoot);
+        $this->root = realpath(__DIR__ . $this->relative_root);
     }
 }

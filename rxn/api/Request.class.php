@@ -8,9 +8,10 @@
 
 namespace Rxn\Api;
 
+use \Rxn\Error\RequestException;
 use \Rxn\Config;
 use \Rxn\Router\Collector;
-use \Rxn\Utility\Debug;
+use \Rxn\Utility\MultiByte;
 
 /**
  * Class Request
@@ -80,7 +81,6 @@ class Request
      * @param Collector $collector
      * @param Config    $config
      *
-     * @throws \Exception
      */
     public function __construct(Collector $collector, Config $config)
     {
@@ -96,11 +96,11 @@ class Request
         // assign from collector
         try {
             $this->controller_name    = $this->createControllerName($collector);
-            $this->controller_version = $this->createControllerVersion($collector);
+            $this->controller_version = $this->parseControllerVersion($collector);
             $this->controller_ref     = $this->createControllerRef($config, $this->controller_name,
                 $this->controller_version);
             $this->action_name        = $this->createActionName($collector);
-            $this->action_version     = $this->createActionVersion($collector);
+            $this->action_version     = $this->parseActionVersion($collector);
             $this->url                = (array)$this->getSanitizedUrl($collector, $config);
             $this->get                = (array)$this->getSanitizedGet($collector, $config);
             $this->post               = (array)$collector->post;
@@ -132,7 +132,7 @@ class Request
      * @param bool $trigger_exception
      *
      * @return mixed|null
-     * @throws \Exception
+     * @throws RequestException
      */
     public function collectFromGet($target_key, $trigger_exception = true)
     {
@@ -142,7 +142,7 @@ class Request
             }
         }
         if ($trigger_exception) {
-            throw new \Exception("Param '$target_key' is missing from GET request", 400);
+            throw new RequestException("Param '$target_key' is missing from GET request");
         }
         return null;
     }
@@ -152,7 +152,7 @@ class Request
      * @param bool $triggerException
      *
      * @return mixed|null
-     * @throws \Exception
+     * @throws RequestException
      */
     public function collectFromPost($targetKey, $triggerException = true)
     {
@@ -162,7 +162,7 @@ class Request
             }
         }
         if ($triggerException) {
-            throw new \Exception("Param '$targetKey' is missing from POST request", 400);
+            throw new RequestException("Param '$targetKey' is missing from POST request");
         }
         return null;
     }
@@ -172,7 +172,7 @@ class Request
      * @param bool $triggerException
      *
      * @return mixed|null
-     * @throws \Exception
+     * @throws RequestException
      */
     public function collectFromHeader($targetKey, $triggerException = true)
     {
@@ -182,7 +182,7 @@ class Request
             }
         }
         if ($triggerException) {
-            throw new \Exception("Param '$targetKey' is missing from request header", 400);
+            throw new RequestException("Param '$targetKey' is missing from request header");
         }
         return null;
     }
@@ -207,7 +207,7 @@ class Request
         if (!empty($value)) {
             return $value;
         }
-        throw new \Exception("Param '$targetKey' is missing from request", 400);
+        throw new RequestException("Param '$targetKey' is missing from request");
     }
 
     /**
@@ -233,13 +233,13 @@ class Request
      * @param Config    $config
      *
      * @return array|null
-     * @throws \Exception
+     * @throws RequestException
      */
     private function getSanitizedUrl(Collector $collector, Config $config)
     {
         $get_parameters = $collector->get;
         if (!is_array($get_parameters)) {
-            throw new \Exception("Cannot get sanitized URL, verify virtual hosts");
+            throw new RequestException("Cannot get URL params, verify Apache/Nginx and virtual hosts settings",510);
         }
         foreach ($get_parameters as $get_parameter_key => $getParameterValue) {
             if (!in_array($get_parameter_key, $config->endpoint_parameters)) {
@@ -271,13 +271,13 @@ class Request
      * @param Config    $config
      *
      * @return bool
-     * @throws \Exception
+     * @throws RequestException
      */
     private function validateRequiredParams(Collector $collector, Config $config)
     {
         foreach ($config->endpoint_parameters as $parameter) {
             if (!isset($collector->get[$parameter])) {
-                throw new \Exception("Required parameter $parameter is missing from request", 400);
+                throw new RequestException("Required parameter $parameter is missing from request");
             }
         }
         $this->validated = true;
@@ -328,7 +328,7 @@ class Request
      *
      * @return null|string
      */
-    public function createControllerVersion(Collector $collector)
+    public function parseControllerVersion(Collector $collector)
     {
         try {
             $full_version = $collector->getUrlParam('version');
@@ -336,15 +336,8 @@ class Request
             return null;
         }
 
-        if (function_exists('mb_strpos')
-            && function_exists('mb_substr')
-        ) {
-            $period_position    = mb_strpos($full_version, ".");
-            $controller_version = mb_substr($full_version, 0, $period_position);
-        } else {
-            $period_position    = strpos($full_version, ".");
-            $controller_version = substr($full_version, 0, $period_position);
-        }
+        $period_position    = MultiByte::strpos($full_version, ".");
+        $controller_version = MultiByte::substr($full_version, 0, $period_position);
 
         return $controller_version;
     }
@@ -354,7 +347,7 @@ class Request
      *
      * @return null|string
      */
-    public function createActionVersion(Collector $collector)
+    public function parseActionVersion(Collector $collector)
     {
         try {
             $full_version = $collector->getUrlParam('version');
@@ -362,15 +355,8 @@ class Request
             return null;
         }
 
-        if (function_exists('mb_strpos')
-            && function_exists('mb_substr')
-        ) {
-            $period_position       = mb_strpos($full_version, ".");
-            $action_version_number = mb_substr($full_version, $period_position + 1);
-        } else {
-            $period_position       = strpos($full_version, ".");
-            $action_version_number = substr($full_version, $period_position + 1);
-        }
+        $period_position       = MultiByte::strpos($full_version, ".");
+        $action_version_number = MultiByte::substr($full_version, $period_position + 1);
 
         $action_version = "v$action_version_number";
         return $action_version;
@@ -411,10 +397,13 @@ class Request
      * @param        $controller_name
      * @param        $controller_version
      *
-     * @return string
+     * @return string|null
      */
     public function createControllerRef(Config $config, $controller_name, $controller_version)
     {
+        if (empty($controller_name)) {
+            return null;
+        }
         $processed_name = $this->stringToUpperCamel($controller_name, "_");
         $controller_ref = $config->product_namespace . "\\Controller\\$controller_version\\$processed_name";
         return $controller_ref;
@@ -430,11 +419,7 @@ class Request
     {
         if (!empty($delimiter)) {
 
-            if (function_exists('mb_stripos')) {
-                $delimiter_exists = (mb_stripos($string, $delimiter) !== false);
-            } else {
-                $delimiter_exists = (stripos($string, $delimiter) !== false);
-            }
+            $delimiter_exists = (MultiByte::stripos($string, $delimiter) !== false);
 
             if ($delimiter_exists) {
                 $string_array   = explode($delimiter, $string);

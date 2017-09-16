@@ -8,10 +8,8 @@
 
 namespace Rxn\Api\Controller;
 
-use \Rxn\Config;
 use \Rxn\Api\Request;
 use \Rxn\Application;
-use \Rxn\Utility\Debug;
 
 /**
  * Class Response
@@ -33,37 +31,27 @@ class Response
     protected $failure_response;
 
     /**
-     * @var string
-     */
-    private $response_leader_key;
-
-    /**
      * @var bool
      */
-    public $success;
+    public $data;
 
     /**
      * @var
      */
-    public $code;
+    public $errors;
 
     /**
      * @var
      */
-    public $result;
+    public $meta;
 
     /**
      * @var
      */
-    public $message;
+    private $code;
 
     /**
-     * @var
-     */
-    public $trace;
-
-    /**
-     * @var Request
+     * @var Request|null
      */
     public $request;
 
@@ -139,15 +127,15 @@ class Response
      * Response constructor.
      *
      * @param Request $request
-     * @param Config  $config
      */
-    public function __construct(Request $request, Config $config)
+    public function __construct(Request $request = null)
     {
-        $this->response_leader_key = $config->response_leader_key;
-        $this->request             = $request;
-        if (!$this->request->isValidated()) {
-            $e                      = $this->request->getException();
-            $this->failure_response = $this->getFailure($e);
+        if (!is_null($request)) {
+            $this->request = $request;
+            if (!$this->request->isValidated()) {
+                $e                      = $this->request->getException();
+                $this->failure_response = $this->getFailure($e);
+            }
         }
     }
 
@@ -156,11 +144,15 @@ class Response
      */
     public function getSuccess(): Response
     {
-        $this->success    = true;
-        $this->code       = self::DEFAULT_SUCCESS_CODE;
-        $this->result     = self::getResponseCodeResult($this->code);
-        $this->rendered   = true;
-        $this->elapsed_ms = Application::getElapsedMs();
+        $this->setRendered(true);
+
+        $this->data = self::getResponseCodeResult($this->code);
+        $this->meta = [
+            'success'    => false,
+            'code'       => self::DEFAULT_SUCCESS_CODE,
+            'elapsed_ms' => Application::getElapsedMs(),
+        ];
+
         return $this;
     }
 
@@ -171,12 +163,21 @@ class Response
      */
     public function getFailure(\Exception $e): Response
     {
-        $this->success  = false;
-        $this->code     = $e->getCode();
-        $this->result   = self::getResponseCodeResult($this->code);
-        $this->message  = $e->getMessage();
-        $this->trace    = self::getErrorTrace($e);
-        $this->rendered = true;
+        $this->setRendered(true);
+
+        $this->errors = [
+            'type'    => self::getResponseCodeResult($e->getCode()),
+            'message' => $e->getMessage(),
+            'file'       => $e->getFile(),
+            'line'       => $e->getLine(),
+            'trace'   => self::getErrorTrace($e),
+        ];
+        $this->meta   = [
+            'success'    => false,
+            'code'       => $e->getCode(),
+            'elapsed_ms' => Application::getElapsedMs(),
+        ];
+
         return $this;
     }
 
@@ -253,5 +254,35 @@ class Response
             return 'Unsupported Response Code';
         }
         return self::$response_codes[$code];
+    }
+
+    /**
+     * @param bool $rendered
+     */
+    public function setRendered(bool $rendered)
+    {
+        $this->rendered = $rendered;
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getCode()
+    {
+        return $this->code;
+    }
+
+    /**
+     * @return array
+     */
+    public function stripEmptyParams()
+    {
+        $array = (array)$this;
+        foreach ($array as $key=>$value) {
+            if (empty($value)) {
+                unset($array[$key]);
+            }
+        }
+        return $array;
     }
 }

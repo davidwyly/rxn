@@ -11,7 +11,6 @@ namespace Rxn\Service;
 use \Rxn\Service;
 use \Rxn\Config;
 use \Rxn\Auth\Key;
-use \Rxn\Utility\Debug;
 
 class Auth
 {

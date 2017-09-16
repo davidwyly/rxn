@@ -9,7 +9,6 @@
 namespace Rxn\Data;
 
 use \Rxn\Config;
-use \Rxn\Utility\Debug;
 
 /**
  * Class Filecache

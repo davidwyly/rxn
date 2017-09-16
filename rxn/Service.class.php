@@ -8,6 +8,7 @@
 
 namespace Rxn;
 
+use \Rxn\Error\ServiceException;
 use \Rxn\Utility\Debug;
 
 /**
@@ -34,13 +35,13 @@ class Service
      * @param string $class_name
      *
      * @return object
-     * @throws \Exception
+     * @throws ServiceException
      */
     public function get($class_name)
     {
         // validate that the class name actually exists
         if (!class_exists($class_name)) {
-            throw new \Exception("$class_name is not a valid class name", 500);
+            throw new ServiceException("$class_name is not a valid class name");
         }
 
         // in the event that we're looking up the service class, return itself
@@ -67,7 +68,7 @@ class Service
      * @param $class_name
      *
      * @return object
-     * @throws \Exception
+     * @throws ServiceException
      */
     private function generateInstance($class_name)
     {
@@ -75,12 +76,14 @@ class Service
         $class_name  = $reflection->getName();
         $constructor = $reflection->getConstructor();
         if (!$constructor) {
-            throw new \Exception("Class '$class_name' does not have a valid constructor", 500);
+            throw new ServiceException("Class '$class_name' does not have a valid constructor");
         }
         $parameters = $constructor->getParameters();
         $args       = [];
         foreach ($parameters as $parameter) {
-            if ($parameter->getClass()) {
+            if ($parameter->getClass()
+                && !$parameter->allowsNull()
+            ) {
                 $class  = $parameter->getClass()->name;
                 $args[] = $this->get($class);
             }

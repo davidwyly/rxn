@@ -8,7 +8,6 @@
 
 namespace Rxn\Model;
 
-use \Rxn\Utility\Debug;
 use \Rxn\Data\Database;
 use \Rxn\Data\Map;
 use \Rxn\Data\Map\Table;

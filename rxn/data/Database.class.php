@@ -8,9 +8,9 @@
 
 namespace Rxn\Data;
 
+use \Rxn\Error\DatabaseException;
 use \Rxn\Config;
 use \Rxn\Datasources;
-use \Rxn\Utility\Debug as Debug;
 
 /**
  * Class Database
@@ -58,9 +58,9 @@ class Database
      *
      * @param Config      $config
      * @param Datasources $datasources
-     * @param null|string $source_name
+     * @param string|null $source_name
      *
-     * @throws \Exception
+     * @throws DatabaseException
      */
     public function __construct(Config $config, Datasources $datasources, string $source_name = null)
     {
@@ -86,7 +86,7 @@ class Database
      * @param Datasources $datasources
      * @param string      $source_name
      *
-     * @throws \Exception
+     * @throws DatabaseException
      */
     private function setConfiguration(Config $config, Datasources $datasources, string $source_name)
     {
@@ -99,7 +99,7 @@ class Database
      * @param \PDO|null $connection
      *
      * @return \PDO
-     * @throws \Exception
+     * @throws DatabaseException
      */
     public function connect(\PDO $connection = null)
     {
@@ -111,7 +111,7 @@ class Database
 
     /**
      * @return \PDO
-     * @throws \Exception
+     * @throws DatabaseException
      */
     public function createConnection()
     {
@@ -123,7 +123,7 @@ class Database
                 $this->getPassword());
         } catch (\PDOException $e) {
             $error = $e->getMessage();
-            throw new \Exception("PDO Exception (code $error)", 500);
+            throw new DatabaseException("PDO Exception (code $error)", 500, $e);
         }
         $connection->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         return $connection;
@@ -173,14 +173,14 @@ class Database
      * @param array $default_settings
      *
      * @return null
-     * @throws \Exception
+     * @throws DatabaseException
      */
     public function setDefaultSettings(array $default_settings)
     {
         $required_keys = array_keys($this->default_settings);
         foreach ($required_keys as $required_key) {
             if (!array_key_exists($required_key, $default_settings)) {
-                throw new \Exception("Required key '$required_key' missing", 500);
+                throw new DatabaseException("Required key '$required_key' missing", 500);
             }
         }
         $this->default_settings = $default_settings;
@@ -191,14 +191,14 @@ class Database
      * @param array $cache_table_settings
      *
      * @return null
-     * @throws \Exception
+     * @throws DatabaseException
      */
     public function setCacheSettings(array $cache_table_settings)
     {
         $required_keys = array_keys($this->cache_table_settings);
         foreach ($required_keys as $required_key) {
             if (!array_key_exists($required_key, $cache_table_settings)) {
-                throw new \Exception("Required key '$required_key' missing", 500);
+                throw new DatabaseException("Required key '$required_key' missing", 500);
             }
         }
         $this->cache_table_settings = $cache_table_settings;
@@ -257,7 +257,7 @@ class Database
      * @param null   $timeout
      *
      * @return array|mixed
-     * @throws \Exception
+     * @throws \Rxn\Error\QueryException
      */
     public function fetchAll(string $sql, array $bindings = [], $cache = false, $timeout = null)
     {
@@ -272,7 +272,7 @@ class Database
      * @param null   $timeout
      *
      * @return array|mixed
-     * @throws \Exception
+     * @throws \Rxn\Error\QueryException
      */
     public function fetchArray(string $sql, array $bindings = [], $cache = false, $timeout = null)
     {
@@ -287,7 +287,7 @@ class Database
      * @param null   $timeout
      *
      * @return array|mixed
-     * @throws \Exception
+     * @throws \Rxn\Error\QueryException
      */
     public function fetch(string $sql, array $bindings = [], $cache = false, $timeout = null)
     {
