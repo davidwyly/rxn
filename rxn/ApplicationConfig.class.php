@@ -97,11 +97,6 @@ abstract class ApplicationConfig
      */
     public $timezone = 'America/Denver';
 
-    static private $php_ini_requirements = [
-        'zend.multibyte' => false,
-        'display_errors' => true,
-    ];
-
     /**
      * Defines default services to run on startup
      * Warning: Changing this can have unexpected results!
@@ -134,6 +129,11 @@ abstract class ApplicationConfig
     {
         return self::$php_ini_requirements;
     }
+
+    static private $php_ini_requirements = [
+        'zend.multibyte' => false,
+        'display_errors' => true,
+    ];
 
     /**
      * Getter for private $services array
