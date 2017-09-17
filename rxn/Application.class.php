@@ -117,6 +117,11 @@ class Application
         date_default_timezone_set($config->timezone);
     }
 
+    /**
+     * @param Config $config
+     * @param Datasources $datasources
+     * @return Database[]
+     */
     private function registerDatabases(Config $config, Datasources $datasources)
     {
         $databases = [];
@@ -170,7 +175,7 @@ class Application
         } catch (\Exception $e) {
             $response_to_render = $this->getFailureResponse($e);
         }
-        self::render($response_to_render, $this->config);
+        self::render($response_to_render);
         die();
     }
 
@@ -221,12 +226,11 @@ class Application
 
     /**
      * @param Response    $response
-     * @param \Rxn\Config $config
      *
      * @throws ApplicationException
      * @throws Error\DebugException
      */
-    static private function render(Response $response, Config $config)
+    static private function render(Response $response)
     {
         if (ob_get_contents()) {
             throw new ApplicationException("Output buffer already has content; cannot render");
@@ -302,7 +306,7 @@ class Application
             $response->getFailure($e);
         }
         $response->meta['startup_errors'] = self::$environment_errors;
-        self::render($response, $config);
+        self::render($response);
     }
 
     /**
