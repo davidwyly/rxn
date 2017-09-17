@@ -34,8 +34,7 @@ Including planned features for beta:
    - [ ] Session synchronizer tokens *(aids against CSRF attacks)* 
    - [ ] SSL/TLS support *(aids against man-in-the-middle attacks)*
 - [X] Robust error handling *(throw an exception anywhere and Rxn handles the rest)*
-   - [ ] Optional error logging 
-- [X] Fantastic debugging utilities *(including alternative to var_dump/print_r)*
+- [X] Debugging utilities
 - [X] Versioning *(saving you API maintenance hassles down the road)*
    - [X] Versioned Controllers
    - [X] Versioned Actions
@@ -43,7 +42,7 @@ Including planned features for beta:
    - [X] Version-less CRUD endpoints that reflect current backend records
 - [X] URI Routing
    - [X] using Apache2
-   - [X] using NGINX *(currently experimental)*
+   - [X] using NGINX
 - [X] Dependency Injection (DI) service container
    - [X] Controller method injection
    - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
@@ -54,22 +53,15 @@ Including planned features for beta:
       - [ ] Soft deletes
    - [ ] Support for third-party ORMs
 - [X] Speed and Performance
-   - [X] Autoloading of only necessary classes *(small footprint)*
+   - [X] Autoloading *(small footprint)*
    - [X] Caching mechanisms
        - [X] Native query caching *(with expiration)*
        - [X] Object file caching *(blazing fast instantiation)*
-   - [ ] Compiled PHP extensions written in C *(similar to Phalcon)*
 - [ ] Authentication  
    - [ ] Support for third-party libraries
      - [ ] OAUTH2
      - [ ] OpenId
      - [ ] SAML 
-- [ ] Angular admin frontend
-  - [ ] API documentation
-  - [ ] Scheduler interface
-  - [ ] Integration test interface
-  - [ ] Database schema migrations
-- [ ] Sample angular frontend templates
 - [ ] Automated validation of API requests using existing (or generated) API contracts
 - [ ] Event logging
 - [ ] Mailer
