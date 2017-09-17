@@ -16,6 +16,7 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
   *  Both the **backend** and **frontend** *can be developed separately* using versioned API contracts as reference
   *  Both the **backend** and **frontend** *have less entangling complexity*, providing a simple and clean workflow
   *  Either the **backend** or **frontend** *can be swapped out entirely* with a completely different solution, giving you greater flexibility further down the road
+  *  Parallel **frontend** development *becomes grossly simplified* (e.g., leveraging an internal app, external app, phone app, etc using the same **backend**).
 
 ## Features In Alpha
 
