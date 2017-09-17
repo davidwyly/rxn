@@ -96,7 +96,7 @@ class Application
         $this->initialize($config, $datasources, $service);
         $services_to_load = $config->getServices();
         $this->loadServices($services_to_load);
-        $this->finalize($this->registry, $config, $timeStart);
+        $this->finalize($this->registry, $timeStart);
     }
 
     /**
@@ -147,18 +147,17 @@ class Application
 
     /**
      * @param Registry $registry
-     * @param Config   $config
      * @param          $time_start
      *
      * @throws ApplicationException
      * @throws Error\DebugException
      */
-    private function finalize(Registry $registry, Config $config, $time_start)
+    private function finalize(Registry $registry, $time_start)
     {
         $registry->sortClasses();
         $this->stats->stop($time_start);
         if (!empty(self::$environment_errors)) {
-            self::renderEnvironmentErrors($config);
+            self::renderEnvironmentErrors();
         }
     }
 
@@ -185,19 +184,15 @@ class Application
      */
     private function getSuccessResponse()
     {
-        // instantiate request model
         $this->api->request = $this->service->get(Request::class);
 
         // find the correct controller to use; this is determined from the request
         $controller_ref = $this->api->findController($this->api->request);
-
-        // instantiate the controller
         $this->api->controller = $this->service->get($controller_ref);
 
         // trigger the controller to build a response
         $response_to_render = $this->api->controller->trigger($this->service);
 
-        // return response
         return $response_to_render;
     }
 
@@ -232,14 +227,12 @@ class Application
      */
     static private function render(Response $response)
     {
+        // error out if output buffer has crap in it
         if (ob_get_contents()) {
             throw new ApplicationException("Output buffer already has content; cannot render");
         }
 
-        // determine response code
         $response_code = $response->getCode();
-
-        // encode the response to JSON
         $json = json_encode((object)$response->stripEmptyParams(), JSON_PRETTY_PRINT);
 
         // remove null bytes, which can be a gotcha upon decoding
@@ -290,14 +283,12 @@ class Application
     }
 
     /**
-     * Renders environment errors and dies
-     *
-     * @param Config $config
+     * Renders environment errors
      *
      * @throws ApplicationException
      * @throws Error\DebugException
      */
-    static public function renderEnvironmentErrors(Config $config)
+    static public function renderEnvironmentErrors()
     {
         try {
             throw new ApplicationException("Environment errors on startup");

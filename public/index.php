@@ -14,7 +14,12 @@ namespace Rxn;
 require_once('../bootstrap.php');
 
 try {
-    $app = new Application(new Config(), new Datasources(), new Service(), START);
+    $app = new Application(
+        new Config(),
+        new Datasources(),
+        new Service(),
+        START
+    );
 } catch (\Exception $e) {
     Application::appendEnvironmentError($e);
     Application::renderEnvironmentErrors(new Config());
