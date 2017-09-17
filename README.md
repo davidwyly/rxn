@@ -53,7 +53,7 @@ Including planned features for beta:
       - [ ] Soft deletes
    - [ ] Support for third-party ORMs
 - [X] Speed and Performance
-   - [X] Autoloading *(small footprint)*
+   - [X] PSR-4 Autoloading *(small footprint)*
    - [X] Caching mechanisms
        - [X] Native query caching *(with expiration)*
        - [X] Object file caching *(blazing fast instantiation)*
