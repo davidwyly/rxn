@@ -1,9 +1,12 @@
 <?php
 /**
- * This file is part of Reaction (RXN).
+ * This file is part of the Rxn (Reaction) PHP API Framework
  *
- * @license MIT License (MIT)
- * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @package    Rxn
+ * @copyright  2015-2017 David Wyly
+ * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @link       Github <https://github.com/davidwyly/rxn>
+ * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
  */
 
 namespace Rxn\Data;
@@ -11,11 +14,6 @@ namespace Rxn\Data;
 use \Rxn\Error\QueryException;
 use \Rxn\Utility\MultiByte;
 
-/**
- * Class Query
- *
- * @package Rxn\Data
- */
 class Query
 {
     const TYPE_QUERY            = 'query';

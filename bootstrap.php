@@ -1,24 +1,23 @@
 <?php
-
 /**
+ * This file is part of the Rxn (Reaction) PHP API Framework
  *
- * This file is part of Reaction (RXN).
- *
- * @license MIT License (MIT)
- *
- * For full copyright and license information, please see the docs/CREDITS.txt file.
- *
- * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
- *
+ * @package    Rxn
+ * @copyright  2015-2017 David Wyly
+ * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @link       Github <https://github.com/davidwyly/rxn>
+ * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
  */
+
+namespace Rxn;
 
 /**
  * Definitions
  */
-define('RXN_START', microtime(true));
-define('RXN_BASE_ROOT', __DIR__);
-define('RXN_APP_ROOT', 'rxn');
-define('RXN_ROOT', RXN_BASE_ROOT . "/" . RXN_APP_ROOT . "/");
+define(__NAMESPACE__ . '\START', microtime(true));
+define(__NAMESPACE__ . '\BASE_ROOT', __DIR__);
+define(__NAMESPACE__ . '\APP_ROOT', 'rxn');
+define(__NAMESPACE__ . '\ROOT', BASE_ROOT . "/" . APP_ROOT . "/");
 
 /**
  * Begin output buffering
@@ -26,20 +25,32 @@ define('RXN_ROOT', RXN_BASE_ROOT . "/" . RXN_APP_ROOT . "/");
 ob_start();
 
 /**
- * Require prerequisites
- */
-require_once(RXN_ROOT . "Application.class.php");
-require_once(RXN_ROOT . "ApplicationConfig.class.php");
-require_once(RXN_ROOT . "ApplicationDatasources.class.php");
-
-/**
  * Require core components an validate
  */
-\Rxn\Application::includeCoreDirectories(RXN_BASE_ROOT, RXN_APP_ROOT);
-\Rxn\Application::includeCoreComponents(RXN_BASE_ROOT, RXN_APP_ROOT);
+recursiveAutoload(BASE_ROOT . "/" . APP_ROOT);
 
-// instantiate config
-$config = new \Rxn\Config();
-
-// validate environment
-\Rxn\Application::validateEnvironment(RXN_BASE_ROOT, RXN_APP_ROOT, $config);
+//----------------------------------------------------------
+//
+// Function Declarations
+//
+//----------------------------------------------------------
+/**
+ * @param $directory
+ */
+function recursiveAutoload($directory)
+{
+    $contents = array_slice(scandir($directory), 2);
+    foreach ($contents as $content) {
+        $path = "$directory/$content";
+        if (is_file($path)
+            && pathinfo($path, PATHINFO_EXTENSION) == 'php'
+        ) {
+            spl_autoload_register(function () use ($path) {
+                /** @noinspection PhpIncludeInspection */
+                require_once($path);
+            });
+        } elseif (is_dir($path)) {
+            recursiveAutoload($path);
+        }
+    }
+}

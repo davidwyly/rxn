@@ -1,9 +1,12 @@
 <?php
 /**
- * This file is part of Reaction (RXN).
+ * This file is part of the Rxn (Reaction) PHP API Framework
  *
- * @license MIT License (MIT)
- * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @package    Rxn
+ * @copyright  2015-2017 David Wyly
+ * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @link       Github <https://github.com/davidwyly/rxn>
+ * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
  */
 
 namespace Rxn;
@@ -94,6 +97,7 @@ class Application
      */
     public function __construct(Config $config, Datasources $datasources, Service $service, $timeStart)
     {
+        Application::validateEnvironment(ROOT, APP_ROOT, $config);
         $this->initialize($config, $datasources, $service);
         $services_to_load = $config->getServices();
         $this->loadServices($services_to_load);
@@ -251,7 +255,7 @@ class Application
         // render as JSON
         header('content-type: application/json');
         http_response_code($response_code);
-        die($json);
+        echo $json;
     }
 
     /**
@@ -260,7 +264,7 @@ class Application
     static public function getElapsedMs()
     {
         $now       = microtime(true);
-        $elapsedMs = round(($now - \RXN_START) * 1000, 3);
+        $elapsedMs = round(($now - START) * 1000, 3);
         return (string)$elapsedMs . " ms";
     }
 
@@ -323,75 +327,13 @@ class Application
     }
 
     /**
-     * @param $root
-     * @param $app_root
-     */
-    static public function includeCoreComponents($root, $app_root)
-    {
-        $core_component_paths = ApplicationConfig::getCoreComponentPaths();
-        foreach ($core_component_paths as $name => $core_component_path) {
-            $file_path = "$root/$app_root/$core_component_path";
-            if (!file_exists($file_path)) {
-                try {
-                    throw new ApplicationException("Rxn core component '$name' expected at '$core_component_path'");
-                } catch (ApplicationException $e) {
-                    self::appendEnvironmentError($e);
-                }
-            } else {
-                spl_autoload_register(function () use ($file_path) {
-                    /** @noinspection PhpIncludeInspection */
-                    require_once($file_path);
-                });
-            }
-        }
-    }
-
-    /**
-     * @param $root
-     * @param $app_root
-     *
-     * @throws ApplicationException
-     */
-    static public function includeCoreDirectories($root, $app_root)
-    {
-        $core_component_directories = ApplicationConfig::getCoreComponentDirectories();
-        foreach ($core_component_directories as $core_component_directory) {
-            $directory_path = "$root/$app_root/$core_component_directory/";
-            if (!file_exists($directory_path)) {
-                try {
-                    throw new ApplicationException("Rxn core components directory expected at '$core_component_directory'");
-                } catch (ApplicationException $e) {
-                    self::appendEnvironmentError($e);
-                }
-            } elseif (!is_dir($directory_path)) {
-                throw new ApplicationException("'$core_component_directory' should be a directory");
-            } else {
-                $directory_contents = array_slice(scandir($directory_path), 2);
-                foreach ($directory_contents as $file_or_directory) {
-                    $file_path = "$root/$app_root/$core_component_directory/$file_or_directory";
-                    if (is_file($file_path)) {
-                        spl_autoload_register(function () use ($file_path) {
-                            /** @noinspection PhpIncludeInspection */
-                            require_once($file_path);
-                        });
-                    }
-                }
-
-            }
-        }
-    }
-
-    /**
      * @param             $root
      * @param             $app_root
      * @param \Rxn\Config $config
-     *
      * @throws ApplicationException
-     * @throws Error\DebugException
      */
     static public function validateEnvironment($root, $app_root, Config $config)
     {
-
         // validate PHP INI file settings
         $ini_requirements = Config::getPhpIniRequirements();
         foreach ($ini_requirements as $ini_key => $requirement) {
@@ -399,59 +341,33 @@ class Application
                 if (is_bool($requirement)) {
                     $requirement = ($requirement) ? 'On' : 'Off';
                 }
-                try {
-                    throw new ApplicationException("Rxn requires PHP ini setting '$ini_key' = '$requirement'");
-                } catch (ApplicationException $e) {
-                    self::appendEnvironmentError($e);
-                }
+                throw new ApplicationException("Rxn requires PHP ini setting '$ini_key' = '$requirement'");
             }
         }
 
-        // validate that file caching is enabled
+        // validate that file caching can work with the environment
         if ($config->use_file_caching) {
             if (!file_exists("$root/$app_root/data/filecache")) {
-                try {
-                    throw new ApplicationException("Rxn requires for folder '$root/$app_root/data/filecache' to exist");
-                } catch (ApplicationException $e) {
-                    self::appendEnvironmentError($e);
-                }
+                throw new ApplicationException("Rxn requires for folder '$root/$app_root/data/filecache' to exist");
             }
-
             if (!is_writable("$root/$app_root/data/filecache")) {
-                try {
-                    throw new ApplicationException("Rxn requires for folder '$root/$app_root/data/filecache' to be writable");
-                } catch (ApplicationException $e) {
-                    self::appendEnvironmentError($e);
-                }
+                throw new ApplicationException("Rxn requires for folder '$root/$app_root/data/filecache' to be writable");
             }
         }
 
+        // validate that multibyte extensions will work properly
         if (!function_exists('mb_strtolower')
             && isset($ini_requirements['zend.multibyte'])
             && $ini_requirements['zend.multibyte'] === true
         ) {
-            try {
-                throw new ApplicationException("Rxn requires the PHP mbstring extension to be installed/enabled");
-            } catch (ApplicationException $e) {
-                self::appendEnvironmentError($e);
-            }
+            throw new ApplicationException("Rxn requires the PHP mbstring extension to be installed/enabled");
         }
 
-        if (function_exists('apache_get_modules')) {
-            if (!in_array('mod_rewrite', apache_get_modules())) {
-                try {
-                    throw new ApplicationException("Rxn requires Apache module 'mod_rewrite' to be enabled");
-                } catch (ApplicationException $e) {
-                    self::appendEnvironmentError($e);
-                }
-            }
-        }
-
-        /**
-         * Render errors when finished
-         */
-        if (self::hasEnvironmentErrors()) {
-            self::renderEnvironmentErrors($config);
+        // special apache checks
+        if (function_exists('apache_get_modules')
+            && !in_array('mod_rewrite', apache_get_modules())
+        ) {
+            throw new ApplicationException("Rxn requires Apache module 'mod_rewrite' to be enabled");
         }
     }
 }

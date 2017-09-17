@@ -1,22 +1,18 @@
 <?php
 /**
- * This file is part of Reaction (RXN).
+ * This file is part of the Rxn (Reaction) PHP API Framework
  *
- * @license MIT License (MIT)
- * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @package    Rxn
+ * @copyright  2015-2017 David Wyly
+ * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @link       Github <https://github.com/davidwyly/rxn>
+ * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
  */
 
 namespace Rxn\Utility;
 
 use \Rxn\Error\DebugException;
 
-/**
- * Class Debug
- *
- * ...For those of you who are crazy and refuse to use XDebug, we still sorta love you
- *
- * @package Rxn\Utility
- */
 class Debug
 {
     static public $depth         = 1; // initial value may need to be tweaked

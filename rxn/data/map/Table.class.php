@@ -1,9 +1,12 @@
 <?php
 /**
- * This file is part of Reaction (RXN).
+ * This file is part of the Rxn (Reaction) PHP API Framework
  *
- * @license MIT License (MIT)
- * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @package    Rxn
+ * @copyright  2015-2017 David Wyly
+ * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @link       Github <https://github.com/davidwyly/rxn>
+ * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
  */
 
 namespace Rxn\Data\Map;
@@ -11,11 +14,6 @@ namespace Rxn\Data\Map;
 use \Rxn\Data\Database;
 use \Rxn\Service\Registry;
 
-/**
- * Class Table
- *
- * @package Rxn\Data\Map
- */
 class Table
 {
     /**
@@ -88,7 +86,7 @@ class Table
     public function initializeNormally(array $construct_params)
     {
         // reverse engineer the parameters
-        [$registry, $database, $table_name, $create_reference_maps] = $construct_params;
+        list($registry, $database, $table_name, $create_reference_maps) = $construct_params;
 
         // generate the table map
         $this->name = $table_name;

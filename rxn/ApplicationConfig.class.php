@@ -1,9 +1,12 @@
 <?php
 /**
- * This file is part of Reaction (RXN).
+ * This file is part of the Rxn (Reaction) PHP API Framework
  *
- * @license MIT License (MIT)
- * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @package    Rxn
+ * @copyright  2015-2017 David Wyly
+ * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @link       Github <https://github.com/davidwyly/rxn>
+ * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
  */
 
 namespace Rxn;
@@ -98,36 +101,6 @@ abstract class ApplicationConfig
      * @var string
      */
     public $timezone = 'America/Denver';
-
-    /**
-     * Defines default core components on startup
-     * Warning: Changing this can have unexpected results!
-     *
-     * @var array
-     */
-    static private $core_component_paths = [
-        'MultiByte' => 'utility/MultiByte.class.php',
-        'Config'    => 'Config.class.php',
-        'Databases' => 'Datasources.class.php',
-        'Service'   => 'Service.class.php',
-        'Registry'  => 'service/Registry.class.php',
-        'Debug'     => 'utility/Debug.class.php',
-        'Database'  => 'data/Database.class.php',
-        'Query'     => 'data/Query.class.php',
-        'Collector' => 'router/Collector.class.php',
-        'Request'   => 'api/Request.class.php',
-        'Response'  => 'api/controller/Response.class.php',
-    ];
-
-    /**
-     * Defines default core directories on startup
-     * Warning: Changing this can have unexpected results!
-     *
-     * @var array
-     */
-    static private $core_component_directories = [
-        'error',
-    ];
 
     static private $php_ini_requirements = [
         'zend.multibyte' => false,
