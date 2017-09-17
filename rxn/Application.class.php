@@ -18,11 +18,6 @@ use \Rxn\Service\Registry;
 use \Rxn\Api\Controller\Response;
 use \Rxn\Error\ApplicationException;
 
-/**
- * Class Application.class
- *
- * @package Rxn
- */
 class Application
 {
     /**
