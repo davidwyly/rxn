@@ -16,10 +16,12 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
   *  Both the **backend** and **frontend** *can be developed separately* using versioned API contracts as reference
   *  Both the **backend** and **frontend** *have less entangling complexity*, providing a simple and clean workflow
   *  Either the **backend** or **frontend** *can be swapped out entirely* with a completely different solution, giving you greater flexibility further down the road
+  *  Parallel **frontend** development *becomes grossly simplified* (e.g., leveraging an internal app, external app, phone app, etc using the same **backend**).
 
 ## Features In Alpha
 
-Including planned features for beta:
+Including planned features for beta (unchecked):
+- [ ] 80%+ unit test code coverage
 - [X] Gentle learning curve *(you don't have to be a guru to get up and running)*
    - [ ] Installation through Composer
 - [X] Simple workflow with an existing database schema
@@ -34,8 +36,7 @@ Including planned features for beta:
    - [ ] Session synchronizer tokens *(aids against CSRF attacks)* 
    - [ ] SSL/TLS support *(aids against man-in-the-middle attacks)*
 - [X] Robust error handling *(throw an exception anywhere and Rxn handles the rest)*
-   - [ ] Optional error logging 
-- [X] Fantastic debugging utilities *(including alternative to var_dump/print_r)*
+- [X] Debugging utilities
 - [X] Versioning *(saving you API maintenance hassles down the road)*
    - [X] Versioned Controllers
    - [X] Versioned Actions
@@ -43,7 +44,7 @@ Including planned features for beta:
    - [X] Version-less CRUD endpoints that reflect current backend records
 - [X] URI Routing
    - [X] using Apache2
-   - [X] using NGINX *(currently experimental)*
+   - [X] using NGINX
 - [X] Dependency Injection (DI) service container
    - [X] Controller method injection
    - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
@@ -54,22 +55,15 @@ Including planned features for beta:
       - [ ] Soft deletes
    - [ ] Support for third-party ORMs
 - [X] Speed and Performance
-   - [X] Autoloading of only necessary classes *(small footprint)*
+   - [X] PSR-4 Autoloading *(small footprint)*
    - [X] Caching mechanisms
        - [X] Native query caching *(with expiration)*
        - [X] Object file caching *(blazing fast instantiation)*
-   - [ ] Compiled PHP extensions written in C *(similar to Phalcon)*
 - [ ] Authentication  
    - [ ] Support for third-party libraries
      - [ ] OAUTH2
      - [ ] OpenId
      - [ ] SAML 
-- [ ] Angular admin frontend
-  - [ ] API documentation
-  - [ ] Scheduler interface
-  - [ ] Integration test interface
-  - [ ] Database schema migrations
-- [ ] Sample angular frontend templates
 - [ ] Automated validation of API requests using existing (or generated) API contracts
 - [ ] Event logging
 - [ ] Mailer
