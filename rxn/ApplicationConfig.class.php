@@ -136,26 +136,6 @@ abstract class ApplicationConfig
     }
 
     /**
-     * Getter for static private $core_component_paths array
-     *
-     * @return array
-     */
-    static public function getCoreComponentPaths()
-    {
-        return self::$core_component_paths;
-    }
-
-    /**
-     * Getter for static private $core_component_directories array
-     *
-     * @return array
-     */
-    static public function getCoreComponentDirectories()
-    {
-        return self::$core_component_directories;
-    }
-
-    /**
      * Getter for private $services array
      *
      * @return array
