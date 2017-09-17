@@ -2,22 +2,20 @@
 /**
  * This file is part of the Rxn (Reaction) PHP API Framework
  *
- * @license MIT License (MIT)
- * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @package    Rxn
+ * @copyright  2015-2017 David Wyly
+ * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @link       Github <https://github.com/davidwyly/rxn>
+ * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
  */
 
 namespace Rxn\Api;
 
-use \Rxn\Error\RequestException;
 use \Rxn\Config;
 use \Rxn\Router\Collector;
 use \Rxn\Utility\MultiByte;
+use \Rxn\Error\RequestException;
 
-/**
- * Class Request
- *
- * @package Rxn\Api
- */
 class Request
 {
     /**

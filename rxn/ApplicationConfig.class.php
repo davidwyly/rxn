@@ -11,11 +11,6 @@
 
 namespace Rxn;
 
-/**
- * Class BaseConfig
- *
- * @package Rxn
- */
 abstract class ApplicationConfig
 {
     /**

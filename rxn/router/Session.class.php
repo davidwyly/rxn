@@ -14,9 +14,6 @@ namespace Rxn\Router;
 class Session
 {
 
-    /**
-     * Session constructor.
-     */
     public function __construct()
     {
         $this->startSession();

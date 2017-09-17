@@ -9,7 +9,7 @@
  * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
  */
 
-namespace Rxn\Structure;
+namespace Rxn\Registry;
 
 class Reference
 {

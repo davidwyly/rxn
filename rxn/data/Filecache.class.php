@@ -15,12 +15,12 @@ use \Rxn\Config;
 
 class Filecache
 {
+    const EXTENSION = 'filecache';
+
     /**
      * @var string
      */
     public $directory;
-
-    const EXTENSION = 'filecache';
 
     /**
      * Filecache constructor.
