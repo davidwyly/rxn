@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -21,6 +21,11 @@ class Database
      * @var \PDO|null
      */
     private $connection;
+
+    /**
+     * @var string
+     */
+    private $source;
 
     /**
      * @var string
@@ -48,31 +53,6 @@ class Database
     private $charset = 'utf8';
 
     /**
-     * @var string
-     */
-    private $source;
-
-    /**
-     * @var array
-     */
-    private $required_settings = [
-        Datasources::HOST,
-        Datasources::NAME,
-        Datasources::USERNAME,
-        Datasources::PASSWORD,
-        Datasources::CHARSET,
-    ];
-
-    /**
-     * @var array
-     */
-    private $allowed_sources = [
-        Datasources::DEFAULT_READ,
-        Datasources::DEFAULT_WRITE,
-        Datasources::DEFAULT_ADMIN,
-    ];
-
-    /**
      * @var bool
      */
     public $allow_caching = false;
@@ -84,7 +64,7 @@ class Database
      * @param Datasources $datasources
      * @param string|null $source_name
      *
-     * @throws DatabaseException
+     * @throws class
      */
     public function __construct(Config $config, Datasources $datasources, string $source_name = null)
     {
@@ -100,24 +80,31 @@ class Database
      * @param Datasources $datasources
      * @param string      $source_name
      *
-     * @throws DatabaseException
+     * @throws class
      */
     private function setConfiguration(Config $config, Datasources $datasources, string $source_name)
     {
         $databases = $datasources->getDatabases();
-        $this->setConnectionSettings($databases[$source_name], $source_name);
+        $this->setConnectionSettings($datasources, $databases[$source_name], $source_name);
         $this->allow_caching = $config->use_query_caching;
     }
 
-    private function setConnectionSettings(array $database_settings, $source_name)
+    /**
+     * @param Datasources $datasources
+     * @param array       $database_settings
+     * @param             $source_name
+     *
+     * @throws class
+     */
+    private function setConnectionSettings(Datasources $datasources, array $database_settings, $source_name)
     {
-        foreach ($this->required_settings as $required_setting) {
-            if (!array_key_exists($required_setting, $database_settings)) {
-                throw new DatabaseException("Required database setting '$required_setting' is missing");
+        foreach ($datasources->getRequiredFields() as $required_field) {
+            if (!array_key_exists($required_field, $database_settings)) {
+                throw new DatabaseException("Required database setting '$required_field' is missing");
             }
-            $this->{$required_setting} = $database_settings[$required_setting];
+            $this->{$required_field} = $database_settings[$required_field];
         }
-        if (!in_array($source_name, $this->allowed_sources)) {
+        if (!in_array($source_name, $datasources->getAllowedSources())) {
             throw new DatabaseException("Data source '$source_name' is not whitelisted");
         }
         $this->source = $source_name;
@@ -145,7 +132,7 @@ class Database
      * @param \PDO|null $connection
      *
      * @return \PDO
-     * @throws DatabaseException
+     * @throws class
      */
     public function connect(\PDO $connection = null)
     {
@@ -157,7 +144,7 @@ class Database
 
     /**
      * @return \PDO
-     * @throws DatabaseException
+     * @throws class
      */
     public function createConnection()
     {
@@ -222,7 +209,7 @@ class Database
      * @param array $cache_table_settings
      *
      * @return null
-     * @throws DatabaseException
+     * @throws class
      */
     public function setCacheSettings(array $cache_table_settings)
     {
@@ -280,7 +267,7 @@ class Database
      * @param null   $timeout
      *
      * @return array|mixed
-     * @throws \Rxn\Error\QueryException
+     * @throws \Rxn\Error\class
      */
     public function fetchAll(string $sql, array $bindings = [], $cache = false, $timeout = null)
     {
@@ -295,7 +282,7 @@ class Database
      * @param null   $timeout
      *
      * @return array|mixed
-     * @throws \Rxn\Error\QueryException
+     * @throws \Rxn\Error\class
      */
     public function fetchArray(string $sql, array $bindings = [], $cache = false, $timeout = null)
     {
@@ -310,7 +297,7 @@ class Database
      * @param null   $timeout
      *
      * @return array|mixed
-     * @throws \Rxn\Error\QueryException
+     * @throws \Rxn\Error\class
      */
     public function fetch(string $sql, array $bindings = [], $cache = false, $timeout = null)
     {

@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -94,7 +94,7 @@ class Query
      * @param bool   $caching
      * @param        $timeout
      *
-     * @throws QueryException
+     * @throws class
      */
     public function __construct(\PDO $connection,
         string $sql,
@@ -130,7 +130,7 @@ class Query
 
     /**
      * @return bool
-     * @throws QueryException
+     * @throws class
      */
     public function transactionOpen()
     {
@@ -150,7 +150,7 @@ class Query
 
     /**
      * @return bool
-     * @throws QueryException
+     * @throws class
      */
     public function transactionClose()
     {
@@ -172,7 +172,7 @@ class Query
 
     /**
      * @return bool
-     * @throws QueryException
+     * @throws class
      */
     private function transactionRollback()
     {
@@ -222,7 +222,7 @@ class Query
 
     /**
      * @return bool
-     * @throws QueryException
+     * @throws class
      */
     public function disconnect()
     {
@@ -290,7 +290,7 @@ class Query
             'RENAME USER',
         ];
         foreach ($implicit_commit_statements as $implicit_commit_statement) {
-            $implicit_statement = (MultiByte::stripos($sql, $implicit_commit_statement) !== false);
+            $implicit_statement = (mb_stripos($sql, $implicit_commit_statement) !== false);
             if ($implicit_statement) {
                 $problem_statements[] = $implicit_commit_statement;
             }
@@ -310,7 +310,7 @@ class Query
 
     /**
      * @return array|mixed
-     * @throws QueryException
+     * @throws class
      */
     public function run()
     {
@@ -405,7 +405,7 @@ class Query
      * @param string $sql
      *
      * @return \PDOStatement
-     * @throws QueryException
+     * @throws class
      */
     private function prepare(string $sql): \PDOStatement
     {
@@ -425,7 +425,7 @@ class Query
      * @param array         $bindings
      *
      * @return \PDOStatement
-     * @throws QueryException
+     * @throws class
      */
     private function bind(\PDOStatement $statement, string $sql, array $bindings): \PDOStatement
     {
@@ -471,7 +471,7 @@ class Query
      * @param \PDOStatement $statement
      *
      * @return \PDOStatement
-     * @throws QueryException
+     * @throws class
      */
     private function execute(\PDOStatement $statement)
     {
@@ -508,7 +508,7 @@ class Query
 
     /**
      * @return bool
-     * @throws QueryException
+     * @throws class
      */
     public function clearCache()
     {
@@ -561,7 +561,7 @@ class Query
      * @param float $time_elapsed
      *
      * @return bool
-     * @throws QueryException
+     * @throws class
      */
     private function cacheResult($result, float $time_elapsed): bool
     {
@@ -626,7 +626,7 @@ class Query
     /**
      * @param string $type
      *
-     * @throws QueryException
+     * @throws class
      */
     public function setType(string $type)
     {

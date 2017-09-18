@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @license MIT License (MIT)
  * @author  David Wyly (davidwyly) <david.wyly@gmail.com>

@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -9,12 +9,12 @@
  * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
  */
 
-namespace Rxn\Error;
+namespace Rxn;
 
-class CoreException extends \Exception
+abstract class Service
 {
-    public function __construct(string $message, int $code = 500, \Exception $e = null)
-    {
-        parent::__construct($message, $code, $e);
-    }
+    /**
+     * @var bool
+     */
+    public $is_service = true;
 }

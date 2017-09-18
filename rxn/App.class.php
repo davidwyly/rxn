@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -11,15 +11,14 @@
 
 namespace Rxn;
 
-use \Rxn\ApplicationService;
 use \Rxn\Api\Request;
 use \Rxn\Data\Database;
 use \Rxn\Utility\Debug;
 use \Rxn\Service\Registry;
 use \Rxn\Api\Controller\Response;
-use \Rxn\Error\ApplicationException;
+use \Rxn\Error\AppException;
 
-class Application extends ApplicationService
+class App extends Service
 {
     /**
      * @var Config $config
@@ -86,13 +85,15 @@ class Application extends ApplicationService
      *
      * @param Config      $config
      * @param Datasources $datasources
-     * @param Container     $container
+     * @param Container   $container
      *
-     * @throws Error\ServiceException
+     * @throws AppException
+     * @throws Error\ContainerException
+     * @throws Error\DebugException
      */
     public function __construct(Config $config, Datasources $datasources, Container $container)
     {
-        Application::validateEnvironment(ROOT, APP_ROOT, $config);
+        App::validateEnvironment(ROOT, APP_ROOT, $config);
         $this->initialize($config, $datasources, $container);
         $services_to_load = $config->getServices();
         $this->loadServices($services_to_load);
@@ -102,9 +103,9 @@ class Application extends ApplicationService
     /**
      * @param Config      $config
      * @param Datasources $datasources
-     * @param Container     $container
+     * @param Container   $container
      *
-     * @throws Error\ServiceException
+     * @throws Error\ContainerException
      */
     private function initialize(Config $config, Datasources $datasources, Container $container)
     {
@@ -118,8 +119,9 @@ class Application extends ApplicationService
     }
 
     /**
-     * @param Config $config
+     * @param Config      $config
      * @param Datasources $datasources
+     *
      * @return Database[]
      */
     private function registerDatabases(Config $config, Datasources $datasources)
@@ -149,7 +151,7 @@ class Application extends ApplicationService
      * @param Registry $registry
      * @param          $time_start
      *
-     * @throws ApplicationException
+     * @throws AppException
      * @throws Error\DebugException
      */
     private function finalize(Registry $registry, $time_start)
@@ -168,7 +170,7 @@ class Application extends ApplicationService
     {
         try {
             if (empty($this->api->controller)) {
-                throw new ApplicationException("No controller has been associated with the application");
+                throw new AppException("No controller has been associated with the application");
             }
             $response_to_render = $this->getSuccessResponse();
         } catch (\Exception $e) {
@@ -180,14 +182,14 @@ class Application extends ApplicationService
 
     /**
      * @return Response
-     * @throws Error\ServiceException
+     * @throws Error\ContainerException
      */
     private function getSuccessResponse()
     {
         $this->api->request = $this->container->get(Request::class);
 
         // find the correct controller to use; this is determined from the request
-        $controller_ref = $this->api->findController($this->api->request);
+        $controller_ref        = $this->api->findController($this->api->request);
         $this->api->controller = $this->container->get($controller_ref);
 
         // trigger the controller to build a response
@@ -200,7 +202,7 @@ class Application extends ApplicationService
      * @param \Exception $e
      *
      * @return Response
-     * @throws Error\ServiceException
+     * @throws Error\ContainerException
      */
     private function getFailureResponse(\Exception $e)
     {
@@ -220,20 +222,20 @@ class Application extends ApplicationService
     }
 
     /**
-     * @param Response    $response
+     * @param Response $response
      *
-     * @throws ApplicationException
+     * @throws AppException
      * @throws Error\DebugException
      */
     static private function render(Response $response)
     {
         // error out if output buffer has crap in it
         if (ob_get_contents()) {
-            throw new ApplicationException("Output buffer already has content; cannot render");
+            throw new AppException("Output buffer already has content; cannot render");
         }
 
         $response_code = $response->getCode();
-        $json = json_encode((object)$response->stripEmptyParams(), JSON_PRETTY_PRINT);
+        $json          = json_encode((object)$response->stripEmptyParams(), JSON_PRETTY_PRINT);
 
         // remove null bytes, which can be a gotcha upon decoding
         $json = str_replace('\\u0000', '', $json);
@@ -285,14 +287,19 @@ class Application extends ApplicationService
     /**
      * Renders environment errors
      *
-     * @throws ApplicationException
+     * @param \Exception|null $e
+     *
+     * @throws AppException
      * @throws Error\DebugException
      */
-    static public function renderEnvironmentErrors()
+    static public function renderEnvironmentErrors(\Exception $e = null)
     {
+        if (!is_null($e)) {
+            self::appendEnvironmentError($e);
+        }
         try {
-            throw new ApplicationException("Environment errors on startup");
-        } catch (ApplicationException $e) {
+            throw new AppException("Environment errors on startup");
+        } catch (AppException $e) {
             $response = new Response(null);
             $response->getFailure($e);
         }
@@ -320,7 +327,8 @@ class Application extends ApplicationService
      * @param             $root
      * @param             $app_root
      * @param \Rxn\Config $config
-     * @throws ApplicationException
+     *
+     * @throws AppException
      */
     static public function validateEnvironment($root, $app_root, Config $config)
     {
@@ -331,33 +339,33 @@ class Application extends ApplicationService
                 if (is_bool($requirement)) {
                     $requirement = ($requirement) ? 'On' : 'Off';
                 }
-                throw new ApplicationException("Rxn requires PHP ini setting '$ini_key' = '$requirement'");
+                throw new AppException("Rxn requires PHP ini setting '$ini_key' = '$requirement'");
             }
         }
 
         // validate that file caching can work with the environment
         if ($config->use_file_caching) {
             if (!file_exists("$root/$app_root/data/filecache")) {
-                throw new ApplicationException("Rxn requires for folder '$root/$app_root/data/filecache' to exist");
+                throw new AppException("Rxn requires for folder '$root/$app_root/data/filecache' to exist");
             }
             if (!is_writable("$root/$app_root/data/filecache")) {
-                throw new ApplicationException("Rxn requires for folder '$root/$app_root/data/filecache' to be writable");
+                throw new AppException("Rxn requires for folder '$root/$app_root/data/filecache' to be writable");
             }
         }
 
         // validate that multibyte extensions will work properly
         if (!function_exists('mb_strtolower')
-            && isset($ini_requirements['zend.multibyte'])
-            && $ini_requirements['zend.multibyte'] === true
+            || (isset($ini_requirements['zend.multibyte'])
+                && $ini_requirements['zend.multibyte'] !== true)
         ) {
-            throw new ApplicationException("Rxn requires the PHP mbstring extension to be installed/enabled");
+            throw new AppException("Rxn requires the PHP mbstring extension to be installed/enabled");
         }
 
         // special apache checks
         if (function_exists('apache_get_modules')
             && !in_array('mod_rewrite', apache_get_modules())
         ) {
-            throw new ApplicationException("Rxn requires Apache module 'mod_rewrite' to be enabled");
+            throw new AppException("Rxn requires Apache module 'mod_rewrite' to be enabled");
         }
     }
 }

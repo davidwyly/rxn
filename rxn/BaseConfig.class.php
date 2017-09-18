@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -11,7 +11,7 @@
 
 namespace Rxn;
 
-class FrameworkConfig extends ApplicationService
+class BaseConfig extends Service
 {
     /**
      * Defines the maximum session lifetime, including the lifetime of cookies, in seconds

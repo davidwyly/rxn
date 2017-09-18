@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -11,9 +11,9 @@
 
 namespace Rxn\Service;
 
-use \Rxn\ApplicationService;
+use \Rxn\Service;
 
-class Utility extends ApplicationService
+class Utility extends Service
 {
 
     public function __construct()

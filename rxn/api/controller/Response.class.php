@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @license MIT License (MIT)
  * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
@@ -9,7 +9,7 @@
 namespace Rxn\Api\Controller;
 
 use \Rxn\Api\Request;
-use \Rxn\Application;
+use \Rxn\App;
 
 /**
  * Class Response
@@ -150,7 +150,7 @@ class Response
         $this->meta = [
             'success'    => false,
             'code'       => self::DEFAULT_SUCCESS_CODE,
-            'elapsed_ms' => Application::getElapsedMs(),
+            'elapsed_ms' => App::getElapsedMs(),
         ];
 
         return $this;
@@ -175,7 +175,7 @@ class Response
         $this->meta   = [
             'success'    => false,
             'code'       => $e->getCode(),
-            'elapsed_ms' => Application::getElapsedMs(),
+            'elapsed_ms' => App::getElapsedMs(),
         ];
 
         return $this;

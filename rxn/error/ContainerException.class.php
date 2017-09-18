@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -11,7 +11,7 @@
 
 namespace Rxn\Error;
 
-class ApplicationException extends CoreException
+class ContainerException extends CoreException
 {
     public function __construct(string $message, int $code = 500, \Exception $e = null)
     {

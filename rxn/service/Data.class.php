@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -11,7 +11,7 @@
 
 namespace Rxn\Service;
 
-use \Rxn\ApplicationService;
+use \Rxn\Service;
 use \Rxn\Data\Map;
 use \Rxn\Container;
 use \Rxn\Data\Database;
@@ -21,7 +21,7 @@ use \Rxn\Data\Filecache;
 /**
  * TODO: work in progress
  */
-class Data extends ApplicationService
+class Data extends Service
 {
     /**
      * @var Filecache

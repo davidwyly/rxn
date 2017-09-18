@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -11,34 +11,107 @@
 
 namespace Rxn;
 
-class FrameworkDatasources extends ApplicationService
+class BaseDatasources extends Service
 {
-    const DEFAULT_READ  = 'ready-only';
-    const DEFAULT_WRITE = 'read-write';
-    const DEFAULT_ADMIN = 'admin';
+    /**
+     * @var string
+     */
+    const DEFAULT_READ  = 'read-only';
 
+    /**
+     * @var string
+     */
+    const DEFAULT_WRITE = 'read-write';
+
+    /**
+     * @var string
+     */
+    const DEFAULT_ADMIN = 'admin';
+    const DEFAULT_CACHE = 'cache';
+
+    /**
+     * @var string
+     */
     const HOST     = 'host';
+
+    /**
+     * @var string
+     */
     const NAME     = 'name';
+
+    /**
+     * @var string
+     */
     const USERNAME = 'username';
+
+    /**
+     * @var string
+     */
     const PASSWORD = 'password';
+
+    /**
+     * @var string
+     */
     const CHARSET  = 'charset';
 
+    /**
+     * @var
+     */
     protected $databases;
 
-    private $required_fields = [
-        'host',
-        'name',
-        'username',
-        'password',
-        'charset',
+    /**
+     * @var array
+     */
+    private $allowed_sources = [
+        self::DEFAULT_READ,
+        self::DEFAULT_WRITE,
+        self::DEFAULT_ADMIN,
+        self::DEFAULT_CACHE,
     ];
+
+    /**
+     * @var array
+     */
+    private $required_fields = [
+        self::HOST,
+        self::NAME,
+        self::USERNAME,
+        self::PASSWORD,
+        self::CHARSET,
+    ];
+
+    /**
+     * @var string
+     */
+    private $default_source = self::DEFAULT_READ;
 
     public function __construct()
     {
         $this->validateDatabases($this->databases);
-        foreach ($this->databases as $database_name => $connection_settings) {
+    }
 
-        }
+    /**
+     * @return array
+     */
+    public function getAllowedSources()
+    {
+        return $this->allowed_sources;
+    }
+
+    /**
+     * @return array
+     */
+    public function getRequiredFields()
+    {
+        return $this->required_fields;
+    }
+
+    /**
+     * @return string
+     */
+    public function getDefaultSource()
+    {
+        return $this->default_source;
     }
 
     private function validateDatabases(array $databases)
@@ -52,7 +125,8 @@ class FrameworkDatasources extends ApplicationService
             }
             foreach ($this->required_fields as $required_field) {
                 if (!isset($connection_settings[$required_field])) {
-                    throw new \Exception("Database config with key '$database_name' is missing required field '$required_field'");
+                    throw new \Exception("Database config with key '$database_name' is missing "
+                        . "required field '$required_field'");
                 }
             }
         }

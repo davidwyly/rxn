@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -12,10 +12,10 @@
 namespace Rxn\Router;
 
 use \Rxn\Config;
-use \Rxn\ApplicationService;
+use \Rxn\Service;
 use \Rxn\Utility\MultiByte;
 
-class Collector extends ApplicationService
+class Collector extends Service
 {
     /**
      * @var array|null
@@ -193,10 +193,10 @@ class Collector extends ApplicationService
     {
         $header_params = null;
         foreach ($_SERVER as $key => $value) {
-            $header_key_exists = (MultiByte::stripos($key, 'HTTP_RXN') !== false);
+            $header_key_exists = (mb_stripos($key, 'HTTP_RXN') !== false);
 
             if ($header_key_exists) {
-                $lower_key                 = MultiByte::strtolower($key);
+                $lower_key                 = mb_strtolower($key);
                 $lower_key                 = preg_replace("#http\_#", '', $lower_key);
                 $header_params[$lower_key] = $value;
             }

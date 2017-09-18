@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -11,35 +11,35 @@
 
 namespace Rxn\Service;
 
-use \Rxn\ApplicationService;
+use \Rxn\Service;
 
-class Stats extends ApplicationService
+class Stats extends Service
 {
     /**
      * @var float
      */
-    private $timeStop;
+    private $time_stop;
 
     /**
      * @var
      */
-    public $loadMs;
+    public $load_ms;
 
     /**
      * Stats constructor.
      */
     public function __construct()
     {
-
+        // intentionally left blank
     }
 
     /**
-     * @param $timeStart
+     * @param $time_start
      */
-    public function stop($timeStart)
+    public function stop($time_start)
     {
-        $this->timeStop = microtime(true);
-        $this->loadMs   = round(($this->timeStop - $timeStart) * 1000, 4);
+        $this->time_stop = microtime(true);
+        $this->load_ms   = round(($this->time_stop - $time_start) * 1000, 4);
     }
 
 }

@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -12,12 +12,12 @@
 namespace Rxn\Service;
 
 use \Rxn\Config;
-use \Rxn\ApplicationService;
+use \Rxn\Service;
 use \Rxn\Data\Database;
 use \Rxn\Utility\MultiByte;
 use \Rxn\Error\RegistryException;
 
-class Registry extends ApplicationService
+class Registry extends Service
 {
     /**
      * @var Config
@@ -28,6 +28,7 @@ class Registry extends ApplicationService
      * @var Database
      */
     public $database;
+
     public $classes;
     public $tables;
     public $records;
@@ -38,8 +39,8 @@ class Registry extends ApplicationService
      * @param Config   $config
      * @param Database $database
      *
-     * @throws RegistryException
-     * @throws \Rxn\Error\QueryException
+     * @throws class
+     * @throws \Rxn\Error\class
      */
     public function __construct(Config $config, Database $database)
     {
@@ -55,7 +56,7 @@ class Registry extends ApplicationService
      * @param object $object
      *
      * @return void
-     * @throws RegistryException
+     * @throws class
      */
     private function registerObject($object)
     {
@@ -67,7 +68,7 @@ class Registry extends ApplicationService
      * @param object $object
      *
      * @return string
-     * @throws RegistryException
+     * @throws class
      */
     private function getClassByObject($object)
     {
@@ -81,7 +82,7 @@ class Registry extends ApplicationService
     /**
      * @param Database $database
      *
-     * @throws \Rxn\Error\QueryException
+     * @throws \Rxn\Error\class
      */
     public function initialize(Database $database)
     {
@@ -92,7 +93,7 @@ class Registry extends ApplicationService
      * @param string $class_reference
      *
      * @return void
-     * @throws RegistryException
+     * @throws class
      */
     public function registerClass($class_reference)
     {
@@ -181,7 +182,7 @@ class Registry extends ApplicationService
      * @param Database $database
      *
      * @return bool
-     * @throws \Rxn\Error\QueryException
+     * @throws \Rxn\Error\class
      */
     private function fetchTables(Database $database)
     {
@@ -221,7 +222,7 @@ class Registry extends ApplicationService
      * @param        $class_reference
      *
      * @return bool
-     * @throws RegistryException
+     * @throws class
      */
     private function load(Config $config, $class_reference)
     {
@@ -253,7 +254,7 @@ class Registry extends ApplicationService
      * @param string $extension
      *
      * @return string
-     * @throws RegistryException
+     * @throws class
      */
     private function getClassPathByClassReference(Config $config, $class_reference, $extension)
     {
@@ -261,7 +262,7 @@ class Registry extends ApplicationService
         $path_array = explode("\\", $class_reference);
 
         // remove the root namespace from the array
-        $root = MultiByte::strtolower(array_shift($path_array));
+        $root = mb_strtolower(array_shift($path_array));
 
         if ($root != $config->framework_folder) {
             if ($root != $config->organization_folder) {
@@ -274,7 +275,7 @@ class Registry extends ApplicationService
 
         // convert the namespaces into lowercase
         foreach ($path_array as $key => $value) {
-            $path_array[$key] = MultiByte::strtolower($value);
+            $path_array[$key] = mb_strtolower($value);
         }
 
         // tack the short name of the class back onto the end
@@ -287,7 +288,7 @@ class Registry extends ApplicationService
         $load_path       = $load_path_root . $load_path_class;
 
         if (!file_exists($load_path)) {
-            $controller_exists = (MultiByte::strpos($class_path, 'controller') !== false);
+            $controller_exists = (mb_strpos($class_path, 'controller') !== false);
 
             // 400 level error if the controller is incorrect
             if (!$controller_exists) {

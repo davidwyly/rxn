@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -11,11 +11,11 @@
 
 namespace Rxn\Data;
 
-use \Rxn\ApplicationService;
+use \Rxn\Service;
 use \Rxn\Service\Registry;
 use \Rxn\Data\Map\Table;
 
-class Map extends ApplicationService
+class Map extends Service
 {
     /**
      * @var string

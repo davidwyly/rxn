@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -32,11 +32,7 @@ class Key
     {
         $min_length = self::$encryption_min_length;
 
-        if (function_exists('mb_strlen')) {
-            $encryption_key_length = mb_strlen($encryption_key);
-        } else {
-            $encryption_key_length = strlen($encryption_key);
-        }
+        $encryption_key_length = mb_strlen($encryption_key);
 
         if ($encryption_key_length < $min_length) {
             throw new \Exception("Encryption key must be at least $min_length characters", 500);

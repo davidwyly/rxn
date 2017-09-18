@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -189,7 +189,7 @@ class Request
      * @param $targetKey
      *
      * @return mixed|null
-     * @throws \Exception
+     * @throws RequestException
      */
     public function collect($targetKey)
     {
@@ -334,8 +334,8 @@ class Request
             return null;
         }
 
-        $period_position    = MultiByte::strpos($full_version, ".");
-        $controller_version = MultiByte::substr($full_version, 0, $period_position);
+        $period_position    = mb_strpos($full_version, ".");
+        $controller_version = mb_substr($full_version, 0, $period_position);
 
         return $controller_version;
     }
@@ -353,8 +353,8 @@ class Request
             return null;
         }
 
-        $period_position       = MultiByte::strpos($full_version, ".");
-        $action_version_number = MultiByte::substr($full_version, $period_position + 1);
+        $period_position       = mb_strpos($full_version, ".");
+        $action_version_number = mb_substr($full_version, $period_position + 1);
 
         $action_version = "v$action_version_number";
         return $action_version;
@@ -417,7 +417,7 @@ class Request
     {
         if (!empty($delimiter)) {
 
-            $delimiter_exists = (MultiByte::stripos($string, $delimiter) !== false);
+            $delimiter_exists = (mb_stripos($string, $delimiter) !== false);
 
             if ($delimiter_exists) {
                 $string_array   = explode($delimiter, $string);

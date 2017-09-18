@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -14,14 +14,13 @@ namespace Rxn;
 require_once('../bootstrap.php');
 
 try {
-    $app = new Application(
+    $app = new App(
         new Config(),
         new Datasources(),
         new Container()
     );
 } catch (\Exception $e) {
-    Application::appendEnvironmentError($e);
-    Application::renderEnvironmentErrors();
+    App::renderEnvironmentErrors($e);
     die();
 }
 

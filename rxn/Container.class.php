@@ -1,6 +1,6 @@
 <?php
 /**
- * This file is part of the Rxn (Reaction) PHP API Framework
+ * This file is part of the Rxn (Reaction) PHP API App
  *
  * @package    Rxn
  * @copyright  2015-2017 David Wyly
@@ -11,7 +11,7 @@
 
 namespace Rxn;
 
-use \Rxn\Error\ServiceException;
+use \Rxn\Error\ContainerException;
 
 class Container
 {
@@ -32,16 +32,16 @@ class Container
      * @param string $class_name
      *
      * @return object
-     * @throws ServiceException
+     * @throws ContainerException
      */
     public function get($class_name)
     {
+        // change every namespace to be absolute
         $class_name = ltrim($class_name, '\\');
         $class_name = "\\" . $class_name;
 
-        // validate that the class name actually exists
         if (!class_exists($class_name)) {
-            throw new ServiceException("$class_name is not a valid class name");
+            throw new ContainerException("$class_name is not a valid class name");
         }
 
         // in the event that we're looking up the container class, return itself
@@ -56,30 +56,29 @@ class Container
             return $this->instances[$class_name];
         }
 
-        // generate an instance of the class
+        // generate instance and add it into memory
         $instance = $this->generateInstance($class_name);
-
-        // add the instance into memory
         $this->addInstance($class_name, $instance);
 
-        // return the class instance
         return $instance;
     }
 
     /**
      * @param $class_name
+     *
      * @return bool
      */
-    private function isService($class_name) {
+    private function isService($class_name)
+    {
         $reflection = new \ReflectionClass($class_name);
-        return $reflection->isSubclassOf(ApplicationService::class);
+        return $reflection->isSubclassOf(Service::class);
     }
 
     /**
      * @param $class_name
      *
      * @return object
-     * @throws ServiceException
+     * @throws ContainerException
      */
     private function generateInstance($class_name)
     {
@@ -87,14 +86,18 @@ class Container
         $class_name  = $reflection->getName();
         $constructor = $reflection->getConstructor();
         if (!$constructor) {
-            throw new ServiceException("Class '$class_name' does not have a valid constructor");
+            throw new ContainerException("Class '$class_name' does not have a valid constructor");
         }
         $parameters = $constructor->getParameters();
         $args       = [];
         foreach ($parameters as $parameter) {
-            if ($parameter->getClass()
-                && !$parameter->allowsNull()
-            ) {
+
+            // for an instance to be generated from the constructor, it cannot be optionally null
+            if (!$parameter->allowsNull()) {
+                continue;
+            }
+
+            if ($parameter->getClass()) {
                 $class  = $parameter->getClass()->name;
                 $args[] = $this->get($class);
             }
