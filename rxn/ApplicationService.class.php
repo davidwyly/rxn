@@ -9,15 +9,9 @@
  * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
  */
 
-namespace Rxn\Service;
+namespace Rxn;
 
-use \Rxn\ApplicationService;
-
-class Utility extends ApplicationService
+abstract class ApplicationService
 {
 
-    public function __construct()
-    {
-
-    }
 }

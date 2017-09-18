@@ -11,10 +11,11 @@
 
 namespace Rxn\Service;
 
+use \Rxn\ApplicationService;
 use \Rxn\Api\Request;
 use \Rxn\Api\Controller;
 
-class Api
+class Api extends ApplicationService
 {
 
     /**

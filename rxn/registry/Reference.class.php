@@ -11,7 +11,9 @@
 
 namespace Rxn\Registry;
 
-class Reference
+use \Rxn\ApplicationService;
+
+class Reference extends ApplicationService
 {
 
 }

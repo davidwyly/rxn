@@ -12,9 +12,10 @@
 namespace Rxn\Router;
 
 use \Rxn\Config;
+use \Rxn\ApplicationService;
 use \Rxn\Utility\MultiByte;
 
-class Collector
+class Collector extends ApplicationService
 {
     /**
      * @var array|null

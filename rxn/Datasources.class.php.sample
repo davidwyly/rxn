@@ -11,7 +11,7 @@
 
 namespace Rxn;
 
-class Datasources extends ApplicationDatasources
+class Datasources extends FrameworkDatasources
 {
 
     public $default_read  = 'read-only';

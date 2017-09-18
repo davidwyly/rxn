@@ -11,15 +11,17 @@
 
 namespace Rxn\Service;
 
-use \Rxn\Service;
+use \Rxn\ApplicationService;
+use \Rxn\Data\Map;
+use \Rxn\Container;
 use \Rxn\Data\Database;
 use \Rxn\Data\Filecache;
-use \Rxn\Data\Map;
+
 
 /**
  * TODO: work in progress
  */
-class Data
+class Data extends ApplicationService
 {
     /**
      * @var Filecache
@@ -46,14 +48,14 @@ class Data
      *
      * @param Registry $registry
      * @param Database $database
-     * @param Service  $service
+     * @param Container  $container
      *
      * @throws \Exception
      */
-    public function __construct(Registry $registry, Database $database, Service $service)
+    public function __construct(Registry $registry, Database $database, Container $container)
     {
         //currenly disabled
-        //$this->filecache = $service->get(Filecache::class);
-        //$this->map       = $service->get(Map::class);
+        //$this->filecache = $container->get(Filecache::class);
+        //$this->map       = $container->get(Map::class);
     }
 }

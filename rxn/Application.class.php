@@ -11,6 +11,7 @@
 
 namespace Rxn;
 
+use \Rxn\ApplicationService;
 use \Rxn\Api\Request;
 use \Rxn\Data\Database;
 use \Rxn\Utility\Debug;
@@ -18,7 +19,7 @@ use \Rxn\Service\Registry;
 use \Rxn\Api\Controller\Response;
 use \Rxn\Error\ApplicationException;
 
-class Application
+class Application extends ApplicationService
 {
     /**
      * @var Config $config
@@ -71,9 +72,9 @@ class Application
     public $utility;
 
     /**
-     * @var Service $service Dependency Injection (DI) container
+     * @var Container $container Dependency Injection (DI) container
      */
-    public $service;
+    public $container;
 
     /**
      * @var \Exception[]
@@ -85,14 +86,14 @@ class Application
      *
      * @param Config      $config
      * @param Datasources $datasources
-     * @param Service     $service
+     * @param Container     $container
      *
      * @throws Error\ServiceException
      */
-    public function __construct(Config $config, Datasources $datasources, Service $service)
+    public function __construct(Config $config, Datasources $datasources, Container $container)
     {
         Application::validateEnvironment(ROOT, APP_ROOT, $config);
-        $this->initialize($config, $datasources, $service);
+        $this->initialize($config, $datasources, $container);
         $services_to_load = $config->getServices();
         $this->loadServices($services_to_load);
         $this->finalize($this->registry, START);
@@ -101,19 +102,19 @@ class Application
     /**
      * @param Config      $config
      * @param Datasources $datasources
-     * @param Service     $service
+     * @param Container     $container
      *
      * @throws Error\ServiceException
      */
-    private function initialize(Config $config, Datasources $datasources, Service $service)
+    private function initialize(Config $config, Datasources $datasources, Container $container)
     {
         date_default_timezone_set($config->timezone);
         $this->config    = $config;
-        $this->service   = $service;
+        $this->container = $container;
         $this->databases = $this->registerDatabases($config, $datasources);
-        $this->service->addInstance(Datasources::class, $datasources);
-        $this->service->addInstance(Config::class, $config);
-        $this->registry = $this->service->get(Registry::class);
+        $this->container->addInstance(Datasources::class, $datasources);
+        $this->container->addInstance(Config::class, $config);
+        $this->registry = $this->container->get(Registry::class);
     }
 
     /**
@@ -125,7 +126,7 @@ class Application
     {
         $databases = [];
         foreach ($datasources->getDatabases() as $datasource_name => $connectionSettings) {
-            $databases[] = new Database($config, $datasources, $datasource_name);
+            $databases[$datasource_name] = new Database($config, $datasources, $datasource_name);
         }
         return $databases;
     }
@@ -137,7 +138,7 @@ class Application
     {
         foreach ($services as $service_name => $service_class) {
             try {
-                $this->{$service_name} = $this->service->get($service_class);
+                $this->{$service_name} = $this->container->get($service_class);
             } catch (\Exception $e) {
                 self::appendEnvironmentError($e);
             }
@@ -183,14 +184,14 @@ class Application
      */
     private function getSuccessResponse()
     {
-        $this->api->request = $this->service->get(Request::class);
+        $this->api->request = $this->container->get(Request::class);
 
         // find the correct controller to use; this is determined from the request
         $controller_ref = $this->api->findController($this->api->request);
-        $this->api->controller = $this->service->get($controller_ref);
+        $this->api->controller = $this->container->get($controller_ref);
 
         // trigger the controller to build a response
-        $response_to_render = $this->api->controller->trigger($this->service);
+        $response_to_render = $this->api->controller->trigger($this->container);
 
         return $response_to_render;
     }
@@ -203,8 +204,8 @@ class Application
      */
     private function getFailureResponse(\Exception $e)
     {
-        // instantiate request model using the DI service container
-        $response = $this->service->get(Response::class);
+        // instantiate request model using the DI container container
+        $response = $this->container->get(Response::class);
 
         // build a response
         if (!$response->isRendered()) {

@@ -11,8 +11,17 @@
 
 namespace Rxn;
 
-class Config extends ApplicationConfig
+class Config extends FrameworkConfig
 {
+    /**
+     * Defines the maximum session lifetime, including the lifetime of cookies, in seconds
+     *
+     * Default value: '2400' (40 minutes)
+     *
+     * @var int
+     */
+    public $session_lifetime = 2400;
+
     /**
      * Defines the root organization folder, typically your company or organization name
      *
@@ -23,13 +32,14 @@ class Config extends ApplicationConfig
     public $organization_folder = 'organization';
 
     /**
-     * Defines the root product folder, typically the name of your application
+     * Defines the root folder for Rxn
+     * Note: Changing this has not been thoroughly tested!
      *
-     * Default value: 'product'
+     * Default value: 'rxn'
      *
      * @var string
      */
-    public $product_folder = 'product';
+    public $framework_folder = 'rxn';
 
     /**
      * Defines the organization/product namespace for your application's models and controllers

@@ -11,10 +11,11 @@
 
 namespace Rxn\Data\Map;
 
+use \Rxn\ApplicationService;
 use \Rxn\Data\Database;
 use \Rxn\Service\Registry;
 
-class Table
+class Table extends ApplicationService
 {
     /**
      * @var

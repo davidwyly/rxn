@@ -2,7 +2,7 @@
 
 namespace Organization\Product\Controller\v1;
 
-use \Rxn\Service;
+use \Rxn\Container;
 use \Rxn\Data\Database;
 use \Rxn\Api\Request;
 use \Rxn\Api\CrudController;
@@ -23,12 +23,12 @@ class Order extends CrudController
     /**
      * Example custom action
      *
-     * @param Service $service
+     * @param Container $container
      * @return array
      * @throws \Exception
      */
-    public function test_v1(Service $service) {
-        $order = $service->get(OrderRecord::class);
+    public function test_v1(Container $container) {
+        $order = $container->get(OrderRecord::class);
         $response = [
             'order' => $order,
         ];
@@ -37,13 +37,13 @@ class Order extends CrudController
 
     /**
      * @param Request $request
-     * @param Service $service
+     * @param Container $container
      * @param Database $database
      * @return array
      * @throws \Exception
      */
-    public function test_v2(Request $request, Service $service, Database $database) {
-        $order = $service->get(OrderRecord::class);
+    public function test_v2(Request $request, Container $container, Database $database) {
+        $order = $container->get(OrderRecord::class);
         $response = [
             'order' => $order,
             'request' => (array)$request,
@@ -55,15 +55,15 @@ class Order extends CrudController
      * Example action that utilizes the record's CRUD interface
      *
      * @param Request  $request
-     * @param Service  $service
+     * @param Container  $container
      * @param Database $database
      *
      * @return array
      * @throws \Exception
      */
-    public function create_v1(Request $request, Service $service, Database $database) {
-        $response = $this->create_vx($request,$service,$database);
-        $order = $service->get(OrderRecord::class);
+    public function create_v1(Request $request, Container $container, Database $database) {
+        $response = $this->create_vx($request,$container,$database);
+        $order = $container->get(OrderRecord::class);
         $id = $order->create($database, $this->request->post);
         return [
             'created_order_id' => $id

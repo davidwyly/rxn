@@ -17,7 +17,7 @@ try {
     $app = new Application(
         new Config(),
         new Datasources(),
-        new Service()
+        new Container()
     );
 } catch (\Exception $e) {
     Application::appendEnvironmentError($e);

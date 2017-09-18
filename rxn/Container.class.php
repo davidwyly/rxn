@@ -13,7 +13,7 @@ namespace Rxn;
 
 use \Rxn\Error\ServiceException;
 
-class Service
+class Container
 {
     /**
      * @var array $instances
@@ -21,7 +21,7 @@ class Service
     public $instances;
 
     /**
-     * Service constructor.
+     * Container constructor.
      */
     public function __construct()
     {
@@ -36,18 +36,23 @@ class Service
      */
     public function get($class_name)
     {
+        $class_name = ltrim($class_name, '\\');
+        $class_name = "\\" . $class_name;
+
         // validate that the class name actually exists
         if (!class_exists($class_name)) {
             throw new ServiceException("$class_name is not a valid class name");
         }
 
-        // in the event that we're looking up the service class, return itself
-        if ($class_name == Service::class) {
+        // in the event that we're looking up the container class, return itself
+        if ($class_name == Container::class) {
             return $this;
         }
 
-        // if we already stored an instance of the class, return it
-        if (self::has($class_name)) {
+        // if we already stored an instance of a statically-bound service class, return it
+        if (self::isService($class_name)
+            && self::has($class_name)
+        ) {
             return $this->instances[$class_name];
         }
 
@@ -59,6 +64,15 @@ class Service
 
         // return the class instance
         return $instance;
+    }
+
+    /**
+     * @param $class_name
+     * @return bool
+     */
+    private function isService($class_name) {
+        $reflection = new \ReflectionClass($class_name);
+        return $reflection->isSubclassOf(ApplicationService::class);
     }
 
     /**

@@ -11,7 +11,9 @@
 
 namespace Rxn\Service;
 
-class Model
+use \Rxn\ApplicationService;
+
+class Model extends ApplicationService
 {
 
     public function __construct()

@@ -11,26 +11,32 @@
 
 namespace Rxn\Router;
 
-use \Rxn\SESSION_MAX_LIFETIME;
+use \Rxn\Config;
+use \Rxn\ApplicationService;
 
-class Session
+class Session extends ApplicationService
 {
 
-    public function __construct()
+    /**
+     * Session constructor.
+     * @param Config $config
+     */
+    public function __construct(Config $config)
     {
-        $this->startSession();
+        $this->startSession($config);
     }
 
     /**
+     * @param Config $config
      * @return void
      */
-    public function startSession()
+    public function startSession(Config $config)
     {
         // server should keep session data for AT LEAST this long
-        ini_set('session.gc_maxlifetime', 2400);
+        ini_set('session.gc_maxlifetime', $config->session_lifetime);
 
         // each client should remember their session id for EXACTLY this long
-        session_set_cookie_params(2400);
+        session_set_cookie_params($config->session_lifetime);
 
         // start session
         session_start();

@@ -12,11 +12,12 @@
 namespace Rxn\Service;
 
 use \Rxn\Config;
+use \Rxn\ApplicationService;
 use \Rxn\Data\Database;
 use \Rxn\Utility\MultiByte;
 use \Rxn\Error\RegistryException;
 
-class Registry
+class Registry extends ApplicationService
 {
     /**
      * @var Config
@@ -262,7 +263,7 @@ class Registry
         // remove the root namespace from the array
         $root = MultiByte::strtolower(array_shift($path_array));
 
-        if ($root != $config->app_folder) {
+        if ($root != $config->framework_folder) {
             if ($root != $config->organization_folder) {
                 throw new RegistryException("Root path '$root' in reference '$class_reference' not defined in config");
             }

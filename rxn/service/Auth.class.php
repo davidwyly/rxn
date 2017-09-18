@@ -11,11 +11,12 @@
 
 namespace Rxn\Service;
 
-use \Rxn\Service;
 use \Rxn\Config;
+use \Rxn\ApplicationService;
 use \Rxn\Auth\Key;
+use \Rxn\Container;
 
-class Auth
+class Auth extends ApplicationService
 {
     /**
      * @var Key
@@ -26,12 +27,12 @@ class Auth
      * Auth constructor.
      *
      * @param Config  $config
-     * @param Service $service
+     * @param Container $container
      *
      * @throws \Exception
      */
-    public function __construct(Config $config, Service $service)
+    public function __construct(Config $config, Container $container)
     {
-        $this->key = $service->get(Key::class);
+        $this->key = $container->get(Key::class);
     }
 }

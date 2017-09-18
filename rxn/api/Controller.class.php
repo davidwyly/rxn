@@ -11,7 +11,7 @@
 
 namespace Rxn\Api;
 
-use \Rxn\Service;
+use \Rxn\Container;
 use \Rxn\Api\Controller\Response;
 
 class Controller
@@ -46,11 +46,11 @@ class Controller
      *
      * @param Request  $request
      * @param Response $response
-     * @param Service  $service
+     * @param Container  $container
      *
      * @throws \Exception
      */
-    public function __construct(Request $request, Response $response, Service $service)
+    public function __construct(Request $request, Response $response, Container $container)
     {
         $this->request       = $request;
         $this->response      = $response;
@@ -60,11 +60,11 @@ class Controller
     }
 
     /**
-     * @param Service $service
+     * @param Container $container
      *
      * @return Response
      */
-    public function trigger(Service $service)
+    public function trigger(Container $container)
     {
 
         $this->triggered = true;
@@ -81,7 +81,7 @@ class Controller
         // trigger the action method on the controller
         try {
             $action_time_start = microtime(true);
-            $action_response   = $this->getActionResponse($service, $this->action_method);
+            $action_response   = $this->getActionResponse($container, $this->action_method);
             $this->calculateActionTimeElapsed($action_time_start);
             $this->validateActionResponse($action_response);
             return $this->response->getSuccess() + $action_response;
@@ -91,18 +91,18 @@ class Controller
     }
 
     /**
-     * @param Service $service
+     * @param Container $container
      * @param         $method
      *
      * @return mixed
      * @throws \Exception
      */
-    protected function getActionResponse(Service $service, $method)
+    protected function getActionResponse(Container $container, $method)
     {
         $reflection        = new \ReflectionObject($this);
         $reflection_method = $reflection->getMethod($method);
         $classes_to_inject = $this->getMethodClassesToInject($reflection_method);
-        $objects_to_inject = $this->invokeObjectsToInject($service, $classes_to_inject);
+        $objects_to_inject = $this->invokeObjectsToInject($container, $classes_to_inject);
         $action_response   = $reflection_method->invokeArgs($this, $objects_to_inject);
         return $action_response;
     }
@@ -125,17 +125,17 @@ class Controller
     }
 
     /**
-     * @param Service $service
+     * @param Container $container
      * @param array   $classes_to_inject
      *
      * @return array
      * @throws \Exception
      */
-    protected function invokeObjectsToInject(Service $service, array $classes_to_inject)
+    protected function invokeObjectsToInject(Container $container, array $classes_to_inject)
     {
         $objects_to_inject = [];
         foreach ($classes_to_inject as $class_to_inject) {
-            $objects_to_inject[] = $service->get($class_to_inject);
+            $objects_to_inject[] = $container->get($class_to_inject);
         }
         return $objects_to_inject;
     }

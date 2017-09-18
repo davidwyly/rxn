@@ -11,9 +11,9 @@
 
 namespace Rxn\Data;
 
-use \Rxn\Error\DatabaseException;
 use \Rxn\Config;
 use \Rxn\Datasources;
+use \Rxn\Error\DatabaseException;
 
 class Database
 {
@@ -23,27 +23,53 @@ class Database
     private $connection;
 
     /**
+     * @var string
+     */
+    private $host;
+
+    /**
+     * @var string
+     */
+    private $name;
+
+    /**
+     * @var string
+     */
+    private $username;
+
+    /**
+     * @var string
+     */
+    private $password;
+
+    /**
+     * @var string
+     */
+    private $charset = 'utf8';
+
+    /**
+     * @var string
+     */
+    private $source;
+
+    /**
      * @var array
      */
-    private $default_settings = [
-        'host'     => null,
-        'name'     => null,
-        'username' => null,
-        'password' => null,
-        'charset'  => 'utf8',
+    private $required_settings = [
+        Datasources::HOST,
+        Datasources::NAME,
+        Datasources::USERNAME,
+        Datasources::PASSWORD,
+        Datasources::CHARSET,
     ];
 
     /**
      * @var array
      */
-    private $cache_table_settings = [
-        'table'          => null,
-        'expires_column' => null,
-        'sql_column'     => null,
-        'param_column'   => null,
-        'type_column'    => null,
-        'package_column' => null,
-        'elapsed_column' => null,
+    private $allowed_sources = [
+        Datasources::DEFAULT_READ,
+        Datasources::DEFAULT_WRITE,
+        Datasources::DEFAULT_ADMIN,
     ];
 
     /**
@@ -63,20 +89,10 @@ class Database
     public function __construct(Config $config, Datasources $datasources, string $source_name = null)
     {
         if (is_null($source_name)) {
-            $source_name = $datasources->default_read;
+            $source_name = Datasources::DEFAULT_READ;
         }
         $this->setConfiguration($config, $datasources, $source_name);
         $this->connect();
-    }
-
-    public function createQuery(
-        string $sql,
-        array $bindings = [],
-        string $type,
-        bool $caching = false,
-        $timeout = null
-    ) {
-        return new Query($this->connection, $sql, $bindings, $type, $caching, $timeout);
     }
 
     /**
@@ -89,8 +105,40 @@ class Database
     private function setConfiguration(Config $config, Datasources $datasources, string $source_name)
     {
         $databases = $datasources->getDatabases();
-        $this->setDefaultSettings($databases[$source_name]);
+        $this->setConnectionSettings($databases[$source_name], $source_name);
         $this->allow_caching = $config->use_query_caching;
+    }
+
+    private function setConnectionSettings(array $database_settings, $source_name)
+    {
+        foreach ($this->required_settings as $required_setting) {
+            if (!array_key_exists($required_setting, $database_settings)) {
+                throw new DatabaseException("Required database setting '$required_setting' is missing");
+            }
+            $this->{$required_setting} = $database_settings[$required_setting];
+        }
+        if (!in_array($source_name, $this->allowed_sources)) {
+            throw new DatabaseException("Data source '$source_name' is not whitelisted");
+        }
+        $this->source = $source_name;
+    }
+
+    /**
+     * @param string $sql
+     * @param array $bindings
+     * @param string $type
+     * @param bool $caching
+     * @param null $timeout
+     * @return Query
+     */
+    public function createQuery(
+        string $sql,
+        array $bindings = [],
+        string $type,
+        bool $caching = false,
+        $timeout = null
+    ) {
+        return new Query($this->connection, $sql, $bindings, $type, $caching, $timeout);
     }
 
     /**
@@ -113,12 +161,15 @@ class Database
      */
     public function createConnection()
     {
-        $host    = $this->getHost();
-        $name    = $this->getName();
-        $charset = $this->getCharset();
+        $host    = $this->host;
+        $name    = $this->name;
+        $charset = $this->charset;
         try {
-            $connection = new \PDO("mysql:host=$host;dbname=$name;charset=$charset", $this->getUsername(),
-                $this->getPassword());
+            $connection = new \PDO(
+                "mysql:host=$host;dbname=$name;charset=$charset",
+                $this->username,
+                $this->password
+            );
         } catch (\PDOException $e) {
             $error = $e->getMessage();
             throw new DatabaseException("PDO Exception (code $error)", 500, $e);
@@ -132,7 +183,7 @@ class Database
      */
     public function getHost()
     {
-        return $this->default_settings['host'];
+        return $this->host;
     }
 
     /**
@@ -140,7 +191,7 @@ class Database
      */
     public function getName()
     {
-        return $this->default_settings['name'];
+        return $this->name;
     }
 
     /**
@@ -148,7 +199,7 @@ class Database
      */
     public function getUsername()
     {
-        return $this->default_settings['username'];
+        return $this->username;
     }
 
     /**
@@ -156,7 +207,7 @@ class Database
      */
     public function getPassword()
     {
-        return $this->default_settings['password'];
+        return $this->password;
     }
 
     /**
@@ -164,25 +215,7 @@ class Database
      */
     public function getCharset()
     {
-        return $this->default_settings['charset'];
-    }
-
-    /**
-     * @param array $default_settings
-     *
-     * @return null
-     * @throws DatabaseException
-     */
-    public function setDefaultSettings(array $default_settings)
-    {
-        $required_keys = array_keys($this->default_settings);
-        foreach ($required_keys as $required_key) {
-            if (!array_key_exists($required_key, $default_settings)) {
-                throw new DatabaseException("Required key '$required_key' missing", 500);
-            }
-        }
-        $this->default_settings = $default_settings;
-        return null;
+        return $this->charset;
     }
 
     /**
@@ -201,14 +234,6 @@ class Database
         }
         $this->cache_table_settings = $cache_table_settings;
         return null;
-    }
-
-    /**
-     * @return array
-     */
-    public function getDefaultSettings()
-    {
-        return (array)$this->default_settings;
     }
 
     /**

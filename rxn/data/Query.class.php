@@ -96,8 +96,7 @@ class Query
      *
      * @throws QueryException
      */
-    public function __construct(
-        \PDO $connection,
+    public function __construct(\PDO $connection,
         string $sql,
         array $bindings,
         string $type,

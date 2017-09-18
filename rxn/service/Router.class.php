@@ -11,9 +11,10 @@
 
 namespace Rxn\Service;
 
+use \Rxn\ApplicationService;
 use \Rxn\Router\Collector;
 
-class Router
+class Router extends ApplicationService
 {
 
     /**

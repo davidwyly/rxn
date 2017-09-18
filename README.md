@@ -45,7 +45,7 @@ Including planned features for beta (unchecked):
 - [X] URI Routing
    - [X] using Apache2
    - [X] using NGINX
-- [X] Dependency Injection (DI) service container
+- [X] Dependency Injection (DI) container container
    - [X] Controller method injection
    - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
 - [X] Object Relational Mapping (ORM)
@@ -195,8 +195,8 @@ Scaffolding APIs are version-less APIs, and are designed to allow frontend devel
 
 **Warning:** Because Scaffolding APIs are version-less, they inheret all the problems associated with version-less APIs. As soon as the backend is altered, these APIs are altered as well; this can potentially break an application in unexpected or hidden ways. For this reason, it is wise to transition versionless APIs to versioned APIs as the development process nears completion.
 
-## Dependency Injection (DI) Service Container
-While most people practice some form of dependency injection without even thinking about it, the fact is, manually instantiating and injecting classes with a lot of dependencies can be a pretty big hassle. The following examples should help demonstrate the benefit of automatic dependency injection via the service container.
+## Dependency Injection (DI) Container Container
+While most people practice some form of dependency injection without even thinking about it, the fact is, manually instantiating and injecting classes with a lot of dependencies can be a pretty big hassle. The following examples should help demonstrate the benefit of automatic dependency injection via the container container.
 
 **BEFORE (manual DI):**
 ```php
@@ -216,20 +216,20 @@ public function doSomething_v1(Registry $registry, Database $database, Map $map)
 }
 ```
 
-**AFTER (using the DI service container):**
+**AFTER (using the DI container container):**
 ```php
 // call the action method
-$this->doSomething_v1($app->service);
+$this->doSomething_v1($app->container);
 
-public function doSomething_v1(Service $service) {
-    $customer = $service->get(Customer::class);
+public function doSomething_v1(Container $container) {
+    $customer = $container->get(Customer::class);
     //...
 }
 ```
-Hopefully you can see the benefits. With Rxn, there's no need to instantiate the prerequisites every time! Use the service container to make your life easier.
+Hopefully you can see the benefits. With Rxn, there's no need to instantiate the prerequisites every time! Use the container container to make your life easier.
 
 ## Controller Method Injection
-Just typehint the class you need as a parameter, and *poof*, the DI service container will guess all of the dependencies for you and automatically load and inject them. No messy requires. *You don't have to inject the dependencies manually!*
+Just typehint the class you need as a parameter, and *poof*, the DI container container will guess all of the dependencies for you and automatically load and inject them. No messy requires. *You don't have to inject the dependencies manually!*
 
 **BEFORE (manual instantiation):**
 ```php

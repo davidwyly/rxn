@@ -11,14 +11,17 @@
 
 namespace Rxn;
 
-abstract class ApplicationDatasources
+class FrameworkDatasources extends ApplicationService
 {
+    const DEFAULT_READ  = 'ready-only';
+    const DEFAULT_WRITE = 'read-write';
+    const DEFAULT_ADMIN = 'admin';
 
-    public $default_read;
-
-    public $default_write;
-
-    public $default_admin;
+    const HOST     = 'host';
+    const NAME     = 'name';
+    const USERNAME = 'username';
+    const PASSWORD = 'password';
+    const CHARSET  = 'charset';
 
     protected $databases;
 

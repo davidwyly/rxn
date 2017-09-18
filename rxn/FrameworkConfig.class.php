@@ -11,8 +11,17 @@
 
 namespace Rxn;
 
-abstract class ApplicationConfig
+class FrameworkConfig extends ApplicationService
 {
+    /**
+     * Defines the maximum session lifetime, including the lifetime of cookies, in seconds
+     *
+     * Default value: '2400' (40 minutes)
+     *
+     * @var int
+     */
+    public $session_lifetime = 2400;
+
     /**
      * Defines the root organization folder, typically your company or organization name
      *
@@ -23,14 +32,14 @@ abstract class ApplicationConfig
     public $organization_folder = 'organization';
 
     /**
-     * Defines the root application folder
+     * Defines the root folder for Rxn
      * Note: Changing this has not been thoroughly tested!
      *
      * Default value: 'rxn'
      *
      * @var string
      */
-    public $app_folder = 'rxn';
+    public $framework_folder = 'rxn';
 
 
     /**

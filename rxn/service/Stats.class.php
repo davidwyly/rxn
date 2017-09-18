@@ -11,7 +11,9 @@
 
 namespace Rxn\Service;
 
-class Stats
+use \Rxn\ApplicationService;
+
+class Stats extends ApplicationService
 {
     /**
      * @var float

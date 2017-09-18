@@ -11,7 +11,7 @@
 
 namespace Rxn\Api;
 
-use \Rxn\Service;
+use \Rxn\Container;
 use \Rxn\Config;
 use \Rxn\Data\Database;
 use \Rxn\Api\Controller\Response;
@@ -30,13 +30,13 @@ class CrudController extends Controller implements Crud
      * @param Config   $config
      * @param Request  $request
      * @param Response $response
-     * @param Service  $service
+     * @param Container  $container
      *
      * @throws \Exception
      */
-    public function __construct(Config $config, Request $request, Response $response, Service $service)
+    public function __construct(Config $config, Request $request, Response $response, Container $container)
     {
-        parent::__construct($request, $response, $service);
+        parent::__construct($request, $response, $container);
 
         // if a record class is not explicitly defined, assume the short name of the crud controller
         if (empty($this->record_class)) {
@@ -47,65 +47,65 @@ class CrudController extends Controller implements Crud
 
     /**
      * @param Request  $request
-     * @param Service  $service
+     * @param Container  $container
      * @param Database $database
      *
      * @return array
      * @throws \Exception
      */
-    public function create_vx(Request $request, Service $service, Database $database)
+    public function create_vx(Request $request, Container $container, Database $database)
     {
         $key_values = $request->collectAll();
-        $order      = $service->get($this->record_class);
+        $order      = $container->get($this->record_class);
         $created_id = $order->create($database, $key_values);
         return ['created_id' => $created_id];
     }
 
     /**
      * @param Request  $request
-     * @param Service  $service
+     * @param Container  $container
      * @param Database $database
      *
      * @return mixed
      * @throws \Exception
      */
-    public function read_vx(Request $request, Service $service, Database $database)
+    public function read_vx(Request $request, Container $container, Database $database)
     {
         $id    = $request->collect('id');
-        $order = $service->get($this->record_class);
+        $order = $container->get($this->record_class);
         return $order->read($database, $id);
     }
 
     /**
      * @param Request  $request
-     * @param Service  $service
+     * @param Container  $container
      * @param Database $database
      *
      * @return array
      * @throws \Exception
      */
-    public function update_vx(Request $request, Service $service, Database $database)
+    public function update_vx(Request $request, Container $container, Database $database)
     {
         $id         = $request->collect('id');
         $key_values = $request->collectAll();
         unset($key_values['id']);
-        $order      = $service->get($this->record_class);
+        $order      = $container->get($this->record_class);
         $updated_id = $order->update($database, $id, $key_values);
         return ['updated_id' => $updated_id];
     }
 
     /**
      * @param Request  $request
-     * @param Service  $service
+     * @param Container  $container
      * @param Database $database
      *
      * @return array
      * @throws \Exception
      */
-    public function delete_vx(Request $request, Service $service, Database $database)
+    public function delete_vx(Request $request, Container $container, Database $database)
     {
         $id         = $request->collect('id');
-        $order      = $service->get($this->record_class);
+        $order      = $container->get($this->record_class);
         $deleted_id = $order->delete($database, $id);
         return ['deleted_id' => $deleted_id];
     }
