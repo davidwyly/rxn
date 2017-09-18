@@ -86,17 +86,16 @@ class Application
      * @param Config      $config
      * @param Datasources $datasources
      * @param Service     $service
-     * @param float       $timeStart
      *
      * @throws Error\ServiceException
      */
-    public function __construct(Config $config, Datasources $datasources, Service $service, $timeStart)
+    public function __construct(Config $config, Datasources $datasources, Service $service)
     {
         Application::validateEnvironment(ROOT, APP_ROOT, $config);
         $this->initialize($config, $datasources, $service);
         $services_to_load = $config->getServices();
         $this->loadServices($services_to_load);
-        $this->finalize($this->registry, $timeStart);
+        $this->finalize($this->registry, START);
     }
 
     /**
@@ -108,13 +107,13 @@ class Application
      */
     private function initialize(Config $config, Datasources $datasources, Service $service)
     {
+        date_default_timezone_set($config->timezone);
         $this->config    = $config;
         $this->service   = $service;
         $this->databases = $this->registerDatabases($config, $datasources);
         $this->service->addInstance(Datasources::class, $datasources);
         $this->service->addInstance(Config::class, $config);
         $this->registry = $this->service->get(Registry::class);
-        date_default_timezone_set($config->timezone);
     }
 
     /**

@@ -17,12 +17,11 @@ try {
     $app = new Application(
         new Config(),
         new Datasources(),
-        new Service(),
-        START
+        new Service()
     );
 } catch (\Exception $e) {
     Application::appendEnvironmentError($e);
-    Application::renderEnvironmentErrors(new Config());
+    Application::renderEnvironmentErrors();
     die();
 }
 

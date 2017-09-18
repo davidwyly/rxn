@@ -11,6 +11,8 @@
 
 namespace Rxn\Router;
 
+use \Rxn\SESSION_MAX_LIFETIME;
+
 class Session
 {
 
@@ -24,10 +26,10 @@ class Session
      */
     public function startSession()
     {
-        // server should keep session data for AT LEAST 40 minutes
+        // server should keep session data for AT LEAST this long
         ini_set('session.gc_maxlifetime', 2400);
 
-        // each client should remember their session id for EXACTLY 40 minutes
+        // each client should remember their session id for EXACTLY this long
         session_set_cookie_params(2400);
 
         // start session

@@ -120,6 +120,11 @@ abstract class ApplicationConfig
      */
     public $fileCacheDirectory = 'filecache';
 
+    public function __construct()
+    {
+        $this->root = realpath(__DIR__ . $this->relative_root);
+    }
+
     /**
      * Getter for static private $php_ini_requirements array
      *
@@ -143,10 +148,5 @@ abstract class ApplicationConfig
     public function getServices()
     {
         return $this->services;
-    }
-
-    public function __construct()
-    {
-        $this->root = realpath(__DIR__ . $this->relative_root);
     }
 }
