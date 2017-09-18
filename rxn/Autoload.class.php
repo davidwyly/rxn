@@ -105,6 +105,9 @@ class Autoload extends Service
         return $load_path;
     }
 
+    /**
+     * @param $class_reference
+     */
     private function registerClass($class_reference)
     {
         $this->registered_classes[] = $class_reference;
