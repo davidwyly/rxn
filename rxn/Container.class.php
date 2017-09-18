@@ -92,8 +92,9 @@ class Container
         $args       = [];
         foreach ($parameters as $parameter) {
 
-            // for an instance to be generated from the constructor, it cannot be optionally null
-            if (!$parameter->allowsNull()) {
+            // for an instance to be generated from the constructor, insert null if it can be optionally null
+            if ($parameter->allowsNull()) {
+                $args[] = null;
                 continue;
             }
 

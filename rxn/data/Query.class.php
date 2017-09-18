@@ -94,7 +94,6 @@ class Query
      * @param bool   $caching
      * @param        $timeout
      *
-     * @throws class
      */
     public function __construct(\PDO $connection,
         string $sql,
@@ -130,7 +129,7 @@ class Query
 
     /**
      * @return bool
-     * @throws class
+     * @throws QueryException
      */
     public function transactionOpen()
     {
@@ -150,7 +149,7 @@ class Query
 
     /**
      * @return bool
-     * @throws class
+     * @throws QueryException
      */
     public function transactionClose()
     {
@@ -172,7 +171,7 @@ class Query
 
     /**
      * @return bool
-     * @throws class
+     * @throws QueryException
      */
     private function transactionRollback()
     {
@@ -222,7 +221,7 @@ class Query
 
     /**
      * @return bool
-     * @throws class
+     * @throws QueryException
      */
     public function disconnect()
     {
@@ -310,7 +309,7 @@ class Query
 
     /**
      * @return array|mixed
-     * @throws class
+     * @throws QueryException
      */
     public function run()
     {
@@ -405,7 +404,7 @@ class Query
      * @param string $sql
      *
      * @return \PDOStatement
-     * @throws class
+     * @throws QueryException
      */
     private function prepare(string $sql): \PDOStatement
     {
@@ -425,7 +424,7 @@ class Query
      * @param array         $bindings
      *
      * @return \PDOStatement
-     * @throws class
+     * @throws QueryException
      */
     private function bind(\PDOStatement $statement, string $sql, array $bindings): \PDOStatement
     {
@@ -471,7 +470,7 @@ class Query
      * @param \PDOStatement $statement
      *
      * @return \PDOStatement
-     * @throws class
+     * @throws QueryException
      */
     private function execute(\PDOStatement $statement)
     {
@@ -508,7 +507,7 @@ class Query
 
     /**
      * @return bool
-     * @throws class
+     * @throws QueryException
      */
     public function clearCache()
     {
@@ -522,6 +521,14 @@ class Query
         return true;
     }
 
+    /**
+     * @param string $sql
+     * @param array  $bindings
+     * @param string $type
+     *
+     * @return bool|mixed
+     * @throws QueryException
+     */
     private function cacheLookup(string $sql, array $bindings, string $type)
     {
         // hash the raw SQL and values array
@@ -561,7 +568,7 @@ class Query
      * @param float $time_elapsed
      *
      * @return bool
-     * @throws class
+     * @throws QueryException
      */
     private function cacheResult($result, float $time_elapsed): bool
     {
@@ -626,7 +633,7 @@ class Query
     /**
      * @param string $type
      *
-     * @throws class
+     * @throws QueryException
      */
     public function setType(string $type)
     {

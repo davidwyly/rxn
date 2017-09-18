@@ -14,7 +14,6 @@ namespace Rxn\Service;
 use \Rxn\Config;
 use \Rxn\Service;
 use \Rxn\Data\Database;
-use \Rxn\Utility\MultiByte;
 use \Rxn\Error\RegistryException;
 
 class Registry extends Service
@@ -39,8 +38,8 @@ class Registry extends Service
      * @param Config   $config
      * @param Database $database
      *
-     * @throws class
-     * @throws \Rxn\Error\class
+     * @throws RegistryException
+     * @throws \Rxn\Error\QueryException
      */
     public function __construct(Config $config, Database $database)
     {
@@ -49,14 +48,13 @@ class Registry extends Service
         $this->registerObject($config);
         $this->registerObject($database);
         $this->fetchTables($database);
-        $this->registerAutoload($config);
     }
 
     /**
      * @param object $object
      *
      * @return void
-     * @throws class
+     * @throws RegistryException
      */
     private function registerObject($object)
     {
@@ -68,7 +66,7 @@ class Registry extends Service
      * @param object $object
      *
      * @return string
-     * @throws class
+     * @throws RegistryException
      */
     private function getClassByObject($object)
     {
@@ -82,7 +80,7 @@ class Registry extends Service
     /**
      * @param Database $database
      *
-     * @throws \Rxn\Error\class
+     * @throws \Rxn\Error\QueryException
      */
     public function initialize(Database $database)
     {
@@ -93,7 +91,7 @@ class Registry extends Service
      * @param string $class_reference
      *
      * @return void
-     * @throws class
+     * @throws RegistryException
      */
     public function registerClass($class_reference)
     {
@@ -182,7 +180,7 @@ class Registry extends Service
      * @param Database $database
      *
      * @return bool
-     * @throws \Rxn\Error\class
+     * @throws \Rxn\Error\QueryException
      */
     private function fetchTables(Database $database)
     {
@@ -205,105 +203,5 @@ class Registry extends Service
 
         $this->tables[$database_name] = $tables;
         return true;
-    }
-
-    /**
-     * @param Config $config
-     */
-    private function registerAutoload(Config $config)
-    {
-        spl_autoload_register(function ($class_name) use ($config) {
-            $this->load($config, $class_name);
-        });
-    }
-
-    /**
-     * @param Config $config
-     * @param        $class_reference
-     *
-     * @return bool
-     * @throws class
-     */
-    private function load(Config $config, $class_reference)
-    {
-        foreach ($config->autoload_extensions as $extension) {
-            try {
-                $class_path = $this->getClassPathByClassReference($config, $class_reference, $extension);
-            } catch (\Exception $e) {
-                continue;
-            }
-        }
-
-        if (!isset($class_path)) {
-            return false;
-        }
-
-        // load the class
-        /** @noinspection PhpIncludeInspection */
-        include($class_path);
-
-        // register the class
-        $this->registerClass($class_reference);
-
-        return true;
-    }
-
-    /**
-     * @param Config $config
-     * @param string $class_reference
-     * @param string $extension
-     *
-     * @return string
-     * @throws class
-     */
-    private function getClassPathByClassReference(Config $config, $class_reference, $extension)
-    {
-        // break the class namespace into an array
-        $path_array = explode("\\", $class_reference);
-
-        // remove the root namespace from the array
-        $root = mb_strtolower(array_shift($path_array));
-
-        if ($root != $config->framework_folder) {
-            if ($root != $config->organization_folder) {
-                throw new RegistryException("Root path '$root' in reference '$class_reference' not defined in config");
-            }
-        }
-
-        // determine the name of the class without the namespace
-        $class_short_name = array_pop($path_array);
-
-        // convert the namespaces into lowercase
-        foreach ($path_array as $key => $value) {
-            $path_array[$key] = mb_strtolower($value);
-        }
-
-        // tack the short name of the class back onto the end
-        array_push($path_array, $class_short_name);
-
-        // convert back into a string for directory reference
-        $class_path      = implode("/", $path_array);
-        $load_path_root  = realpath(__DIR__ . "/../../");
-        $load_path_class = "/" . $root . "/" . $class_path . $extension;
-        $load_path       = $load_path_root . $load_path_class;
-
-        if (!file_exists($load_path)) {
-            $controller_exists = (mb_strpos($class_path, 'controller') !== false);
-
-            // 400 level error if the controller is incorrect
-            if (!$controller_exists) {
-                throw new RegistryException("Controller '$class_reference' does not exist", 400);
-            }
-
-            // 500 level error otherwise; only throw the partial path for security purposes
-            throw new RegistryException("Load path '$load_path_class' does not exist", 501);
-        }
-        $load_path = realpath($load_path);
-
-        // validate the path
-        if (!file_exists($load_path)) {
-            throw new RegistryException("Cannot autoload path '$load_path'");
-        }
-        return $load_path;
     }
 }

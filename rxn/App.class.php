@@ -355,7 +355,7 @@ class App extends Service
 
         // validate that multibyte extensions will work properly
         if (!function_exists('mb_strtolower')
-            || (isset($ini_requirements['zend.multibyte'])
+            && (isset($ini_requirements['zend.multibyte'])
                 && $ini_requirements['zend.multibyte'] !== true)
         ) {
             throw new AppException("Rxn requires the PHP mbstring extension to be installed/enabled");

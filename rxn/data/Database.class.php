@@ -64,7 +64,7 @@ class Database
      * @param Datasources $datasources
      * @param string|null $source_name
      *
-     * @throws class
+     * @throws DatabaseException
      */
     public function __construct(Config $config, Datasources $datasources, string $source_name = null)
     {
@@ -80,7 +80,7 @@ class Database
      * @param Datasources $datasources
      * @param string      $source_name
      *
-     * @throws class
+     * @throws DatabaseException
      */
     private function setConfiguration(Config $config, Datasources $datasources, string $source_name)
     {
@@ -94,7 +94,7 @@ class Database
      * @param array       $database_settings
      * @param             $source_name
      *
-     * @throws class
+     * @throws DatabaseException
      */
     private function setConnectionSettings(Datasources $datasources, array $database_settings, $source_name)
     {
@@ -132,7 +132,7 @@ class Database
      * @param \PDO|null $connection
      *
      * @return \PDO
-     * @throws class
+     * @throws DatabaseException
      */
     public function connect(\PDO $connection = null)
     {
@@ -144,7 +144,7 @@ class Database
 
     /**
      * @return \PDO
-     * @throws class
+     * @throws DatabaseException
      */
     public function createConnection()
     {
@@ -209,7 +209,7 @@ class Database
      * @param array $cache_table_settings
      *
      * @return null
-     * @throws class
+     * @throws DatabaseException
      */
     public function setCacheSettings(array $cache_table_settings)
     {
@@ -267,7 +267,7 @@ class Database
      * @param null   $timeout
      *
      * @return array|mixed
-     * @throws \Rxn\Error\class
+     * @throws \Rxn\Error\QueryException
      */
     public function fetchAll(string $sql, array $bindings = [], $cache = false, $timeout = null)
     {
@@ -282,7 +282,7 @@ class Database
      * @param null   $timeout
      *
      * @return array|mixed
-     * @throws \Rxn\Error\class
+     * @throws \Rxn\Error\QueryException
      */
     public function fetchArray(string $sql, array $bindings = [], $cache = false, $timeout = null)
     {
@@ -297,7 +297,7 @@ class Database
      * @param null   $timeout
      *
      * @return array|mixed
-     * @throws \Rxn\Error\class
+     * @throws \Rxn\Error\QueryException
      */
     public function fetch(string $sql, array $bindings = [], $cache = false, $timeout = null)
     {
