@@ -14,35 +14,37 @@ namespace Rxn;
 class Autoload extends Service
 {
     /**
+     * @var Config
+     */
+    private $config;
+
+    /**
      * @var array
      */
     public $registered_classes;
 
-    public function __construct(Config $config)
-    {
-        $this->registerAutoload($config);
-    }
-
     /**
+     * Autoload constructor.
+     *
      * @param Config $config
      */
-    public function registerAutoload(Config $config)
+    public function __construct(Config $config)
     {
-        spl_autoload_register(function ($class_name) use ($config) {
-            $this->load($config, $class_name);
+        $this->config = $config;
+        spl_autoload_register(function ($class_reference) {
+            $this->load($class_reference);
         });
     }
 
     /**
-     * @param Config $config
      * @param        $class_reference
      *
      * @return bool
      * @throws \Exception
      */
-    private function load(Config $config, $class_reference)
+    private function load($class_reference)
     {
-        $class_path = $this->getClassPathByClassReference($config, $class_reference, ".class.php");
+        $class_path = $this->getClassPathByClassReference($class_reference, ".class.php");
 
         if (!isset($class_path)) {
             return false;
@@ -59,14 +61,13 @@ class Autoload extends Service
     }
 
     /**
-     * @param Config $config
      * @param string $class_reference
      * @param string $extension
      *
      * @return string
      * @throws \Exception
      */
-    private function getClassPathByClassReference(Config $config, $class_reference, $extension)
+    private function getClassPathByClassReference($class_reference, $extension)
     {
         // break the class namespace into an array
         $path_array = explode("\\", $class_reference);
@@ -74,8 +75,8 @@ class Autoload extends Service
         // remove the root namespace from the array
         $root = mb_strtolower(array_shift($path_array));
 
-        if ($root != $config->framework_folder) {
-            if ($root != $config->organization_folder) {
+        if ($root != $this->config->framework_folder) {
+            if ($root != $this->config->organization_folder) {
                 throw new \Exception("Root path '$root' in reference '$class_reference' not defined in config");
             }
         }

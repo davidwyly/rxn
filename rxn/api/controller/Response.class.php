@@ -232,7 +232,9 @@ class Response
                     $trace[$trace_key][$allowed_key] = $trace_group[$allowed_key];
                 }
             }
+            unset($trace_key, $trace_group);
         }
+
         foreach ($trace as $key => $trace_group) {
             if (isset($trace_group['file'])) {
                 $regex               = '^.+\/';
@@ -240,6 +242,8 @@ class Response
                 $trace[$key]['file'] = $trimmed_file;
             }
         }
+        unset($key,$trace_group);
+
         return $trace;
     }
 

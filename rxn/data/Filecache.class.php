@@ -18,9 +18,14 @@ class Filecache
     const EXTENSION = 'filecache';
 
     /**
+     * @var Config
+     */
+    private $config;
+
+    /**
      * @var string
      */
-    public $directory;
+    private $directory;
 
     /**
      * Filecache constructor.
@@ -31,21 +36,20 @@ class Filecache
      */
     public function __construct(Config $config)
     {
-        $this->setDirectory($config);
+        $this->config = $config;
+        $this->setDirectory();
     }
 
     /**
-     * @param Config $config
-     *
      * @throws \Exception
      */
-    private function setDirectory(Config $config)
+    private function setDirectory()
     {
-        $directory = __DIR__ . "/" . $config->fileCacheDirectory;
+        $directory = __DIR__ . "/" . $this->config->fileCacheDirectory;
         if (!file_exists($directory)) {
             throw new \Exception("Cache $directory doesn't exist; it may need to be created", 500);
         }
-        $this->directory = realpath(__DIR__ . "/" . $config->fileCacheDirectory);
+        $this->directory = realpath(__DIR__ . "/" . $this->config->fileCacheDirectory);
     }
 
     /**

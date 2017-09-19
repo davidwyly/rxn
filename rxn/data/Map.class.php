@@ -12,25 +12,41 @@
 namespace Rxn\Data;
 
 use \Rxn\Service;
+use \Rxn\Container;
 use \Rxn\Service\Registry;
 use \Rxn\Data\Map\Table;
 
 class Map extends Service
 {
     /**
+     * @var Registry
+     */
+    private $registry;
+
+    /**
+     * @var Database
+     */
+    private $database;
+
+    /**
+     * @var Filecache
+     */
+    private $filecache;
+
+    /**
+     * @var Container
+     */
+    private $container;
+
+    /**
      * @var string
      */
-    public $fingerprint;
+    private $fingerprint;
 
     /**
      * @var Table[]
      */
-    public $tables;
-
-    /**
-     * @var
-     */
-    public $chain;
+    private $tables;
 
     /**
      * Map constructor.
@@ -41,34 +57,37 @@ class Map extends Service
      *
      * @throws \Exception
      */
-    public function __construct(Registry $registry, Database $database, Filecache $filecache)
+    public function __construct(Registry $registry, Database $database, Filecache $filecache, Container $container)
     {
-        $this->validateRegistry($registry);
-        $this->generateTableMaps($registry, $database, $filecache);
+        /**
+         * assign dependencies
+         */
+        $this->registry  = $registry;
+        $this->database  = $database;
+        $this->filecache = $filecache;
+
+        $this->validateRegistry();
+        $this->generateTableMaps();
         $this->fingerprint = $this->generateFingerprint();
     }
 
     /**
-     * @param Registry  $registry
-     * @param Database  $database
-     * @param Filecache $filecache
-     *
      * @return bool
      * @throws \Exception
      */
-    private function generateTableMaps(Registry $registry, Database $database, Filecache $filecache)
+    private function generateTableMaps()
     {
-        $database_name = $database->getName();
+        $database_name = $this->database->getName();
         if (!isset($registry->tables[$database_name])) {
             return false;
         }
-        foreach ($registry->tables[$database_name] as $table_name) {
-            $is_cached = $filecache->isClassCached(Table::class, [$database_name, $table_name]);
+        foreach ($this->registry->tables[$database_name] as $table_name) {
+            $is_cached = $this->filecache->isClassCached(Table::class, [$database_name, $table_name]);
             if ($is_cached === true) {
-                $table = $filecache->getObject(Table::class, [$database_name, $table_name]);
+                $table = $this->filecache->getObject(Table::class, [$database_name, $table_name]);
             } else {
-                $table = $this->createTable($registry, $database, $table_name);
-                $filecache->cacheObject($table, [$database_name, $table_name]);
+                $table = $this->createTable($this->registry, $this->database, $table_name);
+                $this->filecache->cacheObject($table, [$database_name, $table_name]);
             }
             $this->registerTable($table);
         }
@@ -77,15 +96,13 @@ class Map extends Service
     }
 
     /**
-     * @param Registry $registry
-     * @param Database $database
      * @param          $table_name
      *
      * @return Table
      */
-    protected function createTable(Registry $registry, Database $database, string $table_name)
+    protected function createTable(string $table_name)
     {
-        return new Table($registry, $database, $table_name);
+        return $this->container->get($this->registry, $this->database, $table_name);
     }
 
     /**

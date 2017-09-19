@@ -23,7 +23,17 @@ class App extends Service
     /**
      * @var Config $config
      */
-    public $config;
+    private $config;
+
+    /**
+     * @var Datasources
+     */
+    private $datasources;
+
+    /**
+     * @var Container
+     */
+    private $container;
 
     /**
      * @var array $databases
@@ -71,11 +81,6 @@ class App extends Service
     public $utility;
 
     /**
-     * @var Container $container Dependency Injection (DI) container
-     */
-    public $container;
-
-    /**
      * @var \Exception[]
      */
     static private $environment_errors = [];
@@ -93,49 +98,33 @@ class App extends Service
      */
     public function __construct(Config $config, Datasources $datasources, Container $container)
     {
-        App::validateEnvironment(ROOT, APP_ROOT, $config);
-        $this->initialize($config, $datasources, $container);
-        $services_to_load = $config->getServices();
+        $this->config = $config;
+        $this->datasources = $datasources;
+        $this->container = $container;
+        $this->initialize();
+    }
+
+    private function initialize()
+    {
+        date_default_timezone_set($this->config->timezone);
+        $this->databases = $this->registerDatabases();
+        $this->container->addInstance(Datasources::class, $this->datasources);
+        $this->container->addInstance(Config::class, $this->config);
+        $this->registry = $this->container->get(Registry::class, [$this->config]);
+        $services_to_load = $this->config->getServices();
         $this->loadServices($services_to_load);
         $this->finalize($this->registry, START);
     }
 
-    /**
-     * @param Config      $config
-     * @param Datasources $datasources
-     * @param Container   $container
-     *
-     * @throws Error\ContainerException
-     */
-    private function initialize(Config $config, Datasources $datasources, Container $container)
-    {
-        date_default_timezone_set($config->timezone);
-        $this->config    = $config;
-        $this->container = $container;
-        $this->databases = $this->registerDatabases($config, $datasources);
-        $this->container->addInstance(Datasources::class, $datasources);
-        $this->container->addInstance(Config::class, $config);
-        $this->registry = $this->container->get(Registry::class);
-    }
-
-    /**
-     * @param Config      $config
-     * @param Datasources $datasources
-     *
-     * @return Database[]
-     */
-    private function registerDatabases(Config $config, Datasources $datasources)
+    private function registerDatabases()
     {
         $databases = [];
-        foreach ($datasources->getDatabases() as $datasource_name => $connectionSettings) {
-            $databases[$datasource_name] = new Database($config, $datasources, $datasource_name);
+        foreach ($this->datasources->getDatabases() as $datasource_name => $connectionSettings) {
+            $databases[$datasource_name] = new Database($this->config, $this->datasources, $datasource_name);
         }
         return $databases;
     }
 
-    /**
-     * @param $services
-     */
     private function loadServices(array $services)
     {
         foreach ($services as $service_name => $service_class) {
@@ -321,51 +310,5 @@ class App extends Service
             'line'    => $e->getLine(),
             'message' => $e->getMessage(),
         ];
-    }
-
-    /**
-     * @param             $root
-     * @param             $app_root
-     * @param \Rxn\Config $config
-     *
-     * @throws AppException
-     */
-    static public function validateEnvironment($root, $app_root, Config $config)
-    {
-        // validate PHP INI file settings
-        $ini_requirements = Config::getPhpIniRequirements();
-        foreach ($ini_requirements as $ini_key => $requirement) {
-            if (ini_get($ini_key) != $requirement) {
-                if (is_bool($requirement)) {
-                    $requirement = ($requirement) ? 'On' : 'Off';
-                }
-                throw new AppException("Rxn requires PHP ini setting '$ini_key' = '$requirement'");
-            }
-        }
-
-        // validate that file caching can work with the environment
-        if ($config->use_file_caching) {
-            if (!file_exists("$root/$app_root/data/filecache")) {
-                throw new AppException("Rxn requires for folder '$root/$app_root/data/filecache' to exist");
-            }
-            if (!is_writable("$root/$app_root/data/filecache")) {
-                throw new AppException("Rxn requires for folder '$root/$app_root/data/filecache' to be writable");
-            }
-        }
-
-        // validate that multibyte extensions will work properly
-        if (!function_exists('mb_strtolower')
-            && (isset($ini_requirements['zend.multibyte'])
-                && $ini_requirements['zend.multibyte'] !== true)
-        ) {
-            throw new AppException("Rxn requires the PHP mbstring extension to be installed/enabled");
-        }
-
-        // special apache checks
-        if (function_exists('apache_get_modules')
-            && !in_array('mod_rewrite', apache_get_modules())
-        ) {
-            throw new AppException("Rxn requires Apache module 'mod_rewrite' to be enabled");
-        }
     }
 }

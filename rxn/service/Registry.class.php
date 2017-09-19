@@ -21,12 +21,12 @@ class Registry extends Service
     /**
      * @var Config
      */
-    public $config;
+    private $config;
 
     /**
      * @var Database
      */
-    public $database;
+    private $database;
 
     public $classes;
     public $tables;
@@ -43,11 +43,16 @@ class Registry extends Service
      */
     public function __construct(Config $config, Database $database)
     {
-        // register self and dependencies
+        $this->config = $config;
+        $this->database =  $database;
+
+        /**
+         * register self and dependencies
+         */
         $this->registerObject($this);
-        $this->registerObject($config);
-        $this->registerObject($database);
-        $this->fetchTables($database);
+        $this->registerObject($this->config);
+        $this->registerObject($this->database);
+        $this->fetchTables();
     }
 
     /**
@@ -78,13 +83,11 @@ class Registry extends Service
     }
 
     /**
-     * @param Database $database
-     *
      * @throws \Rxn\Error\QueryException
      */
-    public function initialize(Database $database)
+    public function initialize()
     {
-        $this->fetchTables($database);
+        $this->fetchTables();
     }
 
     /**
@@ -177,12 +180,9 @@ class Registry extends Service
     }
 
     /**
-     * @param Database $database
-     *
-     * @return bool
      * @throws \Rxn\Error\QueryException
      */
-    private function fetchTables(Database $database)
+    private function fetchTables()
     {
         $sql = /** @lang SQL * */
             "
@@ -193,9 +193,9 @@ class Registry extends Service
                 AND t.table_type = 'BASE TABLE'
             ";
 
-        $database_name = $database->getName();
+        $database_name = $this->database->getName();
         $params        = [$database_name];
-        $tables        = $database->fetchArray($sql, $params, $database->allow_caching);
+        $tables        = $this->database->fetchArray($sql, $params, $this->database->allow_caching);
 
         if (!$tables) {
             return false;

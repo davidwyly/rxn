@@ -20,7 +20,7 @@ class Router extends Service
     /**
      * @var Collector
      */
-    public $collector;
+    private $collector;
 
     /**
      * Router constructor.

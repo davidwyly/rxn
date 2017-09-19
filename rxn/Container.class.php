@@ -34,11 +34,10 @@ class Container
      * @return object
      * @throws ContainerException
      */
-    public function get($class_name)
+    public function get($class_name, array $parameters = [])
     {
         // change every namespace to be absolute
-        $class_name = ltrim($class_name, '\\');
-        $class_name = "\\" . $class_name;
+        $class_name = $this->parseClassName($class_name);
 
         if (!class_exists($class_name)) {
             throw new ContainerException("$class_name is not a valid class name");
@@ -57,7 +56,7 @@ class Container
         }
 
         // generate instance and add it into memory
-        $instance = $this->generateInstance($class_name);
+        $instance = $this->generateInstance($class_name, $parameters);
         $this->addInstance($class_name, $instance);
 
         return $instance;
@@ -80,30 +79,42 @@ class Container
      * @return object
      * @throws ContainerException
      */
-    private function generateInstance($class_name)
+    private function generateInstance($class_name, array $passed_parameters)
     {
         $reflection  = new \ReflectionClass($class_name);
-        $class_name  = $reflection->getName();
+        $class_name  = $this->parseClassName($reflection->getName());
+
         $constructor = $reflection->getConstructor();
         if (!$constructor) {
             throw new ContainerException("Class '$class_name' does not have a valid constructor");
         }
-        $parameters = $constructor->getParameters();
-        $args       = [];
-        foreach ($parameters as $parameter) {
 
-            // for an instance to be generated from the constructor, insert null if it can be optionally null
-            if ($parameter->allowsNull()) {
-                $args[] = null;
+        $constructor_parameters = $constructor->getParameters();
+
+        $create_parameters = [];
+        foreach ($constructor_parameters as $key => $constructor_parameter) {
+
+            // use matching parameter
+            if (array_key_exists($key, $passed_parameters)) {
+                $create_parameters[$key] = $passed_parameters[$key];
                 continue;
             }
 
-            if ($parameter->getClass()) {
-                $class  = $parameter->getClass()->name;
-                $args[] = $this->get($class);
+            // if it doesn't match anything, pass null if possible
+            if ($constructor_parameter->allowsNull()) {
+                $create_parameters[$key] = null;
+                continue;
+            }
+
+            // otherwise, use method injection instantiation
+            if ($constructor_parameter->getClass()) {
+                $class                   = $constructor_parameter->getClass()->name;
+                $create_parameters[$key] = $this->get($class);
+                continue;
             }
         }
-        return $reflection->newInstanceArgs($args);
+
+        return $reflection->newInstanceArgs($create_parameters);
     }
 
     /**
@@ -119,6 +130,12 @@ class Container
         return false;
     }
 
+    private function parseClassName($class_name)
+    {
+        $class_name = ltrim($class_name, '\\');
+        return "\\" . $class_name;
+    }
+
     /**
      * @param string $class_name
      * @param object $instance
@@ -127,6 +144,7 @@ class Container
      */
     public function addInstance($class_name, $instance)
     {
+        $class_name = $this->parseClassName($class_name);
         $this->instances[$class_name] = $instance;
     }
 }

@@ -19,27 +19,44 @@ class Controller
     /**
      * @var Request
      */
-    public $request;
-
-    /**
-     * @var string
-     */
-    public $action_method;
-
-    /**
-     * @var bool
-     */
-    public $triggered = false;
-
-    /**
-     * @var float
-     */
-    public $action_elapsed_ms;
+    private $request;
 
     /**
      * @var Response
      */
-    public $response;
+    private $response;
+
+    /**
+     * @var Container
+     */
+    private $container;
+
+    /**
+     * @var null|string
+     */
+    private $action_name;
+
+    /**
+     * @var null|string
+     */
+    private $action_version;
+
+    /**
+     * @var string
+     */
+    private $action_method;
+
+    /**
+     * @var bool
+     */
+    private $triggered = false;
+
+    /**
+     * @var float
+     */
+    private $action_elapsed_ms;
+
+
 
     /**
      * Controller constructor.
@@ -52,36 +69,32 @@ class Controller
      */
     public function __construct(Request $request, Response $response, Container $container)
     {
+        /**
+         * assign dependencies
+         */
         $this->request       = $request;
         $this->response      = $response;
-        $action_name         = $request->getActionName();
-        $action_version      = $request->getActionVersion();
-        $this->action_method = $this->getActionMethod($action_name, $action_version);
+        $this->container     = $container;
+
+        /**
+         * assign action attributes
+         */
+        $this->action_name    = $this->request->getActionName();
+        $this->action_version = $this->request->getActionVersion();
+        $this->action_method  = $this->getActionMethod();
     }
 
     /**
-     * @param Container $container
-     *
      * @return Response
      */
-    public function trigger(Container $container)
+    public function trigger()
     {
-
         $this->triggered = true;
-
-        // determine the action method on the controller to trigger
-        try {
-            $action_name         = $this->request->getActionName();
-            $action_version      = $this->request->getActionVersion();
-            $this->action_method = $this->getActionMethod($action_name, $action_version);
-        } catch (\Exception $e) {
-            return $this->response->getFailure($e);
-        }
 
         // trigger the action method on the controller
         try {
             $action_time_start = microtime(true);
-            $action_response   = $this->getActionResponse($container, $this->action_method);
+            $action_response   = $this->getActionResponse();
             $this->calculateActionTimeElapsed($action_time_start);
             $this->validateActionResponse($action_response);
             return $this->response->getSuccess() + $action_response;
@@ -91,18 +104,15 @@ class Controller
     }
 
     /**
-     * @param Container $container
-     * @param         $method
-     *
      * @return mixed
      * @throws \Exception
      */
-    protected function getActionResponse(Container $container, $method)
+    protected function getActionResponse()
     {
         $reflection        = new \ReflectionObject($this);
-        $reflection_method = $reflection->getMethod($method);
+        $reflection_method = $reflection->getMethod($this->action_method);
         $classes_to_inject = $this->getMethodClassesToInject($reflection_method);
-        $objects_to_inject = $this->invokeObjectsToInject($container, $classes_to_inject);
+        $objects_to_inject = $this->invokeObjectsToInject($classes_to_inject);
         $action_response   = $reflection_method->invokeArgs($this, $objects_to_inject);
         return $action_response;
     }
@@ -125,17 +135,16 @@ class Controller
     }
 
     /**
-     * @param Container $container
      * @param array   $classes_to_inject
      *
      * @return array
      * @throws \Exception
      */
-    protected function invokeObjectsToInject(Container $container, array $classes_to_inject)
+    protected function invokeObjectsToInject(array $classes_to_inject)
     {
         $objects_to_inject = [];
         foreach ($classes_to_inject as $class_to_inject) {
-            $objects_to_inject[] = $container->get($class_to_inject);
+            $objects_to_inject[] = $this->container->get($class_to_inject);
         }
         return $objects_to_inject;
     }
@@ -149,19 +158,16 @@ class Controller
     }
 
     /**
-     * @param $action_name
-     * @param $action_version
-     *
      * @return string
      * @throws \Exception
      */
-    private function getActionMethod($action_name, $action_version)
+    private function getActionMethod()
     {
         if (empty($action_name)) {
             throw new \Exception("Action is missing from the request", 400);
         }
         $reflection  = new \ReflectionObject($this);
-        $method_name = $action_name . "_" . $action_version;
+        $method_name = $this->action_name . "_" . $this->action_version;
         if (!$reflection->hasMethod($method_name)) {
             $controller_name = $reflection->getName();
             throw new \Exception("Method '$method_name' does not exist on '$controller_name'", 400);

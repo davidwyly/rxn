@@ -23,6 +23,16 @@ class Database
     private $connection;
 
     /**
+     * @var Config
+     */
+    private $config;
+
+    /**
+     * @var Datasources
+     */
+    private $datasources;
+
+    /**
      * @var string
      */
     private $source;
@@ -84,6 +94,7 @@ class Database
      */
     private function setConfiguration(Config $config, Datasources $datasources, string $source_name)
     {
+
         $databases = $datasources->getDatabases();
         $this->setConnectionSettings($datasources, $databases[$source_name], $source_name);
         $this->allow_caching = $config->use_query_caching;
