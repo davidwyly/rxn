@@ -4,6 +4,8 @@ engines:
     checks:
       Controversial/CamelCasePropertyName:
         enabled: false
+      Naming/LongVariable:
+        enabled: false
   phpcodesniffer:
     enabled: true
   duplication:
