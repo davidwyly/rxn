@@ -37,11 +37,6 @@ class Collector extends Service
     private $header;
 
     /**
-     * @var string
-     */
-    private $url_style = "version/controller/action(/param/value/param2/value2/...)";
-
-    /**
      * Collector constructor.
      *
      * @param Config $config
@@ -181,7 +176,7 @@ class Collector extends Service
     {
         $get = $this->getRequestUrlParams();
         if (!isset($get['version'])) {
-            throw new \Exception("Cannot detect version from URL; URL style is '$this->url_style'", 400);
+            throw new \Exception("Cannot detect version from URL", 400);
 
         }
         return $get['version'];
@@ -195,7 +190,7 @@ class Collector extends Service
     {
         $get = $this->getRequestUrlParams();
         if (!isset($get['controller'])) {
-            throw new \Exception("Cannot detect controller from URL; URL style is '$this->url_style'", 400);
+            throw new \Exception("Cannot detect controller from URL", 400);
         }
         return $get['controller'];
     }
@@ -208,7 +203,7 @@ class Collector extends Service
     {
         $get = $this->getRequestUrlParams();
         if (!isset($get['action'])) {
-            throw new \Exception("Cannot detect action from URL; URL style is '$this->url_style'", 400);
+            throw new \Exception("Cannot detect action from URL", 400);
         }
         return $get['action'];
     }
