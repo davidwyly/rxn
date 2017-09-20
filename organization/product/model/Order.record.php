@@ -2,9 +2,7 @@
 
 namespace Organization\Product\Model;
 
-use \Rxn\Data\Database;
 use \Rxn\Model\Record;
-use \Rxn\Utility\Debug;
 
 /**
  * Example Order model

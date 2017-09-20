@@ -13,7 +13,6 @@ namespace Rxn;
 
 use \Rxn\Api\Request;
 use \Rxn\Data\Database;
-use \Rxn\Utility\Debug;
 use \Rxn\Service\Registry;
 use \Rxn\Api\Controller\Response;
 use \Rxn\Error\AppException;
@@ -94,7 +93,6 @@ class App extends Service
      *
      * @throws AppException
      * @throws Error\ContainerException
-     * @throws Error\DebugException
      */
     public function __construct(Config $config, Datasources $datasources, Container $container)
     {
@@ -141,7 +139,6 @@ class App extends Service
      * @param          $time_start
      *
      * @throws AppException
-     * @throws Error\DebugException
      */
     private function finalize(Registry $registry, $time_start)
     {
@@ -211,7 +208,6 @@ class App extends Service
      * @param Response $response
      *
      * @throws AppException
-     * @throws Error\DebugException
      */
     static private function render(Response $response)
     {
@@ -226,10 +222,9 @@ class App extends Service
         // remove null bytes, which can be a gotcha upon decoding
         $json = str_replace('\\u0000', '', $json);
 
-        // if the JSON is invalid, dump the raw response
+        // error out if JSON is invalid
         if (!self::isJson($json)) {
-            Debug::dump($response);
-            die();
+            throw new AppException("Output JSON is invalid");
         }
 
         // render as JSON
@@ -276,7 +271,6 @@ class App extends Service
      * @param \Exception|null $e
      *
      * @throws AppException
-     * @throws Error\DebugException
      */
     static public function renderEnvironmentErrors(\Exception $e = null)
     {
