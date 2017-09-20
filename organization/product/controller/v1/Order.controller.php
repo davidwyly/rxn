@@ -50,9 +50,9 @@ class Order extends CrudController
     {
         $response = $this->create($request, $container, $database);
         $order    = $container->get(OrderRecord::class);
-        $id       = $order->create($database, $this->request->post);
+        $order_id       = $order->create($database, $this->request->post);
         return [
-            'created_order_id' => $id,
+            'created_order_id' => $order_id,
         ];
     }
 

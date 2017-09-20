@@ -136,19 +136,19 @@ abstract class Record extends Model
         return $createdId;
     }
 
-    public function read(Database $database, $id)
+    public function read(Database $database, $record_id)
     {
         $primaryKey = $this->primaryKey;
         $table      = $this->table;
         $readSql    = "SELECT * FROM $table WHERE $primaryKey = :id";
-        $result     = $database->fetch($readSql, ['id' => $id]);
+        $result     = $database->fetch($readSql, ['id' => $record_id]);
         if (!$result) {
-            throw new \Exception("Failed to find record '$id' on database '{$database->getName()}'", 404);
+            throw new \Exception("Failed to find record '$record_id' on database '{$database->getName()}'", 404);
         }
         return $result;
     }
 
-    public function update($id, array $keyValues)
+    public function update($record_id, array $keyValues)
     {
         $primaryKey = $this->primaryKey;
         $table      = $this->table;
@@ -161,7 +161,7 @@ abstract class Record extends Model
         $expressionList = implode(",", $expressions);
 
         // append primary key onto the key value pairs for manual binding
-        $keyValues = $keyValues + ['id' => $id];
+        $keyValues = $keyValues + ['id' => $record_id];
 
         // generate SQL
         $updateSql = "UPDATE $table SET $expressionList WHERE $primaryKey=:id";
@@ -169,28 +169,28 @@ abstract class Record extends Model
         // update record
         $result = $this->database->query($updateSql, $keyValues);
         if (!$result) {
-            throw new \Exception("Failed to update record '$id' on database '{$this->database->getName()}'", 500);
+            throw new \Exception("Failed to update record '$record_id' on database '{$this->database->getName()}'", 500);
         }
-        return $id;
+        return $record_id;
     }
 
-    public function delete(Database $database, $id)
+    public function delete(Database $database, $record_id)
     {
         $primaryKey = $this->primaryKey;
         $table      = $this->table;
 
         $deleteSql = "DELETE FROM $table WHERE $primaryKey=:id";
         $database->transactionOpen();
-        $result = $database->query($deleteSql, ['id' => $id]);
+        $result = $database->query($deleteSql, ['id' => $record_id]);
         if (!$result) {
-            throw new \Exception("Failed to delete record '$id' on database '{$database->getName()}'", 500);
+            throw new \Exception("Failed to delete record '$record_id' on database '{$database->getName()}'", 500);
         }
         $lastAffectedRows = $database->getLastAffectedRows();
         if (empty($lastAffectedRows)) {
-            throw new \Exception("Failed to find record '$id' on database '{$database->getName()}'", 404);
+            throw new \Exception("Failed to find record '$record_id' on database '{$database->getName()}'", 404);
         }
         $database->transactionClose();
-        return $id;
+        return $record_id;
     }
 
     /**

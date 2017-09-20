@@ -70,18 +70,18 @@ class CrudController extends Controller implements Crud
      */
     public function read()
     {
-        $id    = $this->request->collect('id');
+        $record_id    = $this->request->collect('id');
         $order = $this->container->get($this->record_class);
-        return $order->read($id);
+        return $order->read($record_id);
     }
 
     public function update()
     {
-        $id         = $this->request->collect('id');
+        $record_id         = $this->request->collect('id');
         $key_values = $this->request->collectAll();
         unset($key_values['id']);
         $order      = $this->container->get($this->record_class);
-        $updated_id = $order->update($id, $key_values);
+        $updated_id = $order->update($record_id, $key_values);
         return ['updated_id' => $updated_id];
     }
 
@@ -91,9 +91,9 @@ class CrudController extends Controller implements Crud
      */
     public function delete()
     {
-        $id         = $this->request->collect('id');
+        $record_id         = $this->request->collect('id');
         $order      = $this->container->get($this->record_class);
-        $deleted_id = $order->delete($id);
+        $deleted_id = $order->delete($record_id);
         return ['deleted_id' => $deleted_id];
     }
 
