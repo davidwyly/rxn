@@ -81,8 +81,8 @@ class Container
      */
     private function generateInstance($class_name, array $passed_parameters)
     {
-        $reflection  = new \ReflectionClass($class_name);
-        $class_name  = $this->parseClassName($reflection->getName());
+        $reflection = new \ReflectionClass($class_name);
+        $class_name = $this->parseClassName($reflection->getName());
 
         $constructor = $reflection->getConstructor();
         if (!$constructor) {
@@ -93,7 +93,6 @@ class Container
 
         $create_parameters = [];
         foreach ($constructor_parameters as $key => $constructor_parameter) {
-
             // use matching parameter
             if (array_key_exists($key, $passed_parameters)) {
                 $create_parameters[$key] = $passed_parameters[$key];
@@ -144,7 +143,7 @@ class Container
      */
     public function addInstance($class_name, $instance)
     {
-        $class_name = $this->parseClassName($class_name);
+        $class_name                   = $this->parseClassName($class_name);
         $this->instances[$class_name] = $instance;
     }
 }
