@@ -74,9 +74,9 @@ class Database
 
     public function __construct(Config $config, Datasources $datasources, string $source = null)
     {
-        $this->config = $config;
+        $this->config      = $config;
         $this->datasources = $datasources;
-        $this->soruce = $source;
+        $this->soruce      = $source;
 
 
         if (is_null($this->source)) {
@@ -109,14 +109,9 @@ class Database
         }
     }
 
-    public function createQuery(
-        string $sql,
-        array $bindings = [],
-        string $type,
-        bool $caching = false,
-        $timeout = null
-    ) {
-        $query = new Query($this->connection, $sql, $bindings, $type, $caching, $timeout);
+    public function createQuery(string $sql, array $bindings = [], string $type)
+    {
+        $query = new Query($this->connection, $sql, $bindings, $type);
         $query->setInTransaction($this->in_transaction);
         return $query;
     }
@@ -129,17 +124,13 @@ class Database
         return $this->connection = $connection;
     }
 
-    public function createConnection()
+    private function createConnection()
     {
         $host    = $this->host;
         $name    = $this->name;
         $charset = $this->charset;
         try {
-            $connection = new \PDO(
-                "mysql:host=$host;dbname=$name;charset=$charset",
-                $this->username,
-                $this->password
-            );
+            $connection = new \PDO("mysql:host=$host;dbname=$name;charset=$charset", $this->username, $this->password);
         } catch (\PDOException $exception) {
             $error = $exception->getMessage();
             throw new DatabaseException("PDO Exception (code $error)", 500, $exception);
@@ -240,7 +231,7 @@ class Database
     public function fetchAll(string $sql, array $bindings = [], $cache = false, $timeout = null)
     {
         $type = "fetchAll";
-        return $this->createQuery($sql, $bindings, $type, $cache, $timeout)->run();
+        return $this->createQuery($sql, $bindings, $type)->run();
     }
 
     /**
@@ -255,7 +246,7 @@ class Database
     public function fetchArray(string $sql, array $bindings = [], $cache = false, $timeout = null)
     {
         $type = "fetchArray";
-        return $this->createQuery($sql, $bindings, $type, $cache, $timeout)->run();
+        return $this->createQuery($sql, $bindings, $type)->run();
     }
 
     /**
@@ -270,7 +261,7 @@ class Database
     public function fetch(string $sql, array $bindings = [], $cache = false, $timeout = null)
     {
         $type = "fetch";
-        return $this->createQuery($sql, $bindings, $type, $cache, $timeout)->run();
+        return $this->createQuery($sql, $bindings, $type)->run();
     }
 
     public function transactionOpen()

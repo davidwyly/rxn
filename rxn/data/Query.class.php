@@ -31,27 +31,27 @@ class Query
     /**
      * @var string
      */
-    public $sql;
+    private $sql;
 
     /**
      * @var array
      */
-    public $bindings;
+    private $bindings;
 
     /**
      * @var string
      */
-    public $type;
+    private $type;
 
     /**
      * @var bool
      */
-    public $caching;
+    private $caching;
 
     /**
      * @var null|float
      */
-    public $timeout;
+    private $timeout;
 
     /**
      * @var \PDO
@@ -87,27 +87,16 @@ class Query
      * Query constructor.
      *
      * @param \PDO   $connection
+     * @param string $type
      * @param string $sql
      * @param array  $bindings
-     * @param string $type
-     * @param bool   $caching
-     * @param        $timeout
      *
      */
-    public function __construct(
-        \PDO $connection,
-        string $sql,
-        array $bindings,
-        string $type,
-        bool $caching = false,
-        $timeout = null
-    ) {
+    public function __construct(\PDO $connection, string $type, string $sql, array $bindings = []) {
         $this->setConnection($connection);
         $this->sql        = $sql;
         $this->bindings   = $bindings;
         $this->type       = $type;
-        $this->caching    = $caching;
-        $this->timeout    = $timeout;
         $this->attributes = $this->getAttributes();
     }
 
@@ -240,31 +229,18 @@ class Query
         if ($this->caching
             && $this->isLookup()
         ) {
-            return $this->cacheLookup($this->sql, $this->bindings, $this->type);
+            return $this->cacheLookup($this->type, $this->sql, $this->bindings);
         }
 
         // verify that statements which may cause an implicit commit are not used in transactions
-        if ($this->in_transaction) {
-            $problem_statements = $this->getTransactionProblemStatements($this->sql);
-            if (is_array($problem_statements)) {
-                $problems = implode(', ', $problem_statements);
-                throw new QueryException("Transactions with implicit commit statements: $problems", 500);
-            }
-        }
+        $this->validateProblemStatements();
 
         // prepare the statement
         $prepared_statement = $this->prepare($this->sql);
-        if (!$prepared_statement) {
-            throw new QueryException("Could not prepare statement", 500);
-        }
 
         // check for values to bind
         if (!empty($this->bindings)) {
-            // bind values to the the prepared statement
             $prepared_statement = $this->bind($prepared_statement, $this->sql, $this->bindings);
-            if (!$prepared_statement) {
-                throw new QueryException("Could not bind prepared statement", 500);
-            }
         }
 
         // execute the statement
@@ -286,6 +262,20 @@ class Query
         }
 
         // return results of the query
+        return $this->returnQueryResults($executed_statement, $time_elapsed);
+    }
+
+    private function validateProblemStatements() {
+        if ($this->in_transaction) {
+            $problem_statements = $this->getTransactionProblemStatements($this->sql);
+            if (is_array($problem_statements)) {
+                $problems = implode(', ', $problem_statements);
+                throw new QueryException("Transactions with implicit commit statements: $problems", 500);
+            }
+        }
+    }
+
+    private function returnQueryResults(\PDOStatement $executed_statement, $time_elapsed) {
         switch ($this->type) {
             case "query":
                 return true;
@@ -444,14 +434,14 @@ class Query
     }
 
     /**
+     * @param string $type
      * @param string $sql
      * @param array  $bindings
-     * @param string $type
      *
      * @return bool|mixed
      * @throws QueryException
      */
-    private function cacheLookup(string $sql, array $bindings, string $type)
+    private function cacheLookup(string $type, string $sql, array $bindings)
     {
         // hash the raw SQL and values array
         $sql_hash   = md5(serialize($sql));
