@@ -16,7 +16,7 @@ class BaseDatasources extends Service
     /**
      * @var string
      */
-    const DEFAULT_READ  = 'read-only';
+    const DEFAULT_READ = 'read-only';
 
     /**
      * @var string
@@ -32,12 +32,12 @@ class BaseDatasources extends Service
     /**
      * @var string
      */
-    const HOST     = 'host';
+    const HOST = 'host';
 
     /**
      * @var string
      */
-    const NAME     = 'name';
+    const NAME = 'name';
 
     /**
      * @var string
@@ -52,7 +52,7 @@ class BaseDatasources extends Service
     /**
      * @var string
      */
-    const CHARSET  = 'charset';
+    const CHARSET = 'charset';
 
     /**
      * @var
