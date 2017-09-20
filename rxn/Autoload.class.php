@@ -117,27 +117,24 @@ class Autoload extends Service
     /**
      * @param        $root
      * @param        $app_root
-     * @param Config $config
      *
      * @throws \Exception
      */
-    public function validateEnvironment($root, $app_root, Config $config)
+    public function validateEnvironment($root, $app_root)
     {
-        $this->validateIni($config);
-        $this->validateFileCaching($root, $app_root, $config);
-        $this->validateMultiByte($config);
+        $this->validateIni();
+        $this->validateFileCaching($root, $app_root);
+        $this->validateMultiByte();
         $this->validateApache();
     }
 
     /**
-     * @param Config $config
-     *
      * @throws \Exception
      */
-    private function validateIni(Config $config)
+    private function validateIni()
     {
         // validate PHP INI file settings
-        $ini_requirements = $config->getPhpIniRequirements();
+        $ini_requirements = $this->config->getPhpIniRequirements();
         foreach ($ini_requirements as $ini_key => $requirement) {
             if (ini_get($ini_key) != $requirement) {
                 if (is_bool($requirement)) {
@@ -151,13 +148,11 @@ class Autoload extends Service
     /**
      * validate that file caching can work with the environment
      *
-     * @param Config $config
-     *
      * @throws \Exception
      */
-    private function validateFileCaching($root, $app_root, Config $config)
+    private function validateFileCaching($root, $app_root)
     {
-        if ($config->use_file_caching) {
+        if ($this->config->use_file_caching) {
             if (!file_exists("$root/$app_root/data/filecache")) {
                 throw new \Exception("Rxn requires for folder '$root/$app_root/data/filecache' to exist");
             }
@@ -170,13 +165,11 @@ class Autoload extends Service
     /**
      * validate that multibyte extensions will work properly
      *
-     * @param Config $config
-     *
      * @throws \Exception
      */
-    private function validateMultiByte(Config $config)
+    private function validateMultiByte()
     {
-        $ini_requirements = $config->getPhpIniRequirements();
+        $ini_requirements = $this->config->getPhpIniRequirements();
         if (!function_exists('mb_strtolower')
             && (isset($ini_requirements['zend.multibyte'])
                 && $ini_requirements['zend.multibyte'] !== true)
