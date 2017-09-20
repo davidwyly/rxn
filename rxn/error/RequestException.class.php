@@ -13,7 +13,7 @@ namespace Rxn\Error;
 
 class RequestException extends CoreException
 {
-    public function __construct(string $message, int $code = 400, \Exception $exception= null)
+    public function __construct(string $message, int $code = 400, \Exception $exception = null)
     {
         parent::__construct($message, $code, $exception);
     }
