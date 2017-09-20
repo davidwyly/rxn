@@ -2,7 +2,7 @@
 
 namespace Organization\Product\Model;
 
-use \Rxn\Model\Record;
+use \Rxn\Framework\Model\Record;
 
 /**
  * Example Order model

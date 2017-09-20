@@ -107,9 +107,9 @@ $object = new MyAwesomeModel()
 // object gets created!
 ```
 
-The same pattern exists for Rxn's native classes. For example, the response class (`\Rxn\Api\Controller\Response`) is found in the `{root}/rxn/api/controller` directory. Autoloading is one of the many ways in which Rxn reduces overhead.
+The same pattern exists for Rxn's native classes. For example, the response class (`\Rxn\Framework\Http\Response`) is found in the `{root}/rxn/api/controller` directory. Autoloading is one of the many ways in which Rxn reduces overhead.
 
-The following file extensions are supported by the autoloading feature (you may also define custom extensions in `\Rxn\Config`):
+The following file extensions are supported by the autoloading feature (you may also define custom extensions in `\Rxn\Framework\Config`):
 
 * .php
 * .class.php
@@ -177,7 +177,7 @@ So for an endpoint with version `v2.1`, the first number (`2`) is the *controlle
 ```php
 namespace Organization\Product\Controller\v2;
 
-class Order extends \Rxn\Api\Controller
+class Order extends \Rxn\Framework\Http\Controller
 {
     public function doSomething_v1() {
         //...

@@ -1,5 +1,5 @@
-rxn/Config.class.php
-rxn/Datasources.class.php
+rxn/framework/Config.class.php
+rxn/framework/Datasources.class.php
 
 # Compiled source #
 ###################
