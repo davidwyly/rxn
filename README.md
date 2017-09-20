@@ -28,7 +28,7 @@ Including planned features for beta (unchecked):
 - [X] 3.5+ GPA code climate
 - [ ] 80%+ unit test code coverage
 - [X] Gentle learning curve *(you don't have to be a guru to get up and running)*
-   - [ ] Installation through Composer
+   - [X] Installation through Composer
 - [X] Simple workflow with an existing database schema
    - [ ] Code generation
       - [ ] Command Line Interface (CLI) utility to create controllers and models
