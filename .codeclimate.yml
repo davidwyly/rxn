@@ -21,6 +21,8 @@ engines:
         enabled: false
       PSR2 Methods FunctionClosingBrace SpacingBeforeClose:
         enabled: false
+      PSR2 Classes ClassDeclaration CloseBraceAfterBody:
+        enabled: false
   duplication:
       enabled: true
       config:
