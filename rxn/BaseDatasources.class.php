@@ -121,7 +121,7 @@ class BaseDatasources extends Service
         }
         foreach ($databases as $database_name => $connection_settings) {
             if (!is_array($connection_settings)) {
-                throw new \Exception ("'Databases' param is malformed");
+                throw new \Exception("'Databases' param is malformed");
             }
             foreach ($this->required_fields as $required_field) {
                 if (!isset($connection_settings[$required_field])) {
