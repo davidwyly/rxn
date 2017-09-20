@@ -133,7 +133,7 @@ class Response
         if (!is_null($request)) {
             $this->request = $request;
             if (!$this->request->isValidated()) {
-                $e                      = $this->request->getException();
+                $exception              = $this->request->getException();
                 $this->failure_response = $this->getFailure($exception);
             }
         }
@@ -157,7 +157,7 @@ class Response
     }
 
     /**
-     * @param \Exception $e
+     * @param \Exception $exception
      *
      * @return Response
      */
@@ -168,8 +168,8 @@ class Response
         $this->errors = [
             'type'    => self::getResponseCodeResult($exception->getCode()),
             'message' => $exception->getMessage(),
-            'file'       => $exception->getFile(),
-            'line'       => $exception->getLine(),
+            'file'    => $exception->getFile(),
+            'line'    => $exception->getLine(),
             'trace'   => self::getErrorTrace($exception),
         ];
         $this->meta   = [
@@ -198,7 +198,7 @@ class Response
     }
 
     /**
-     * @param \Exception $e
+     * @param \Exception $exception
      *
      * @return int|mixed|string
      */
@@ -212,7 +212,7 @@ class Response
     }
 
     /**
-     * @param \Exception $e
+     * @param \Exception $exception
      *
      * @return array
      */
@@ -242,7 +242,7 @@ class Response
                 $trace[$key]['file'] = $trimmed_file;
             }
         }
-        unset($key,$trace_group);
+        unset($key, $trace_group);
 
         return $trace;
     }
@@ -282,7 +282,7 @@ class Response
     public function stripEmptyParams()
     {
         $array = (array)$this;
-        foreach ($array as $key=>$value) {
+        foreach ($array as $key => $value) {
             if (empty($value)) {
                 unset($array[$key]);
             }
