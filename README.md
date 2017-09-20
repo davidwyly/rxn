@@ -25,6 +25,7 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 ## Features In Alpha
 
 Including planned features for beta (unchecked):
+- [X] 3.5+ GPA code climate
 - [ ] 80%+ unit test code coverage
 - [X] Gentle learning curve *(you don't have to be a guru to get up and running)*
    - [ ] Installation through Composer
