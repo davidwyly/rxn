@@ -452,7 +452,7 @@ class Query
     {
         $cache_table     = $this->cache_table_settings['table'];
         $truncate_sql    = "TRUNCATE TABLE `$cache_table`;";
-        $truncate_query  = new Query($this->connection, $truncate_sql, [], 'query');
+        $truncate_query  = new Query($this->connection, 'query', $truncate_sql);
         $truncate_result = $truncate_query->run();
         if (!$truncate_result) {
             return false;
@@ -493,7 +493,7 @@ class Query
             'param_hash' => $param_hash,
             'type'       => $type,
         ];
-        $cache_query = new Query($this->connection, $find_sql, $bind_params, 'fetch', false);
+        $cache_query = new Query($this->connection, 'fetch', $find_sql, $bind_params);
         $find_result = $cache_query->run();
 
         if ($find_result) {
@@ -561,7 +561,7 @@ class Query
             "queryTime"              => $time_elapsed,
         ];
 
-        $insert_query  = new Query($this->connection, $insert_sql, $bind_params, 'query');
+        $insert_query  = new Query($this->connection, 'query', $insert_sql, $bind_params);
         $insert_result = $insert_query->run();
         if ($insert_result) {
             return true;

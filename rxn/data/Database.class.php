@@ -109,9 +109,9 @@ class Database
         }
     }
 
-    public function createQuery(string $sql, array $bindings = [], string $type)
+    public function createQuery(string $type, string $sql, array $bindings = [])
     {
-        $query = new Query($this->connection, $sql, $bindings, $type);
+        $query = new Query($this->connection, $type, $sql, $bindings);
         $query->setInTransaction($this->in_transaction);
         return $query;
     }
@@ -222,46 +222,37 @@ class Database
     /**
      * @param string $sql
      * @param array  $bindings
-     * @param bool   $cache
-     * @param null   $timeout
      *
      * @return array|mixed
      * @throws \Rxn\Error\QueryException
      */
-    public function fetchAll(string $sql, array $bindings = [], $cache = false, $timeout = null)
+    public function fetchAll(string $sql, array $bindings = [])
     {
-        $type = "fetchAll";
-        return $this->createQuery($sql, $bindings, $type)->run();
+        return $this->createQuery(Query::TYPE_FETCH_ALL, $sql, $bindings)->run();
     }
 
     /**
      * @param string $sql
      * @param array  $bindings
-     * @param bool   $cache
-     * @param null   $timeout
      *
      * @return array|mixed
      * @throws \Rxn\Error\QueryException
      */
-    public function fetchArray(string $sql, array $bindings = [], $cache = false, $timeout = null)
+    public function fetchArray(string $sql, array $bindings = [])
     {
-        $type = "fetchArray";
-        return $this->createQuery($sql, $bindings, $type)->run();
+        return $this->createQuery(Query::TYPE_FETCH_ARRAY, $sql, $bindings)->run();
     }
 
     /**
      * @param string $sql
      * @param array  $bindings
-     * @param bool   $cache
-     * @param null   $timeout
      *
      * @return array|mixed
      * @throws \Rxn\Error\QueryException
      */
-    public function fetch(string $sql, array $bindings = [], $cache = false, $timeout = null)
+    public function fetch(string $sql, array $bindings = [])
     {
-        $type = "fetch";
-        return $this->createQuery($sql, $bindings, $type)->run();
+        return $this->createQuery(Query::TYPE_FETCH, $sql, $bindings)->run();
     }
 
     public function transactionOpen()
