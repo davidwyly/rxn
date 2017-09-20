@@ -6,6 +6,8 @@ engines:
         enabled: false
       Controversial/CamelCaseVariableName:
         enabled: false
+      Controversial/CamelCaseParameterName:
+        enabled: false
       Naming/LongVariable:
         enabled: false
   phpcodesniffer:
