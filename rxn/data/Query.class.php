@@ -66,7 +66,12 @@ class Query
     /**
      * @var int
      */
-    private $transaction_depth;
+    private $last_insert_id;
+
+    /**
+     * @var int
+     */
+    private $last_affected_rows;
 
     /**
      * @var bool
@@ -74,14 +79,9 @@ class Query
     private $in_transaction = false;
 
     /**
-     * @var int
+     * @var
      */
-    private $last_insert_id;
-
-    /**
-     * @var int
-     */
-    private $last_affected_rows;
+    private $executed= false;
 
     /**
      * Query constructor.
@@ -128,67 +128,6 @@ class Query
     }
 
     /**
-     * @return bool
-     * @throws QueryException
-     */
-    public function transactionOpen()
-    {
-        if (!empty($this->transaction_depth)) {
-            $this->transaction_depth++;
-            return true;
-        }
-        try {
-            $this->connection->beginTransaction();
-        } catch (\PDOException $exception) {
-            throw new QueryException($exception->getMessage(), 500, $exception);
-        }
-        $this->transaction_depth++;
-        $this->in_transaction = true;
-        return true;
-    }
-
-    /**
-     * @return bool
-     * @throws QueryException
-     */
-    public function transactionClose()
-    {
-        if ($this->transaction_depth < 1) {
-            throw new QueryException(__METHOD__ . ": transaction does not exist", 500);
-        }
-        if ($this->transaction_depth > 1) {
-            $this->transaction_depth--;
-            return true;
-        }
-        try {
-            $this->connection->commit();
-        } catch (\PDOException $exception) {
-            $error = $exception->getCode();
-            throw new QueryException("PDO Exception (code $error)", 500, $exception);
-        }
-        return true;
-    }
-
-    /**
-     * @return bool
-     * @throws QueryException
-     */
-    private function transactionRollback()
-    {
-        if ($this->transaction_depth < 1) {
-            throw new QueryException(__METHOD__ . ": transaction does not exist", 500);
-        }
-        try {
-            $this->connection->rollBack();
-        } catch (\PDOException $exception) {
-            $error = $exception->getCode();
-            throw new QueryException("PDO Exception (code $error)", 500, $exception);
-        }
-        $this->transaction_depth--;
-        return true;
-    }
-
-    /**
      * @return array
      */
     private function getAttributes()
@@ -217,21 +156,6 @@ class Query
             }
         }
         return $response;
-    }
-
-    /**
-     * @return bool
-     * @throws QueryException
-     */
-    public function disconnect()
-    {
-        if ($this->transaction_depth > 0) {
-            $this->transactionRollback();
-        }
-        $this->in_transaction    = false;
-        $this->transaction_depth = 0;
-        $this->connection        = null;
-        return true;
     }
 
     /**
@@ -316,17 +240,11 @@ class Query
         if ($this->caching
             && $this->isLookup()
         ) {
-            if (!is_numeric($this->timeout)) {
-                $cache_timeout = self::DEFAULT_CACHE_TIMEOUT;
-            }
-            $cache = $this->cacheLookup($this->sql, $this->bindings, $this->type);
-            if ($cache) {
-                return $cache;
-            }
+            return $this->cacheLookup($this->sql, $this->bindings, $this->type);
         }
 
         // verify that statements which may cause an implicit commit are not used in transactions
-        if ($this->transaction_depth > 0) {
+        if ($this->in_transaction) {
             $problem_statements = $this->getTransactionProblemStatements($this->sql);
             if (is_array($problem_statements)) {
                 $problems = implode(', ', $problem_statements);
@@ -367,12 +285,6 @@ class Query
                 . " (prepared values: '$var_string')", 500);
         }
 
-        // check to see if the connection should close after execution
-        if (!$this->in_transaction) {
-            // disconnect normally
-            $this->disconnect();
-        }
-
         // return results of the query
         switch ($this->type) {
             case "query":
@@ -382,18 +294,21 @@ class Query
                 if ($this->caching) {
                     $this->cacheResult($result, $time_elapsed);
                 }
+                $this->executed = true;
                 return $result;
             case "fetchArray":
                 $result = $executed_statement->fetchAll(\PDO::FETCH_COLUMN);
                 if ($this->caching) {
                     $this->cacheResult($result, $time_elapsed);
                 }
+                $this->executed = true;
                 return $result;
             case "fetch":
                 $result = $executed_statement->fetch(\PDO::FETCH_ASSOC);
                 if ($this->caching) {
                     $this->cacheResult($result, $time_elapsed);
                 }
+                $this->executed = true;
                 return $result;
             default:
                 throw new QueryException("Incorrect query type '{$this->type}'", 500);
@@ -484,6 +399,11 @@ class Query
             throw new QueryException("PDO Exception ($error)", 500);
         }
         return $statement;
+    }
+
+    public function getLastInsertId()
+    {
+
     }
 
     /**
@@ -643,6 +563,22 @@ class Query
             throw new QueryException("Query type '$type' is not allowed", 500);
         }
         $this->type = $type;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isInTransaction(): bool
+    {
+        return $this->in_transaction;
+    }
+
+    /**
+     * @param bool $in_transaction
+     */
+    public function setInTransaction(bool $in_transaction)
+    {
+        $this->in_transaction = $in_transaction;
     }
 
 }

@@ -58,6 +58,16 @@ class Database
     private $password;
 
     /**
+     * @var int
+     */
+    private $transaction_depth;
+
+    /**
+     * @var bool
+     */
+    private $in_transaction = false;
+
+    /**
      * @var string
      */
     private $charset = 'utf8';
@@ -106,7 +116,9 @@ class Database
         bool $caching = false,
         $timeout = null
     ) {
-        return new Query($this->connection, $sql, $bindings, $type, $caching, $timeout);
+        $query = new Query($this->connection, $sql, $bindings, $type, $caching, $timeout);
+        $query->setInTransaction($this->in_transaction);
+        return $query;
     }
 
     public function connect(\PDO $connection = null)
@@ -259,6 +271,67 @@ class Database
     {
         $type = "fetch";
         return $this->createQuery($sql, $bindings, $type, $cache, $timeout)->run();
+    }
+
+    public function transactionOpen()
+    {
+        if (!empty($this->transaction_depth)) {
+            $this->transaction_depth++;
+            return true;
+        }
+        try {
+            $this->connection->beginTransaction();
+        } catch (\PDOException $exception) {
+            throw new DatabaseException($exception->getMessage(), 500, $exception);
+        }
+        $this->transaction_depth++;
+        $this->in_transaction = true;
+        return true;
+    }
+
+
+    public function transactionClose()
+    {
+        if ($this->transaction_depth < 1) {
+            throw new DatabaseException(__METHOD__ . ": transaction does not exist", 500);
+        }
+        if ($this->transaction_depth > 1) {
+            $this->transaction_depth--;
+            return true;
+        }
+        try {
+            $this->connection->commit();
+        } catch (\PDOException $exception) {
+            $error = $exception->getCode();
+            throw new DatabaseException("PDO Exception (code $error)", 500, $exception);
+        }
+        return true;
+    }
+
+    private function transactionRollback()
+    {
+        if ($this->transaction_depth < 1) {
+            throw new DatabaseException(__METHOD__ . ": transaction does not exist", 500);
+        }
+        try {
+            $this->connection->rollBack();
+        } catch (\PDOException $exception) {
+            $error = $exception->getCode();
+            throw new DatabaseException("PDO Exception (code $error)", 500, $exception);
+        }
+        $this->transaction_depth--;
+        return true;
+    }
+
+    public function disconnect()
+    {
+        if ($this->transaction_depth > 0) {
+            $this->transactionRollback();
+        }
+        $this->in_transaction    = false;
+        $this->transaction_depth = 0;
+        $this->connection        = null;
+        return true;
     }
 
 }
