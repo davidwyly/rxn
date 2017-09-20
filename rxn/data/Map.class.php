@@ -132,4 +132,12 @@ class Map extends Service
         return md5(json_encode($this));
     }
 
+    /**
+     * @return Table[]
+     */
+    public function getTables(): array
+    {
+        return $this->tables;
+    }
+
 }
