@@ -40,8 +40,7 @@ abstract class Record extends Model
      * @var string
      */
     protected $table;
-    private   $primaryKey;
-    private   $autoIncrement;
+    private $primary_key;
 
     /**
      * Record constructor.
@@ -84,31 +83,30 @@ abstract class Record extends Model
     }
 
     /**
-     * @param array $keyValues
+     * @param array $key_values
      *
      * @return mixed
      * @throws \Exception
      */
-    public function create(array $keyValues)
+    public function create(array $key_values)
     {
-        $this->validateRequiredColumns($keyValues);
+        $this->validateRequiredColumns($key_values);
 
         // disallow explicit specification of the primary key
-        $primaryKey = $this->primaryKey;
-        if (isset($keyValues[$primaryKey])) {
-            throw new \Exception("'$primaryKey' is not allowed in the create request; it is a primary key that will be auto-generated'",
+        if (isset($key_values[$this->primary_key])) {
+            throw new \Exception("'$this->primary_key' is not allowed in the create request; it is a primary key that will be auto-generated'",
                 400);
         }
 
         // disallow empty records
-        if (empty($keyValues)) {
+        if (empty($key_values)) {
             throw new \Exception("Cannot create an empty record", 400);
         }
 
         // create the key and value arrays for future SQL generation
         $keys     = [];
         $bindings = [];
-        foreach ($keyValues as $key => $value) {
+        foreach ($key_values as $key => $value) {
             $keys[]         = "`$key`";
             $bindings[$key] = "$value";
         }
@@ -138,7 +136,7 @@ abstract class Record extends Model
 
     public function read($record_id)
     {
-        $primaryKey = $this->primaryKey;
+        $primaryKey = $this->primary_key;
         $table      = $this->table;
         $readSql    = "SELECT * FROM $table WHERE $primaryKey = :id";
         $result     = $this->database->fetch($readSql, ['id' => $record_id]);
@@ -150,7 +148,7 @@ abstract class Record extends Model
 
     public function update($record_id, array $keyValues)
     {
-        $primaryKey = $this->primaryKey;
+        $primaryKey = $this->primary_key;
         $table      = $this->table;
 
         $expressions = [];
@@ -177,20 +175,20 @@ abstract class Record extends Model
 
     public function delete($record_id)
     {
-        $primaryKey = $this->primaryKey;
+        $primaryKey = $this->primary_key;
         $table      = $this->table;
 
         $deleteSql = "DELETE FROM $table WHERE $primaryKey=:id";
         $this->database->transactionOpen();
         $result = $this->database->query($deleteSql, ['id' => $record_id]);
         if (!$result) {
-            throw new \Exception("Failed to delete record '$record_id' on database '{$database->getName()}'", 500);
+            throw new \Exception("Failed to delete record '$record_id' on database '{$this->database->getName()}'", 500);
         }
-        $lastAffectedRows = $database->getLastAffectedRows();
+        $lastAffectedRows = $this->database->getLastAffectedRows();
         if (empty($lastAffectedRows)) {
-            throw new \Exception("Failed to find record '$record_id' on database '{$database->getName()}'", 404);
+            throw new \Exception("Failed to find record '$record_id' on database '{$this->database->getName()}'", 404);
         }
-        $database->transactionClose();
+        $this->database->transactionClose();
         return $record_id;
     }
 
@@ -268,11 +266,11 @@ abstract class Record extends Model
     }
 
     /**
-     * @param $primaryKey
+     * @param $primary_key
      */
-    protected function setPrimaryKey($primaryKey)
+    protected function setPrimaryKey($primary_key)
     {
-        $this->primaryKey = $primaryKey;
+        $this->primary_key = $primary_key;
     }
 
     /**
