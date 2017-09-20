@@ -164,7 +164,6 @@ class App extends Service
             $response_to_render = $this->getFailureResponse($e);
         }
         self::render($response_to_render);
-        die();
     }
 
     /**
