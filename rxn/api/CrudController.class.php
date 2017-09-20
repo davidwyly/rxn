@@ -27,16 +27,22 @@ class CrudController extends Controller implements Crud
     /**
      * CrudController constructor.
      *
-     * @param Config   $config
-     * @param Request  $request
-     * @param Response $response
-     * @param Container  $container
+     * @param Config    $config
+     * @param Request   $request
+     * @param Database  $database
+     * @param Response  $response
+     * @param Container $container
      *
      * @throws \Exception
      */
-    public function __construct(Config $config, Request $request, Response $response, Container $container)
-    {
-        parent::__construct($request, $response, $container);
+    public function __construct(
+        Config $config,
+        Request $request,
+        Database $database,
+        Response $response,
+        Container $container
+    ) {
+        parent::__construct($config, $request, $database, $response, $container);
 
         // if a record class is not explicitly defined, assume the short name of the crud controller
         if (empty($this->record_class)) {
@@ -46,67 +52,48 @@ class CrudController extends Controller implements Crud
     }
 
     /**
-     * @param Request  $request
-     * @param Container  $container
-     * @param Database $database
-     *
      * @return array
-     * @throws \Exception
+     * @throws \Rxn\Error\ContainerException
      */
-    public function create_vx(Request $request, Container $container, Database $database)
+    public function create()
     {
-        $key_values = $request->collectAll();
-        $order      = $container->get($this->record_class);
-        $created_id = $order->create($database, $key_values);
+        $key_values = $this->request->collectAll();
+        $order      = $this->container->get($this->record_class);
+        $created_id = $order->create($key_values);
         return ['created_id' => $created_id];
     }
 
     /**
-     * @param Request  $request
-     * @param Container  $container
-     * @param Database $database
-     *
      * @return mixed
-     * @throws \Exception
+     * @throws \Rxn\Error\ContainerException
+     * @throws \Rxn\Error\RequestException
      */
-    public function read_vx(Request $request, Container $container, Database $database)
+    public function read()
     {
-        $id    = $request->collect('id');
-        $order = $container->get($this->record_class);
-        return $order->read($database, $id);
+        $id    = $this->request->collect('id');
+        $order = $this->container->get($this->record_class);
+        return $order->read($id);
     }
 
-    /**
-     * @param Request  $request
-     * @param Container  $container
-     * @param Database $database
-     *
-     * @return array
-     * @throws \Exception
-     */
-    public function update_vx(Request $request, Container $container, Database $database)
+    public function update()
     {
-        $id         = $request->collect('id');
-        $key_values = $request->collectAll();
+        $id         = $this->request->collect('id');
+        $key_values = $this->request->collectAll();
         unset($key_values['id']);
-        $order      = $container->get($this->record_class);
-        $updated_id = $order->update($database, $id, $key_values);
+        $order      = $this->container->get($this->record_class);
+        $updated_id = $order->update($id, $key_values);
         return ['updated_id' => $updated_id];
     }
 
     /**
-     * @param Request  $request
-     * @param Container  $container
-     * @param Database $database
-     *
      * @return array
      * @throws \Exception
      */
-    public function delete_vx(Request $request, Container $container, Database $database)
+    public function delete()
     {
-        $id         = $request->collect('id');
-        $order      = $container->get($this->record_class);
-        $deleted_id = $order->delete($database, $id);
+        $id         = $this->request->collect('id');
+        $order      = $this->container->get($this->record_class);
+        $deleted_id = $order->delete($id);
         return ['deleted_id' => $deleted_id];
     }
 
@@ -115,7 +102,7 @@ class CrudController extends Controller implements Crud
      *
      * @return string
      */
-    protected function guessRecordClass(Config $config)
+    private function guessRecordClass(Config $config)
     {
         $called_class     = get_called_class();
         $reflection       = new \ReflectionClass($called_class);
@@ -127,7 +114,7 @@ class CrudController extends Controller implements Crud
     /**
      * @throws \Exception
      */
-    protected function validateRecordClass()
+    private function validateRecordClass()
     {
         $called_class = get_called_class();
         if (!class_exists($this->record_class, true)) {

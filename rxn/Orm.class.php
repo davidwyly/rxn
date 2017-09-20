@@ -26,7 +26,8 @@ class Orm
         //
     }
 
-    public function registerDatabase(Database $database) {
+    public function registerDatabase(Database $database)
+    {
         $this->databases[] = $database;
     }
 }

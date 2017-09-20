@@ -11,25 +11,37 @@
 
 namespace Rxn\Api;
 
+use \Rxn\Data\Database;
+use \Rxn\Config;
 use \Rxn\Container;
 use \Rxn\Api\Controller\Response;
 
 class Controller
 {
     /**
+     * @var Config
+     */
+    protected $config;
+
+    /**
      * @var Request
      */
-    private $request;
+    protected $request;
+
+    /**
+     * @var Database
+     */
+    protected $database;
 
     /**
      * @var Response
      */
-    private $response;
+    protected $response;
 
     /**
      * @var Container
      */
-    private $container;
+    protected $container;
 
     /**
      * @var null|string
@@ -57,24 +69,32 @@ class Controller
     private $action_elapsed_ms;
 
 
-
     /**
      * Controller constructor.
      *
-     * @param Request  $request
-     * @param Response $response
-     * @param Container  $container
+     * @param Config    $config
+     * @param Request   $request
+     * @param Database  $database
+     * @param Response  $response
+     * @param Container $container
      *
      * @throws \Exception
      */
-    public function __construct(Request $request, Response $response, Container $container)
-    {
+    public function __construct(
+        Config $config,
+        Request $request,
+        Database $database,
+        Response $response,
+        Container $container
+    ) {
         /**
          * assign dependencies
          */
-        $this->request       = $request;
-        $this->response      = $response;
-        $this->container     = $container;
+        $this->config    = $config;
+        $this->request   = $request;
+        $this->database  = $database;
+        $this->response  = $response;
+        $this->container = $container;
 
         /**
          * assign action attributes
@@ -135,7 +155,7 @@ class Controller
     }
 
     /**
-     * @param array   $classes_to_inject
+     * @param array $classes_to_inject
      *
      * @return array
      * @throws \Exception

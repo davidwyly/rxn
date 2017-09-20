@@ -131,8 +131,8 @@ abstract class Record extends Model
         if (!$result) {
             throw new \Exception("Failed to create record on database '{$this->database->getName()}'", 500);
         }
-        $createdId = $database->getLastInsertId();
-        $database->transactionClose();
+        $createdId = $this->database->getLastInsertId();
+        $this->database->transactionClose();
         return $createdId;
     }
 
@@ -148,7 +148,7 @@ abstract class Record extends Model
         return $result;
     }
 
-    public function update(Database $database, $id, array $keyValues)
+    public function update($id, array $keyValues)
     {
         $primaryKey = $this->primaryKey;
         $table      = $this->table;
@@ -167,9 +167,9 @@ abstract class Record extends Model
         $updateSql = "UPDATE $table SET $expressionList WHERE $primaryKey=:id";
 
         // update record
-        $result = $database->query($updateSql, $keyValues);
+        $result = $this->database->query($updateSql, $keyValues);
         if (!$result) {
-            throw new \Exception("Failed to update record '$id' on database '{$database->getName()}'", 500);
+            throw new \Exception("Failed to update record '$id' on database '{$this->database->getName()}'", 500);
         }
         return $id;
     }
