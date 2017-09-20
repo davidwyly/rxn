@@ -96,9 +96,9 @@ class App extends Service
      */
     public function __construct(Config $config, Datasources $datasources, Container $container)
     {
-        $this->config = $config;
+        $this->config      = $config;
         $this->datasources = $datasources;
-        $this->container = $container;
+        $this->container   = $container;
         $this->initialize();
     }
 
@@ -108,7 +108,7 @@ class App extends Service
         $this->databases = $this->registerDatabases();
         $this->container->addInstance(Datasources::class, $this->datasources);
         $this->container->addInstance(Config::class, $this->config);
-        $this->registry = $this->container->get(Registry::class, [$this->config]);
+        $this->registry   = $this->container->get(Registry::class, [$this->config]);
         $services_to_load = $this->config->getServices();
         $this->loadServices($services_to_load);
         $this->finalize($this->registry, START);
@@ -117,7 +117,7 @@ class App extends Service
     private function registerDatabases()
     {
         $datasource_names = array_keys($this->datasources->getDatabases());
-        $databases = [];
+        $databases        = [];
         foreach ($datasource_names as $datasource_name) {
             $databases[$datasource_name] = new Database($this->config, $this->datasources, $datasource_name);
         }
@@ -129,8 +129,8 @@ class App extends Service
         foreach ($services as $service_name => $service_class) {
             try {
                 $this->{$service_name} = $this->container->get($service_class);
-            } catch (\Exception $e) {
-                self::appendEnvironmentError($e);
+            } catch (\Exception $exception) {
+                self::appendEnvironmentError($exception);
             }
         }
     }
@@ -160,8 +160,8 @@ class App extends Service
                 throw new AppException("No controller has been associated with the application");
             }
             $response_to_render = $this->getSuccessResponse();
-        } catch (\Exception $e) {
-            $response_to_render = $this->getFailureResponse($e);
+        } catch (\Exception $exception) {
+            $response_to_render = $this->getFailureResponse($exception);
         }
         self::render($response_to_render);
     }
@@ -185,19 +185,20 @@ class App extends Service
     }
 
     /**
-     * @param \Exception $e
+     * @param \Exception $exception
      *
      * @return Response
      * @throws Error\ContainerException
+     *
      */
-    private function getFailureResponse(\Exception $e)
+    private function getFailureResponse(\Exception $exception)
     {
         // instantiate request model using the DI container container
         $response = $this->container->get(Response::class);
 
         // build a response
         if (!$response->isRendered()) {
-            return $response_to_render = $response->getFailure($e);
+            return $response_to_render = $response->getFailure($exception);
         }
 
         // sometimes, the request itself will not validate, so grab that response
@@ -268,38 +269,38 @@ class App extends Service
     /**
      * Renders environment errors
      *
-     * @param \Exception|null $e
+     * @param \Exception|null $exception
      *
      * @throws AppException
      */
-    static public function renderEnvironmentErrors(\Exception $e = null)
+    static public function renderEnvironmentErrors(\Exception $exception = null)
     {
-        if (!is_null($e)) {
-            self::appendEnvironmentError($e);
+        if (!is_null($exception)) {
+            self::appendEnvironmentError($exception);
         }
         try {
             throw new AppException("Environment errors on startup");
-        } catch (AppException $e) {
+        } catch (AppException $exception) {
             $response = new Response(null);
-            $response->getFailure($e);
+            $response->getFailure($exception);
         }
         $response->meta['startup_errors'] = self::$environment_errors;
         self::render($response);
     }
 
     /**
-     * @param \Exception $e
+     * @param \Exception $exception
      *
      * @internal param $errorFile
      * @internal param $errorLine
      * @internal param $errorMessage
      */
-    static public function appendEnvironmentError(\Exception $e)
+    static public function appendEnvironmentError(\Exception $exception)
     {
         self::$environment_errors[] = [
-            'file'    => $e->getFile(),
-            'line'    => $e->getLine(),
-            'message' => $e->getMessage(),
+            'file'    => $exception->getFile(),
+            'line'    => $exception->getLine(),
+            'message' => $exception->getMessage(),
         ];
     }
 }

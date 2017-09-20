@@ -13,8 +13,8 @@ namespace Rxn\Error;
 
 class CoreException extends \Exception
 {
-    public function __construct(string $message, int $code = 500, \Exception $e = null)
+    public function __construct(string $message, int $code = 500, \Exception $exception= null)
     {
-        parent::__construct($message, $code, $e);
+        parent::__construct($message, $code, $exception);
     }
 }

@@ -134,7 +134,7 @@ class Response
             $this->request = $request;
             if (!$this->request->isValidated()) {
                 $e                      = $this->request->getException();
-                $this->failure_response = $this->getFailure($e);
+                $this->failure_response = $this->getFailure($exception);
             }
         }
     }
@@ -161,20 +161,20 @@ class Response
      *
      * @return Response
      */
-    public function getFailure(\Exception $e): Response
+    public function getFailure(\Exception $exception): Response
     {
         $this->setRendered(true);
 
         $this->errors = [
-            'type'    => self::getResponseCodeResult($e->getCode()),
-            'message' => $e->getMessage(),
-            'file'       => $e->getFile(),
-            'line'       => $e->getLine(),
-            'trace'   => self::getErrorTrace($e),
+            'type'    => self::getResponseCodeResult($exception->getCode()),
+            'message' => $exception->getMessage(),
+            'file'       => $exception->getFile(),
+            'line'       => $exception->getLine(),
+            'trace'   => self::getErrorTrace($exception),
         ];
         $this->meta   = [
             'success'    => false,
-            'code'       => $e->getCode(),
+            'code'       => $exception->getCode(),
             'elapsed_ms' => App::getElapsedMs(),
         ];
 
@@ -202,9 +202,9 @@ class Response
      *
      * @return int|mixed|string
      */
-    static public function getErrorCode(\Exception $e)
+    static public function getErrorCode(\Exception $exception)
     {
-        $code = $e->getCode();
+        $code = $exception->getCode();
         if (empty($code)) {
             $code = '500';
         }
@@ -216,9 +216,9 @@ class Response
      *
      * @return array
      */
-    static public function getErrorTrace(\Exception $e)
+    static public function getErrorTrace(\Exception $exception)
     {
-        $full_trace         = $e->getTrace();
+        $full_trace         = $exception->getTrace();
         $allowed_debug_keys = [
             'file',
             'line',

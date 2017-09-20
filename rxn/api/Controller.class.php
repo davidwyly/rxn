@@ -118,8 +118,8 @@ class Controller
             $this->calculateActionTimeElapsed($action_time_start);
             $this->validateActionResponse($action_response);
             return $this->response->getSuccess() + $action_response;
-        } catch (\Exception $e) {
-            return $this->response->getFailure($e);
+        } catch (\Exception $exception) {
+            return $this->response->getFailure($exception);
         }
     }
 

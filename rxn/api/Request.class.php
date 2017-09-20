@@ -85,7 +85,7 @@ class Request
         // exceptions that appear here may need special handling
         try {
             $this->validateRequiredParams($collector, $config);
-        } catch (\Exception $e) {
+        } catch (\Exception $exception) {
             $this->validated = false;
             $this->exception = $e;
         }
@@ -102,7 +102,7 @@ class Request
             $this->get                = (array)$this->getSanitizedGet($collector, $config);
             $this->post               = (array)$collector->post;
             $this->header             = (array)$collector->header;
-        } catch (\Exception $e) {
+        } catch (\Exception $exception) {
             $this->validated = true;
             $this->exception = $e;
         }
@@ -329,7 +329,7 @@ class Request
     {
         try {
             $full_version = $collector->getUrlParam('version');
-        } catch (\Exception $e) {
+        } catch (\Exception $exception) {
             return null;
         }
 
@@ -348,7 +348,7 @@ class Request
     {
         try {
             $full_version = $collector->getUrlParam('version');
-        } catch (\Exception $e) {
+        } catch (\Exception $exception) {
             return null;
         }
 
@@ -368,7 +368,7 @@ class Request
     {
         try {
             $controller_name = $collector->getUrlParam('controller');
-        } catch (\Exception $e) {
+        } catch (\Exception $exception) {
             return null;
         }
         return $controller_name;
@@ -383,7 +383,7 @@ class Request
     {
         try {
             $action_name = $collector->getUrlParam('action');
-        } catch (\Exception $e) {
+        } catch (\Exception $exception) {
             return null;
         }
         return $action_name;

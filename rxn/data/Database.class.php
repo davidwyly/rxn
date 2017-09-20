@@ -128,9 +128,9 @@ class Database
                 $this->username,
                 $this->password
             );
-        } catch (\PDOException $e) {
-            $error = $e->getMessage();
-            throw new DatabaseException("PDO Exception (code $error)", 500, $e);
+        } catch (\PDOException $exception) {
+            $error = $exception->getMessage();
+            throw new DatabaseException("PDO Exception (code $error)", 500, $exception);
         }
         $connection->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         return $connection;

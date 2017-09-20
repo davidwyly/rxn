@@ -139,8 +139,8 @@ class Query
         }
         try {
             $this->connection->beginTransaction();
-        } catch (\PDOException $e) {
-            throw new QueryException($e->getMessage(), 500, $e);
+        } catch (\PDOException $exception) {
+            throw new QueryException($exception->getMessage(), 500, $exception);
         }
         $this->transaction_depth++;
         $this->in_transaction = true;
@@ -162,9 +162,9 @@ class Query
         }
         try {
             $this->connection->commit();
-        } catch (\PDOException $e) {
-            $error = $e->getCode();
-            throw new QueryException("PDO Exception (code $error)", 500, $e);
+        } catch (\PDOException $exception) {
+            $error = $exception->getCode();
+            throw new QueryException("PDO Exception (code $error)", 500, $exception);
         }
         return true;
     }
@@ -180,9 +180,9 @@ class Query
         }
         try {
             $this->connection->rollBack();
-        } catch (\PDOException $e) {
-            $error = $e->getCode();
-            throw new QueryException("PDO Exception (code $error)", 500, $e);
+        } catch (\PDOException $exception) {
+            $error = $exception->getCode();
+            throw new QueryException("PDO Exception (code $error)", 500, $exception);
         }
         $this->transaction_depth--;
         return true;
@@ -212,7 +212,7 @@ class Query
             $key = "PDO::ATTR_$val";
             try {
                 $response[$key] = $this->connection->getAttribute(constant("PDO::ATTR_$val"));
-            } catch (\PDOException $e) {
+            } catch (\PDOException $exception) {
                 continue;
             }
         }
@@ -411,9 +411,9 @@ class Query
         // prepare the statement
         try {
             $statement = $this->connection->prepare($sql);
-        } catch (\PDOException $e) {
-            $error = $e->getCode();
-            throw new QueryException("PDO Exception (code $error)", 500, $e);
+        } catch (\PDOException $exception) {
+            $error = $exception->getCode();
+            throw new QueryException("PDO Exception (code $error)", 500, $exception);
         }
         return $statement;
     }
@@ -433,9 +433,9 @@ class Query
             foreach ($bindings as $key => $value) {
                 try {
                     $statement->bindValue(trim($key), trim($value));
-                } catch (\PDOException $e) {
-                    $error = $e->getMessage();
-                    throw new QueryException("PDO Exception ($error)", 500, $e);
+                } catch (\PDOException $exception) {
+                    $error = $exception->getMessage();
+                    throw new QueryException("PDO Exception ($error)", 500, $exception);
                 }
             }
             return $statement;
@@ -460,9 +460,9 @@ class Query
             $next_key = $key + 1;
             try {
                 $statement->bindValue($next_key, trim($value));
-            } catch (\PDOException $e) {
-                $error = $e->getMessage();
-                throw new QueryException("PDO Exception ($error)", 500, $e);
+            } catch (\PDOException $exception) {
+                $error = $exception->getMessage();
+                throw new QueryException("PDO Exception ($error)", 500, $exception);
             }
         }
         return $statement;
@@ -479,8 +479,8 @@ class Query
         // execute the statement
         try {
             $statement->execute();
-        } catch (\PDOException $e) {
-            $error = $e->getMessage();
+        } catch (\PDOException $exception) {
+            $error = $exception->getMessage();
             throw new QueryException("PDO Exception ($error)", 500);
         }
         return $statement;

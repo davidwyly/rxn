@@ -17,8 +17,8 @@ autoload();
 
 try {
     $app = new App(new Config(), new Datasources(), new Container());
-} catch (\Exception $e) {
-    App::renderEnvironmentErrors($e);
+} catch (\Exception $exception) {
+    App::renderEnvironmentErrors($exception);
     die();
 }
 

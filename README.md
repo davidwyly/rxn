@@ -122,7 +122,7 @@ Rxn lives, breathes, and eats exceptions. Consider the following code snippet:
 ```php
 try {
     $result = $databse->query($sql,$bindings);
-} catch (\PDOException $e) {
+} catch (\PDOException $exception) {
     throw new \Exception("Something went terribly wrong!",422);
 }
 ```

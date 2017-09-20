@@ -232,4 +232,47 @@ class Collector extends Service
         }
         return $get['action'];
     }
+
+    /**
+     * @param $parameter
+     *
+     * @return mixed
+     * @throws \Exception
+     */
+    public function fromGet($parameter)
+    {
+        if (array_key_exists($parameter, $this->get)) {
+            return $this->get['parameter'];
+        }
+        throw new \Exception("Parameter '$parameter' is not part of the GET request");
+
+    }
+
+    /**
+     * @param $parameter
+     *
+     * @return mixed
+     * @throws \Exception
+     */
+    public function fromPost($parameter)
+    {
+        if (array_key_exists($parameter, $this->post)) {
+            return $this->post['parameter'];
+        }
+        throw new \Exception("Parameter '$parameter' is not part of the POST request");
+    }
+
+    /**
+     * @param $parameter
+     *
+     * @return mixed
+     * @throws \Exception
+     */
+    public function fromHeader($parameter)
+    {
+        if (array_key_exists($parameter, $this->header)) {
+            return $this->header['parameter'];
+        }
+        throw new \Exception("Parameter '$parameter' is not part of the HEADER request");
+    }
 }
