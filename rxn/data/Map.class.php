@@ -140,4 +140,12 @@ class Map extends Service
         return $this->tables;
     }
 
+    public function getTable($table_name)
+    {
+        if (!array_key_exists($table_name,$this->tables)) {
+            throw new \Exception("Table '$table_name' does not exist in the map");
+        }
+        return $this->tables[$table_name];
+    }
+
 }

@@ -174,13 +174,8 @@ abstract class Record extends Model
         return $id;
     }
 
-    public function delete(Database $database, $id, $softDelete = false)
+    public function delete(Database $database, $id)
     {
-
-        if ($softDelete) {
-            //TODO
-        }
-
         $primaryKey = $this->primaryKey;
         $table      = $this->table;
 
@@ -199,16 +194,16 @@ abstract class Record extends Model
     }
 
     /**
-     * @param array $keyValues
+     * @param array $key_values
      *
      * @throws \Exception
      */
-    protected function validateRequiredColumns(array $keyValues)
+    protected function validateRequiredColumns(array $key_values)
     {
-        $requiredColumns = $this->getRequiredColumns();
-        foreach ($requiredColumns as $requiredColumn) {
-            if (!isset($keyValues[$requiredColumn])) {
-                throw new \Exception("Key '$requiredColumn' is required", 500);
+        $required_columns = $this->getRequiredColumns();
+        foreach ($required_columns as $required_column) {
+            if (!isset($key_values[$required_column])) {
+                throw new \Exception("Key '$required_column' is required", 500);
             }
         }
     }
@@ -236,8 +231,8 @@ abstract class Record extends Model
     {
 
         $columns = [];
-        foreach ($table->column_info as $columnName => $columnData) {
-            $columns[$columnName] = $columnData['column_type'];
+        foreach ($table->column_info as $column_name => $column_data) {
+            $columns[$column_name] = $column_data['column_type'];
         }
         $this->_columns = $columns;
     }
@@ -248,26 +243,27 @@ abstract class Record extends Model
     protected function setRequiredColumns(Table $table)
     {
 
-        $requiredColumns = [];
-        foreach ($table->column_info as $columnName => $columnData) {
+        $required_columns = [];
+        foreach ($table->column_info as $column_name => $column_data) {
 
-            if ($columnData['is_nullable'] != "NO" || $columnData['column_key'] == 'PRI') {
+            if ($column_data['is_nullable'] != "NO" || $column_data['column_key'] == 'PRI') {
                 continue;
             }
-            $requiredColumns[] = $columnName;
+            $required_columns[] = $column_name;
         }
-        $this->_requiredColumns = $requiredColumns;
+        $this->_requiredColumns = $required_columns;
     }
 
     /**
      * @param Map $map
-     * @param     $tableName
+     * @param     $table_name
      *
      * @return mixed
+     * @throws \Exception
      */
-    protected function getTable(Map $map, $tableName)
+    protected function getTable(Map $map, $table_name)
     {
-        return $map->tables[$tableName];
+        return $map->getTable($table_name);
     }
 
     /**
