@@ -22,6 +22,7 @@ rxn/framework/Datasources.class.php
 *.rar
 *.tar
 *.zip
+*.phar
 
 # Logs and databases #
 ######################
