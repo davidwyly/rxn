@@ -65,22 +65,7 @@ class Request
     /**
      * @var array
      */
-    public $url;
-
-    /**
-     * @var array
-     */
-    public $get;
-
-    /**
-     * @var array
-     */
-    public $post;
-
-    /**
-     * @var array
-     */
-    public $header;
+    private $url;
 
     /**
      * Request constructor.
@@ -92,7 +77,7 @@ class Request
     public function __construct(Collector $collector, Config $config)
     {
         $this->collector = $collector;
-        $this->config = $config;
+        $this->config    = $config;
 
         // exceptions that appear here may need special handling
         try {
@@ -110,9 +95,6 @@ class Request
             $this->action_name        = $this->createActionName();
             $this->action_version     = $this->parseActionVersion();
             $this->url                = (array)$this->getSanitizedUrl();
-            $this->get                = (array)$this->getSanitizedGet();
-            $this->post               = (array)$collector->getFromPost();
-            $this->header             = (array)$collector->getFromHeader();
         } catch (\Exception $exception) {
             $this->validated = true;
             $this->exception = $exception;
@@ -136,104 +118,11 @@ class Request
     }
 
     /**
-     * @param      $target_key
-     * @param bool $trigger_exception
-     *
-     * @return mixed|null
-     * @throws RequestException
+     * @return Collector
      */
-    private function collectFromGet($target_key, $trigger_exception = true)
+    public function getCollector()
     {
-        foreach ($this->get as $key => $value) {
-            if ($target_key == $key) {
-                return $value;
-            }
-        }
-        if ($trigger_exception) {
-            throw new RequestException("Param '$target_key' is missing from GET request");
-        }
-        return null;
-    }
-
-    /**
-     * @param      $targetKey
-     * @param bool $triggerException
-     *
-     * @return mixed|null
-     * @throws RequestException
-     */
-    private function collectFromPost($targetKey, $triggerException = true)
-    {
-        foreach ($this->get as $key => $value) {
-            if ($targetKey == $key) {
-                return $value;
-            }
-        }
-        if ($triggerException) {
-            throw new RequestException("Param '$targetKey' is missing from POST request");
-        }
-        return null;
-    }
-
-    /**
-     * @param      $targetKey
-     * @param bool $triggerException
-     *
-     * @return mixed|null
-     * @throws RequestException
-     */
-    private function collectFromHeader($targetKey, $triggerException = true)
-    {
-        foreach ($this->get as $key => $value) {
-            if ($targetKey == $key) {
-                return $value;
-            }
-        }
-        if ($triggerException) {
-            throw new RequestException("Param '$targetKey' is missing from request header");
-        }
-        return null;
-    }
-
-    /**
-     * @param $targetKey
-     *
-     * @return mixed|null
-     * @throws RequestException
-     */
-    public function collect($targetKey)
-    {
-        $value = $this->collectFromGet($targetKey, false);
-        if (!empty($value)) {
-            return $value;
-        }
-        $value = $this->collectFromPost($targetKey, false);
-        if (!empty($value)) {
-            return $value;
-        }
-        $value = $this->collectFromHeader($targetKey, false);
-        if (!empty($value)) {
-            return $value;
-        }
-        throw new RequestException("Param '$targetKey' is missing from request");
-    }
-
-    /**
-     * @return array
-     */
-    public function collectAll()
-    {
-        $args = [];
-        foreach ($this->get as $key => $value) {
-            $args[$key] = $value;
-        }
-        foreach ($this->post as $key => $value) {
-            $args[$key] = $value;
-        }
-        foreach ($this->header as $key => $value) {
-            $args[$key] = $value;
-        }
-        return $args;
+        return $this->collector;
     }
 
     /**
@@ -244,25 +133,11 @@ class Request
     {
         $get_parameters = $this->collector->getFromGet();
         if (!is_array($get_parameters)) {
-            throw new RequestException("Cannot get URL params, verify Apache/Nginx and virtual hosts settings",510);
+            throw new RequestException("Cannot get URL params, verify Apache/Nginx and virtual hosts settings", 510);
         }
         foreach ($get_parameters as $get_parameter_key => $getParameterValue) {
             if (!in_array($get_parameter_key, $this->config->endpoint_parameters)) {
                 unset($get_parameters[$get_parameter_key]);
-            }
-        }
-        return $get_parameters;
-    }
-
-    /**
-     * @return array|null
-     */
-    private function getSanitizedGet()
-    {
-        $get_parameters = $this->collector->getFromGet();
-        foreach ($this->config->endpoint_parameters as $endpoint_parameter) {
-            if (isset($get_parameters[$endpoint_parameter])) {
-                unset($get_parameters[$endpoint_parameter]);
             }
         }
         return $get_parameters;
