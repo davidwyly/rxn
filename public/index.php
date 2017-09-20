@@ -12,6 +12,10 @@
 namespace Rxn;
 
 require_once('../bootstrap.php');
+require_once(ROOT . "/Service.class.php");
+require_once(ROOT . "/BaseConfig.class.php");
+require_once(ROOT . "/Config.class.php");
+require_once(ROOT . "/Autoload.class.php");
 
 /**
  * Begin output buffering

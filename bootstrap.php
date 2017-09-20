@@ -18,12 +18,3 @@ define(__NAMESPACE__ . '\START', microtime(true));
 define(__NAMESPACE__ . '\BASE_ROOT', __DIR__);
 define(__NAMESPACE__ . '\APP_ROOT', 'rxn');
 define(__NAMESPACE__ . '\ROOT', BASE_ROOT . "/" . APP_ROOT . "/");
-
-
-/**
- * Require core components for auto-loader
- */
-require_once(ROOT . "/Service.class.php");
-require_once(ROOT . "/BaseConfig.class.php");
-require_once(ROOT . "/Config.class.php");
-require_once(ROOT . "/Autoload.class.php");
