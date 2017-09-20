@@ -116,8 +116,9 @@ class App extends Service
 
     private function registerDatabases()
     {
+        $datasource_names = array_keys($this->datasources->getDatabases());
         $databases = [];
-        foreach ($this->datasources->getDatabases() as $datasource_name => $connectionSettings) {
+        foreach ($datasource_names as $datasource_name) {
             $databases[$datasource_name] = new Database($this->config, $this->datasources, $datasource_name);
         }
         return $databases;
