@@ -22,7 +22,8 @@ define(__NAMESPACE__ . '\ROOT', BASE_ROOT . "/" . APP_ROOT . "/");
 /**
  * @throws \Exception
  */
-function autoload() {
+function autoload()
+{
     require_once(ROOT . "/Service.class.php");
     require_once(ROOT . "/BaseConfig.class.php");
     require_once(ROOT . "/Config.class.php");
@@ -32,7 +33,6 @@ function autoload() {
      * Begin output buffering
      */
     ob_start();
-
     /**
      * Validate environment
      */
