@@ -70,14 +70,14 @@ class CrudController extends Controller implements Crud
      */
     public function read()
     {
-        $record_id    = $this->request->collect('id');
-        $order = $this->container->get($this->record_class);
+        $record_id = $this->request->collect('id');
+        $order     = $this->container->get($this->record_class);
         return $order->read($record_id);
     }
 
     public function update()
     {
-        $record_id         = $this->request->collect('id');
+        $record_id  = $this->request->collect('id');
         $key_values = $this->request->collectAll();
         unset($key_values['id']);
         $order      = $this->container->get($this->record_class);
@@ -91,7 +91,7 @@ class CrudController extends Controller implements Crud
      */
     public function delete()
     {
-        $record_id         = $this->request->collect('id');
+        $record_id  = $this->request->collect('id');
         $order      = $this->container->get($this->record_class);
         $deleted_id = $order->delete($record_id);
         return ['deleted_id' => $deleted_id];
@@ -118,8 +118,7 @@ class CrudController extends Controller implements Crud
     {
         $called_class = get_called_class();
         if (!class_exists($this->record_class, true)) {
-            throw new \Exception("CrudController '$called_class' references nonexistent model '$this->record_class'",
-                500);
+            throw new \Exception("CrudController '$called_class' references missing model '$this->record_class'", 500);
         }
     }
 }
