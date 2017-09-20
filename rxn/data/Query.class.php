@@ -157,7 +157,7 @@ class Query
     {
         $split_sql_array  = [];
         $multiple_queries = preg_split('#[\;]+#', $sql, -1, PREG_SPLIT_NO_EMPTY);
-        foreach ($multiple_queries as $key => $split_sql) {
+        foreach ($multiple_queries as $split_sql) {
             $trimmed_split_sql = trim($split_sql);
             if (!empty($trimmed_split_sql)) {
                 $split_sql_array[] = $trimmed_split_sql;
@@ -379,7 +379,8 @@ class Query
      * @return \PDOStatement
      * @throws QueryException
      */
-    private function bindIndexed(\PDOStatement $statement, array $bindings) {
+    private function bindIndexed(\PDOStatement $statement, array $bindings)
+    {
         foreach ($bindings as $key => $value) {
             if (!is_string($value)
                 && !is_null($value)
@@ -419,7 +420,7 @@ class Query
 
     public function getLastInsertId()
     {
-
+        $this->last_insert_id;
     }
 
     /**
