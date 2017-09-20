@@ -81,7 +81,7 @@ class Query
     /**
      * @var
      */
-    private $executed= false;
+    private $executed = false;
 
     /**
      * Query constructor.
@@ -92,7 +92,8 @@ class Query
      * @param array  $bindings
      *
      */
-    public function __construct(\PDO $connection, string $type, string $sql, array $bindings = []) {
+    public function __construct(\PDO $connection, string $type, string $sql, array $bindings = [])
+    {
         $this->setConnection($connection);
         $this->sql        = $sql;
         $this->bindings   = $bindings;
@@ -265,7 +266,8 @@ class Query
         return $this->returnQueryResults($executed_statement, $time_elapsed);
     }
 
-    private function validateProblemStatements() {
+    private function validateProblemStatements()
+    {
         if ($this->in_transaction) {
             $problem_statements = $this->getTransactionProblemStatements($this->sql);
             if (is_array($problem_statements)) {
@@ -275,7 +277,8 @@ class Query
         }
     }
 
-    private function returnQueryResults(\PDOStatement $executed_statement, $time_elapsed) {
+    private function returnQueryResults(\PDOStatement $executed_statement, $time_elapsed)
+    {
         switch ($this->type) {
             case "query":
                 return true;
@@ -335,15 +338,7 @@ class Query
     {
         // associative binding with ":" (e.g., [:preparedVar] => "prepared value")
         if (array_keys($bindings) !== range(0, count($bindings) - 1)) {
-            foreach ($bindings as $key => $value) {
-                try {
-                    $statement->bindValue(trim($key), trim($value));
-                } catch (\PDOException $exception) {
-                    $error = $exception->getMessage();
-                    throw new QueryException("PDO Exception ($error)", 500, $exception);
-                }
-            }
-            return $statement;
+            return $this->bindAssociative($statement, $bindings);
         }
 
         $array_size = substr_count($sql, '?');
@@ -354,6 +349,37 @@ class Query
                 . "when sql statement has '$array_size' binding points", 500);
         }
 
+        return $this->bindIndexed($statement, $bindings);
+    }
+
+    /**
+     * @param \PDOStatement $statement
+     * @param array         $bindings
+     *
+     * @return \PDOStatement
+     * @throws QueryException
+     */
+    private function bindAssociative(\PDOStatement $statement, array $bindings)
+    {
+        foreach ($bindings as $key => $value) {
+            try {
+                $statement->bindValue(trim($key), trim($value));
+            } catch (\PDOException $exception) {
+                $error = $exception->getMessage();
+                throw new QueryException("PDO Exception ($error)", 500, $exception);
+            }
+        }
+        return $statement;
+    }
+
+    /**
+     * @param \PDOStatement $statement
+     * @param array         $bindings
+     *
+     * @return \PDOStatement
+     * @throws QueryException
+     */
+    private function bindIndexed(\PDOStatement $statement, array $bindings) {
         foreach ($bindings as $key => $value) {
             if (!is_string($value)
                 && !is_null($value)
