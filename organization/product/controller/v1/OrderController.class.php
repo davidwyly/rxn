@@ -4,7 +4,7 @@ namespace Organization\Product\Controller\v1;
 
 use \Rxn\Container;
 use \Rxn\Api\CrudController;
-use \Organization\Product\Model\Order as OrderRecord;
+use \Organization\Product\Model\Order;
 
 /**
  * Example Order controller
@@ -13,9 +13,10 @@ use \Organization\Product\Model\Order as OrderRecord;
  */
 class OrderController extends CrudController
 {
-    static public $create_contract = [
-        'billing_address' => 'int(11)',
-    ];
+
+    public function init() {
+
+    }
 
     /**
      * Example custom action
@@ -25,7 +26,7 @@ class OrderController extends CrudController
      */
     public function test()
     {
-        $order    = $this->container->get(OrderRecord::class);
+        $order    = $this->container->get(Order::class);
         $response = [
             'order' => $order,
         ];
@@ -41,7 +42,7 @@ class OrderController extends CrudController
      */
     public function create()
     {
-        $order    = $this->container->get(OrderRecord::class);
+        $order    = $this->container->get(Order::class);
         $order_id = $order->create();
         return [
             'created_order_id' => $order_id,

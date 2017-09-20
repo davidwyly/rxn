@@ -255,6 +255,10 @@ class Database
         return $this->createQuery(Query::TYPE_FETCH, $sql, $bindings)->run();
     }
 
+    /**
+     * @return bool
+     * @throws DatabaseException
+     */
     public function transactionOpen()
     {
         if (!empty($this->transaction_depth)) {
@@ -272,6 +276,10 @@ class Database
     }
 
 
+    /**
+     * @return bool
+     * @throws DatabaseException
+     */
     public function transactionClose()
     {
         if ($this->transaction_depth < 1) {
@@ -290,6 +298,10 @@ class Database
         return true;
     }
 
+    /**
+     * @return bool
+     * @throws DatabaseException
+     */
     private function transactionRollback()
     {
         if ($this->transaction_depth < 1) {
@@ -305,6 +317,10 @@ class Database
         return true;
     }
 
+    /**
+     * @return bool
+     * @throws DatabaseException
+     */
     public function disconnect()
     {
         if ($this->transaction_depth > 0) {

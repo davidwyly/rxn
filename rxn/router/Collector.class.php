@@ -275,4 +275,12 @@ class Collector extends Service
     {
         return $this->header;
     }
+
+    /**
+     * @return array
+     */
+    public function getFromRequest()
+    {
+        return array_merge($this->get, $this->post, $this->header);
+    }
 }

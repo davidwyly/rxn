@@ -22,6 +22,11 @@ class CrudController extends Controller implements Crud
     /**
      * @var string
      */
+    private $called_class;
+
+    /**
+     * @var string
+     */
     public $record_class;
 
     /**
@@ -45,10 +50,10 @@ class CrudController extends Controller implements Crud
         parent::__construct($config, $request, $database, $response, $container);
 
         // if a record class is not explicitly defined, assume the short name of the crud controller
-        if (empty($this->record_class)) {
-            $this->record_class = $this->guessRecordClass($config);
-        }
+        $this->called_class = get_called_class();
+        $this->record_class = $this->guessRecordClass();
         $this->validateRecordClass();
+        $this->triggerInit();
     }
 
     /**
@@ -57,7 +62,7 @@ class CrudController extends Controller implements Crud
      */
     public function create()
     {
-        $key_values = $this->request->collectAll();
+        $key_values = $this->request->getCollector()->getFromRequest();
         $order      = $this->container->get($this->record_class);
         $created_id = $order->create($key_values);
         return ['created_id' => $created_id];
@@ -65,20 +70,20 @@ class CrudController extends Controller implements Crud
 
     /**
      * @return mixed
+     * @throws \Exception
      * @throws \Rxn\Error\ContainerException
-     * @throws \Rxn\Error\RequestException
      */
     public function read()
     {
-        $record_id = $this->request->collect('id');
+        $record_id = $this->request->getCollector()->getParamFromGet('id');
         $order     = $this->container->get($this->record_class);
         return $order->read($record_id);
     }
 
     public function update()
     {
-        $record_id  = $this->request->collect('id');
-        $key_values = $this->request->collectAll();
+        $record_id  = $this->request->getCollector()->getParamFromGet('id');
+        $key_values = $this->request->getCollector()->getFromRequest();
         unset($key_values['id']);
         $order      = $this->container->get($this->record_class);
         $updated_id = $order->update($record_id, $key_values);
@@ -91,23 +96,20 @@ class CrudController extends Controller implements Crud
      */
     public function delete()
     {
-        $record_id  = $this->request->collect('id');
-        $order      = $this->container->get($this->record_class);
-        $deleted_id = $order->delete($record_id);
+        $record_id  = $this->request->getCollector()->getParamFromGet('id');
+        $record     = $this->container->get($this->record_class);
+        $deleted_id = $record->delete($record_id);
         return ['deleted_id' => $deleted_id];
     }
 
     /**
-     * @param Config $config
-     *
      * @return string
      */
-    private function guessRecordClass(Config $config)
+    private function guessRecordClass()
     {
-        $called_class     = get_called_class();
-        $reflection       = new \ReflectionClass($called_class);
+        $reflection       = new \ReflectionClass($this->called_class);
         $short_name       = $reflection->getShortName();
-        $potential_record = "{$config->product_namespace}\\Model\\$short_name";
+        $potential_record = "{$this->config->product_namespace}\\Model\\$short_name";
         return $potential_record;
     }
 
@@ -119,6 +121,13 @@ class CrudController extends Controller implements Crud
         $called_class = get_called_class();
         if (!class_exists($this->record_class, true)) {
             throw new \Exception("CrudController '$called_class' references missing model '$this->record_class'", 500);
+        }
+    }
+
+    private function triggerInit()
+    {
+        if (method_exists($this, 'init')) {
+
         }
     }
 }
