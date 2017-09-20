@@ -14,6 +14,14 @@ namespace Rxn;
 class BaseConfig extends Service
 {
     /**
+     * @var array
+     */
+    private $php_ini_requirements = [
+        'zend.multibyte' => false,
+        'display_errors' => true,
+    ];
+
+    /**
      * Defines the maximum session lifetime, including the lifetime of cookies, in seconds
      *
      * Default value: '2400' (40 minutes)
@@ -135,19 +143,14 @@ class BaseConfig extends Service
     }
 
     /**
-     * Getter for static private $php_ini_requirements array
+     * Getter for private $php_ini_requirements array
      *
      * @return array
      */
-    static public function getPhpIniRequirements()
+    public function getPhpIniRequirements()
     {
-        return self::$php_ini_requirements;
+        return $this->php_ini_requirements;
     }
-
-    static private $php_ini_requirements = [
-        'zend.multibyte' => false,
-        'display_errors' => true,
-    ];
 
     /**
      * Getter for private $services array

@@ -62,73 +62,43 @@ class Database
      */
     private $charset = 'utf8';
 
-    /**
-     * @var bool
-     */
-    public $allow_caching = false;
-
-    /**
-     * Database constructor.
-     *
-     * @param Config      $config
-     * @param Datasources $datasources
-     * @param string|null $source_name
-     *
-     * @throws DatabaseException
-     */
-    public function __construct(Config $config, Datasources $datasources, string $source_name = null)
+    public function __construct(Config $config, Datasources $datasources, string $source = null)
     {
-        if (is_null($source_name)) {
-            $source_name = Datasources::DEFAULT_READ;
+        $this->config = $config;
+        $this->datasources = $datasources;
+        $this->soruce = $source;
+
+
+        if (is_null($this->source)) {
+            $this->source = Datasources::DEFAULT_READ;
         }
-        $this->setConfiguration($config, $datasources, $source_name);
+        $this->setConfiguration();
         $this->connect();
     }
 
     /**
-     * @param Config      $config
-     * @param Datasources $datasources
-     * @param string      $source_name
-     *
      * @throws DatabaseException
      */
-    private function setConfiguration(Config $config, Datasources $datasources, string $source_name)
+    private function setConfiguration()
     {
 
-        $databases = $datasources->getDatabases();
-        $this->setConnectionSettings($datasources, $databases[$source_name], $source_name);
-        $this->allow_caching = $config->use_query_caching;
+        $databases = $this->datasources->getDatabases();
+        $this->setConnectionSettings($databases[$this->source]);
     }
 
-    /**
-     * @param Datasources $datasources
-     * @param array       $database_settings
-     * @param             $source_name
-     *
-     * @throws DatabaseException
-     */
-    private function setConnectionSettings(Datasources $datasources, array $database_settings, $source_name)
+    private function setConnectionSettings(array $database_settings)
     {
-        foreach ($datasources->getRequiredFields() as $required_field) {
+        foreach ($this->datasources->getRequiredFields() as $required_field) {
             if (!array_key_exists($required_field, $database_settings)) {
                 throw new DatabaseException("Required database setting '$required_field' is missing");
             }
             $this->{$required_field} = $database_settings[$required_field];
         }
-        if (!in_array($source_name, $datasources->getAllowedSources())) {
-            throw new DatabaseException("Data source '$source_name' is not whitelisted");
+        if (!in_array($this->source, $this->datasources->getAllowedSources())) {
+            throw new DatabaseException("Data source '$this->source' is not whitelisted");
         }
-        $this->source = $source_name;
     }
 
-    /**
-     * @param string $sql
-     * @param array $bindings
-     * @param string $type
-     * @param bool $caching
-     * @param null $timeout
-     * @return Query
-     */
     public function createQuery(
         string $sql,
         array $bindings = [],
@@ -139,12 +109,6 @@ class Database
         return new Query($this->connection, $sql, $bindings, $type, $caching, $timeout);
     }
 
-    /**
-     * @param \PDO|null $connection
-     *
-     * @return \PDO
-     * @throws DatabaseException
-     */
     public function connect(\PDO $connection = null)
     {
         if (is_null($connection)) {
@@ -153,10 +117,6 @@ class Database
         return $this->connection = $connection;
     }
 
-    /**
-     * @return \PDO
-     * @throws DatabaseException
-     */
     public function createConnection()
     {
         $host    = $this->host;
@@ -176,41 +136,26 @@ class Database
         return $connection;
     }
 
-    /**
-     * @return mixed
-     */
     public function getHost()
     {
         return $this->host;
     }
 
-    /**
-     * @return mixed
-     */
     public function getName()
     {
         return $this->name;
     }
 
-    /**
-     * @return mixed
-     */
     public function getUsername()
     {
         return $this->username;
     }
 
-    /**
-     * @return mixed
-     */
     public function getPassword()
     {
         return $this->password;
     }
 
-    /**
-     * @return mixed
-     */
     public function getCharset()
     {
         return $this->charset;

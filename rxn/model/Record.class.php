@@ -18,14 +18,27 @@ use \Rxn\Service\Registry;
 
 abstract class Record extends Model
 {
+    /**
+     * @var Registry
+     */
+    protected $registry;
 
     /**
      * @var Database
      */
     protected $database;
+
+    /**
+     * @var Map
+     */
+    protected $map;
+
     protected $_columns;
     protected $_requiredColumns;
 
+    /**
+     * @var string
+     */
     protected $table;
     private   $primaryKey;
     private   $autoIncrement;
@@ -41,6 +54,13 @@ abstract class Record extends Model
      */
     public function __construct(Registry $registry, Database $database, Map $map)
     {
+        /**
+         * assign dependencies
+         */
+        $this->registry = $registry;
+        $this->database = $database;
+        $this->map      = $map;
+
         $this->validateTableProperty($this->table);
         $this->validateTableName($database, $registry, $this->table);
         $table      = $this->getTable($map, $this->table);
@@ -51,6 +71,11 @@ abstract class Record extends Model
     }
 
 
+    /**
+     * @param $table
+     *
+     * @throws \Exception
+     */
     private function validateTableProperty($table)
     {
         if (empty($table)) {
@@ -59,13 +84,12 @@ abstract class Record extends Model
     }
 
     /**
-     * @param Database $database
-     * @param array    $keyValues
+     * @param array $keyValues
      *
      * @return mixed
      * @throws \Exception
      */
-    public function create(Database $database, array $keyValues)
+    public function create(array $keyValues)
     {
         $this->validateRequiredColumns($keyValues);
 
@@ -101,10 +125,11 @@ abstract class Record extends Model
 
         // generate the SQL statement
         $createSql = "INSERT INTO $table ($columns) VALUES ($placeholderValues)";
-        $database->transactionOpen();
-        $result = $database->query($createSql, $bindings);
+        $this->database->transactionOpen();
+        $query  = $this->database->createQuery($createSql, $bindings);
+        $result = $query->run();
         if (!$result) {
-            throw new \Exception("Failed to create record on database '{$database->getName()}'", 500);
+            throw new \Exception("Failed to create record on database '{$this->database->getName()}'", 500);
         }
         $createdId = $database->getLastInsertId();
         $database->transactionClose();

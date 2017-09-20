@@ -85,11 +85,7 @@ class Debug
         $v_line = file($backtrace[$depth]['file']);
         $f_line = $v_line[$backtrace[$depth]['line'] - 1];
 
-        // get current class name without namespace
-        $this_class = substr(__CLASS__, strrpos(__CLASS__, '\\') + 1);
-
-        $this_dump_method = "dump";
-        preg_match("#($this_class\:\:$this_dump_method\()(.+?)(\,|\)|\;)#", $f_line, $match);
+        preg_match('#($this_class\:\:$this_dump_method\()(.+?)(\,|\)|\;)#', $f_line, $match);
         if (!isset($match[2])) {
             //No match for var name found in file; set var name to be a unique id
             $unique_id = uniqid();

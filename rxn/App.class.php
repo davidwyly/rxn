@@ -200,14 +200,11 @@ class App extends Service
 
         // build a response
         if (!$response->isRendered()) {
-            $response_to_render = $response->getFailure($e);
-        } else {
-            // sometimes, the request itself will not validate, so grab that response
-            $response_to_render = $response->getFailureResponse();
+            return $response_to_render = $response->getFailure($e);
         }
 
-        // return response
-        return $response_to_render;
+        // sometimes, the request itself will not validate, so grab that response
+        return $response_to_render = $response->getFailureResponse();
     }
 
     /**

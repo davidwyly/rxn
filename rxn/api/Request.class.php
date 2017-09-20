@@ -13,7 +13,6 @@ namespace Rxn\Api;
 
 use \Rxn\Config;
 use \Rxn\Router\Collector;
-use \Rxn\Utility\MultiByte;
 use \Rxn\Error\RequestException;
 
 class Request

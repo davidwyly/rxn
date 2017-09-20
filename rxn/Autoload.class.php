@@ -113,4 +113,89 @@ class Autoload extends Service
     {
         $this->registered_classes[] = $class_reference;
     }
+
+    /**
+     * @param        $root
+     * @param        $app_root
+     * @param Config $config
+     *
+     * @throws \Exception
+     */
+    public function validateEnvironment($root, $app_root, Config $config)
+    {
+        $this->validateIni($config);
+        $this->validateFileCaching($root, $app_root, $config);
+        $this->validateMultiByte($config);
+        $this->validateApache();
+    }
+
+    /**
+     * @param Config $config
+     *
+     * @throws \Exception
+     */
+    private function validateIni(Config $config)
+    {
+        // validate PHP INI file settings
+        $ini_requirements = $config->getPhpIniRequirements();
+        foreach ($ini_requirements as $ini_key => $requirement) {
+            if (ini_get($ini_key) != $requirement) {
+                if (is_bool($requirement)) {
+                    $requirement = ($requirement) ? 'On' : 'Off';
+                }
+                throw new \Exception("Rxn requires PHP ini setting '$ini_key' = '$requirement'");
+            }
+        }
+    }
+
+    /**
+     * validate that file caching can work with the environment
+     *
+     * @param Config $config
+     *
+     * @throws \Exception
+     */
+    private function validateFileCaching($root, $app_root, Config $config)
+    {
+        if ($config->use_file_caching) {
+            if (!file_exists("$root/$app_root/data/filecache")) {
+                throw new \Exception("Rxn requires for folder '$root/$app_root/data/filecache' to exist");
+            }
+            if (!is_writable("$root/$app_root/data/filecache")) {
+                throw new \Exception("Rxn requires for folder '$root/$app_root/data/filecache' to be writable");
+            }
+        }
+    }
+
+    /**
+     * validate that multibyte extensions will work properly
+     *
+     * @param Config $config
+     *
+     * @throws \Exception
+     */
+    private function validateMultiByte(Config $config)
+    {
+        $ini_requirements = $config->getPhpIniRequirements();
+        if (!function_exists('mb_strtolower')
+            && (isset($ini_requirements['zend.multibyte'])
+                && $ini_requirements['zend.multibyte'] !== true)
+        ) {
+            throw new \Exception("Rxn requires the PHP mbstring extension to be installed/enabled");
+        }
+    }
+
+    /**
+     * special apache checks
+     *
+     * @throws \Exception
+     */
+    private function validateApache()
+    {
+        if (function_exists('apache_get_modules')
+            && !in_array('mod_rewrite', apache_get_modules())
+        ) {
+            throw new \Exception("Rxn requires Apache module 'mod_rewrite' to be enabled");
+        }
+    }
 }

@@ -13,26 +13,33 @@ namespace Rxn\Router;
 
 use \Rxn\Config;
 use \Rxn\Service;
-use \Rxn\Utility\MultiByte;
 
 class Collector extends Service
 {
     /**
-     * @var array|null
+     * @var Config
      */
-    public $get;
+    private $config;
 
     /**
      * @var array|null
      */
-    public $post;
+    private $get;
 
     /**
      * @var array|null
      */
-    public $header;
+    private $post;
 
-    const URL_STYLE = 'version/controller/action(/param/value/param2/value2/...)';
+    /**
+     * @var array|null
+     */
+    private $header;
+
+    /**
+     * @var string
+     */
+    private $url_style = "version/controller/action(/param/value/param2/value2/...)";
 
     /**
      * Collector constructor.
@@ -41,7 +48,8 @@ class Collector extends Service
      */
     public function __construct(Config $config)
     {
-        $this->get    = $this->getRequestUrlParams($config);
+        $this->config = $config;
+        $this->get    = $this->getRequestUrlParams();
         $this->post   = $this->getRequestDataParams();
         $this->header = $this->getRequestHeaderParams();
     }
@@ -96,29 +104,15 @@ class Collector extends Service
     }
 
     /**
-     * @param $integer
-     *
-     * @return bool
-     */
-    private function isOdd($integer)
-    {
-        if (!self::isEven($integer)) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * @param Config $config
      * @param        $params
      *
      * @return array
      */
-    private function processParams(Config $config, $params)
+    private function processParams($params)
     {
         // assign version, controller, and action
         $processed_params = [];
-        foreach ($config->endpoint_parameters as $map_parameter) {
+        foreach ($this->config->endpoint_parameters as $map_parameter) {
             $processed_params[$map_parameter] = array_shift($params);
         }
 
@@ -145,20 +139,16 @@ class Collector extends Service
     }
 
     /**
-     * @param Config $config
-     *
      * @return array|null
      */
-    public function getRequestUrlParams(Config $config)
+    public function getRequestUrlParams()
     {
         if (!isset($_GET) || empty($_GET)) {
             return null;
         }
 
-        if (isset($_GET['api_version'])
-            && !empty($_GET['api_version'])
-            && isset($_GET['api_endpoint'])
-            && !empty($_GET['api_endpoint'])
+        if ((isset($_GET['api_version']) && !empty($_GET['api_version']))
+            && (isset($_GET['api_endpoint']) && !empty($_GET['api_endpoint']))
         ) {
 
         }
@@ -171,7 +161,7 @@ class Collector extends Service
             $params = explode('/', $params);
 
             // determine the version, controller, and action from the parameters
-            $processed_params = $this->processParams($config, $params);
+            $processed_params = $this->processParams($params);
 
             // tack on the other GET params
             $other_params = $_GET;
@@ -197,7 +187,7 @@ class Collector extends Service
 
             if ($header_key_exists) {
                 $lower_key                 = mb_strtolower($key);
-                $lower_key                 = preg_replace("#http\_#", '', $lower_key);
+                $lower_key                 = preg_replace('#http\_#', '', $lower_key);
                 $header_params[$lower_key] = $value;
             }
         }
@@ -205,50 +195,41 @@ class Collector extends Service
     }
 
     /**
-     * @param Config $config
-     *
      * @return mixed
      * @throws \Exception
      */
-    public function detectVersion(Config $config)
+    public function detectVersion()
     {
-        $get = $this->getRequestUrlParams($config);
+        $get = $this->getRequestUrlParams();
         if (!isset($get['version'])) {
-            $url_style = self::URL_STYLE;
-            throw new \Exception("Cannot detect version from URL; URL style is '$url_style'", 400);
+            throw new \Exception("Cannot detect version from URL; URL style is '$this->url_style'", 400);
 
         }
         return $get['version'];
     }
 
     /**
-     * @param Config $config
-     *
      * @return mixed
      * @throws \Exception
      */
-    public function detectController(Config $config)
+    public function detectController()
     {
-        $get = $this->getRequestUrlParams($config);
+        $get = $this->getRequestUrlParams();
         if (!isset($get['controller'])) {
-            $url_style = self::URL_STYLE;
-            throw new \Exception("Cannot detect controller from URL; URL style is '$url_style'", 400);
+            throw new \Exception("Cannot detect controller from URL; URL style is '$this->url_style'", 400);
         }
         return $get['controller'];
     }
 
     /**
-     * @param Config $config
-     *
      * @return mixed
      * @throws \Exception
      */
-    public function detectAction(Config $config)
+    public function detectAction()
     {
-        $get = $this->getRequestUrlParams($config);
+        $get = $this->getRequestUrlParams();
         if (!isset($get['action'])) {
-            $url_style = self::URL_STYLE;
-            throw new \Exception("Cannot detect action from URL; URL style is '$url_style'", 400);
+            throw new \Exception("Cannot detect action from URL; URL style is '$this->url_style'", 400);
         }
         return $get['action'];
     }

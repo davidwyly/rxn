@@ -34,11 +34,6 @@ class Map extends Service
     private $filecache;
 
     /**
-     * @var Container
-     */
-    private $container;
-
-    /**
      * @var string
      */
     private $fingerprint;
@@ -57,7 +52,7 @@ class Map extends Service
      *
      * @throws \Exception
      */
-    public function __construct(Registry $registry, Database $database, Filecache $filecache, Container $container)
+    public function __construct(Registry $registry, Database $database, Filecache $filecache)
     {
         /**
          * assign dependencies
@@ -78,31 +73,36 @@ class Map extends Service
     private function generateTableMaps()
     {
         $database_name = $this->database->getName();
-        if (!isset($registry->tables[$database_name])) {
+        if (!isset($this->registry->tables[$database_name])) {
             return false;
         }
         foreach ($this->registry->tables[$database_name] as $table_name) {
             $is_cached = $this->filecache->isClassCached(Table::class, [$database_name, $table_name]);
+
             if ($is_cached === true) {
                 $table = $this->filecache->getObject(Table::class, [$database_name, $table_name]);
-            } else {
-                $table = $this->createTable($this->registry, $this->database, $table_name);
-                $this->filecache->cacheObject($table, [$database_name, $table_name]);
+                $this->registerTable($table);
+                continue;
             }
+
+            $table = $this->createTable($this->database);
+            $this->filecache->cacheObject($table, [$database_name, $table_name]);
             $this->registerTable($table);
+
         }
         ksort($this->tables);
         return true;
     }
 
     /**
-     * @param          $table_name
+     * @param string $table_name
      *
      * @return Table
+     * @throws \Rxn\Error\ContainerException
      */
     protected function createTable(string $table_name)
     {
-        return $this->container->get($this->registry, $this->database, $table_name);
+        return new Table($this->registry, $this->database, $table_name);
     }
 
     /**
@@ -115,13 +115,11 @@ class Map extends Service
     }
 
     /**
-     * @param Registry $registry
-     *
      * @throws \Exception
      */
-    private function validateRegistry(Registry $registry)
+    private function validateRegistry()
     {
-        if (empty($registry->tables)) {
+        if (empty($this->registry->tables)) {
             throw new \Exception("Cannot find any registered database tables", 500);
         }
     }

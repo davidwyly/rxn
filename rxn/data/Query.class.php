@@ -12,7 +12,6 @@
 namespace Rxn\Data;
 
 use \Rxn\Error\QueryException;
-use \Rxn\Utility\MultiByte;
 
 class Query
 {
@@ -95,7 +94,8 @@ class Query
      * @param        $timeout
      *
      */
-    public function __construct(\PDO $connection,
+    public function __construct(
+        \PDO $connection,
         string $sql,
         array $bindings,
         string $type,
