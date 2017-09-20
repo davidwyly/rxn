@@ -183,7 +183,7 @@ class Controller
      */
     private function getActionMethod()
     {
-        if (empty($action_name)) {
+        if (empty($this->action_name)) {
             throw new \Exception("Action is missing from the request", 400);
         }
         $reflection  = new \ReflectionObject($this);
