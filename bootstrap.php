@@ -40,5 +40,5 @@ $config = new Config();
 /**
  * Instantiate autoloader and validate
  */
-$autoload = Autoload($config);
-$autoload->validateEnvironment();
+$autoload = new Autoload($config);
+$autoload->validateEnvironment(ROOT, APP_ROOT);
