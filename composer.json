@@ -8,6 +8,9 @@
     "type": "git",
     "reference": "master"
   },
+  "require": {
+    "php": "^7.0"
+  },
   "authors": [
     {
       "name": "David Wyly",
