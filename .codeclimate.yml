@@ -1,0 +1,37 @@
+engines:
+  phpmd:
+    enabled: true
+    checks:
+      Controversial/CamelCasePropertyName:
+        enabled: false
+      Controversial/CamelCaseVariableName:
+        enabled: false
+      Controversial/CamelCaseParameterName:
+        enabled: false
+      Controversial/Superglobals:
+        enabled: false
+      Naming/LongVariable:
+        enabled: false
+  phpcodesniffer:
+    enabled: true
+    checks:
+      Squiz WhiteSpace ScopeKeywordSpacing Incorrect:
+        enabled: false
+      PSR2 Methods FunctionClosingBrace SpacingBeforeClose:
+        enabled: false
+      PSR2 Methods FunctionClosingBrace SpacingBeforeClose:
+        enabled: false
+      PSR2 Classes ClassDeclaration CloseBraceAfterBody:
+        enabled: false
+  duplication:
+      enabled: true
+      config:
+        languages:
+        - php:
+
+ratings:
+  paths:
+  - "organization/**/*"
+  - "public/**/*"
+  - "rxn/**/*"
+  - "**.php"
