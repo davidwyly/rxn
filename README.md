@@ -1,4 +1,4 @@
-<a href="https://codeclimate.com/github/davidwyly/rxn"><img src="https://codeclimate.com/github/codeclimate/codeclimate/badges/gpa.svg" /></a>
+<a href="https://codeclimate.com/github/davidwyly/rxn"><img src="https://codeclimate.com/github/davidwyly/rxn/badges/gpa.svg" /></a>
 <a href="https://codeclimate.com/github/davidwyly/rxn/coverage"><img src="https://codeclimate.com/github/davidwyly/rxn/badges/coverage.svg" /></a>
 <a href="https://codeclimate.com/github/davidwyly/rxn"><img src="https://codeclimate.com/github/davidwyly/rxn/badges/issue_count.svg" /></a>
 
