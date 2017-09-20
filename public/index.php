@@ -12,25 +12,11 @@
 namespace Rxn;
 
 require_once('../bootstrap.php');
-require_once(ROOT . "/Service.class.php");
-require_once(ROOT . "/BaseConfig.class.php");
-require_once(ROOT . "/Config.class.php");
-require_once(ROOT . "/Autoload.class.php");
 
-/**
- * Begin output buffering
- */
-ob_start();
-
-/**
- * Validate environment
- */
-$config   = new Config();
-$autoload = new Autoload($config);
-$autoload->validateEnvironment(ROOT, APP_ROOT);
+autoload();
 
 try {
-    $app = new App($config, new Datasources(), new Container());
+    $app = new App(new Config(), new Datasources(), new Container());
 } catch (\Exception $e) {
     App::renderEnvironmentErrors($e);
     die();
