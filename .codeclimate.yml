@@ -17,11 +17,23 @@ engines:
     checks:
       Squiz WhiteSpace ScopeKeywordSpacing Incorrect:
         enabled: false
+      Squiz WhiteSpace ControlStructureSpacing SpacingBeforeClose:
+        enabled: false
+      Squiz WhiteSpace ControlStructureSpacing SpacingAfterOpen:
+        enabled: false
       PSR2 Methods FunctionClosingBrace SpacingBeforeClose:
         enabled: false
       PSR2 Methods FunctionClosingBrace SpacingBeforeClose:
         enabled: false
       PSR2 Classes ClassDeclaration CloseBraceAfterBody:
+        enabled: false
+      PSR2 Methods FunctionCallSignature CloseBracketLine:
+        enabled: false
+      PSR2 Methods FunctionCallSignature Indent:
+        enabled: false
+      PSR2 Methods FunctionCallSignature ContentAfterOpenBracket:
+        enabled: false
+      PSR2 Files EndFileNewline NoneFound:
         enabled: false
   duplication:
       enabled: true
