@@ -132,12 +132,6 @@ class Collector extends Service
             return null;
         }
 
-        if ((isset($_GET['api_version']) && !empty($_GET['api_version']))
-            && (isset($_GET['api_endpoint']) && !empty($_GET['api_endpoint']))
-        ) {
-
-        }
-
         if (isset($_GET['params']) && !empty($_GET['params'])) {
             // trim any trailing forward slash
             $params = preg_replace('#\/$#', '', $_GET['params']);
