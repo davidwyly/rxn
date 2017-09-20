@@ -597,5 +597,4 @@ class Query
     {
         $this->in_transaction = $in_transaction;
     }
-
 }
