@@ -1,0 +1,46 @@
+<?php
+/**
+ * This file is part of the Rxn (Reaction) PHP API Framework
+ *
+ * @package    Rxn
+ * @copyright  2015-2017 David Wyly
+ * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
+ * @link       Github <https://github.com/davidwyly/rxn>
+ * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
+ */
+
+namespace Rxn\Framework;
+
+class Datasources extends FrameworkDatasources
+{
+
+    public $default_read  = 'read-only';
+
+    public $default_write = 'read-write';
+
+    public $default_admin = 'admin';
+
+    public $databases = [
+        'read-only' => [
+            'host'     => 'localhost',
+            'name'     => 'dbname',
+            'username' => 'dbuser',
+            'password' => 'secret',
+            'charset'  => 'utf8',
+        ],
+        'read-write' => [
+            'host'     => 'localhost',
+            'name'     => 'dbname',
+            'username' => 'dbuser',
+            'password' => 'secret',
+            'charset'  => 'utf8',
+        ],
+        'admin' => [
+            'host'     => 'localhost',
+            'name'     => 'dbname',
+            'username' => 'dbuser',
+            'password' => 'secret',
+            'charset'  => 'utf8',
+        ],
+    ];
+}

@@ -2,8 +2,8 @@
 
 namespace Organization\Product\Controller\v1;
 
-use \Rxn\Container;
-use \Rxn\Api\CrudController;
+use \Rxn\Framework\Container;
+use \Rxn\Framework\Http\CrudController;
 use \Organization\Product\Model\Order;
 
 /**
@@ -38,7 +38,7 @@ class OrderController extends CrudController
      * Example action that utilizes the record's CRUD interface
      *
      * @return array
-     * @throws \Rxn\Error\ContainerException
+     * @throws \Rxn\Framework\Error\ContainerException
      *
      */
     public function create()
