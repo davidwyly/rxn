@@ -18,6 +18,16 @@ use \Rxn\Error\RequestException;
 class Request
 {
     /**
+     * @var Collector
+     */
+    private $collector;
+
+    /**
+     * @var Config
+     */
+    private $config;
+
+    /**
      * @var bool
      */
     protected $validated = true;
@@ -81,30 +91,31 @@ class Request
      */
     public function __construct(Collector $collector, Config $config)
     {
+        $this->collector = $collector;
+        $this->config = $config;
 
         // exceptions that appear here may need special handling
         try {
-            $this->validateRequiredParams($collector, $config);
+            $this->validateRequiredParams();
         } catch (\Exception $exception) {
             $this->validated = false;
-            $this->exception = $e;
+            $this->exception = $exception;
         }
 
         // assign from collector
         try {
-            $this->controller_name    = $this->createControllerName($collector);
-            $this->controller_version = $this->parseControllerVersion($collector);
-            $this->controller_ref     = $this->createControllerRef($config, $this->controller_name,
-                $this->controller_version);
-            $this->action_name        = $this->createActionName($collector);
-            $this->action_version     = $this->parseActionVersion($collector);
-            $this->url                = (array)$this->getSanitizedUrl($collector, $config);
-            $this->get                = (array)$this->getSanitizedGet($collector, $config);
-            $this->post               = (array)$collector->post;
-            $this->header             = (array)$collector->header;
+            $this->controller_name    = $this->createControllerName();
+            $this->controller_version = $this->parseControllerVersion();
+            $this->controller_ref     = $this->createControllerRef($this->controller_name, $this->controller_version);
+            $this->action_name        = $this->createActionName();
+            $this->action_version     = $this->parseActionVersion();
+            $this->url                = (array)$this->getSanitizedUrl();
+            $this->get                = (array)$this->getSanitizedGet();
+            $this->post               = (array)$collector->getFromPost();
+            $this->header             = (array)$collector->getFromHeader();
         } catch (\Exception $exception) {
             $this->validated = true;
-            $this->exception = $e;
+            $this->exception = $exception;
         }
     }
 
@@ -131,7 +142,7 @@ class Request
      * @return mixed|null
      * @throws RequestException
      */
-    public function collectFromGet($target_key, $trigger_exception = true)
+    private function collectFromGet($target_key, $trigger_exception = true)
     {
         foreach ($this->get as $key => $value) {
             if ($target_key == $key) {
@@ -151,7 +162,7 @@ class Request
      * @return mixed|null
      * @throws RequestException
      */
-    public function collectFromPost($targetKey, $triggerException = true)
+    private function collectFromPost($targetKey, $triggerException = true)
     {
         foreach ($this->get as $key => $value) {
             if ($targetKey == $key) {
@@ -171,7 +182,7 @@ class Request
      * @return mixed|null
      * @throws RequestException
      */
-    public function collectFromHeader($targetKey, $triggerException = true)
+    private function collectFromHeader($targetKey, $triggerException = true)
     {
         foreach ($this->get as $key => $value) {
             if ($targetKey == $key) {
@@ -226,20 +237,17 @@ class Request
     }
 
     /**
-     * @param Collector $collector
-     * @param Config    $config
-     *
      * @return array|null
      * @throws RequestException
      */
-    private function getSanitizedUrl(Collector $collector, Config $config)
+    private function getSanitizedUrl()
     {
-        $get_parameters = $collector->get;
+        $get_parameters = $this->collector->getFromGet();
         if (!is_array($get_parameters)) {
             throw new RequestException("Cannot get URL params, verify Apache/Nginx and virtual hosts settings",510);
         }
         foreach ($get_parameters as $get_parameter_key => $getParameterValue) {
-            if (!in_array($get_parameter_key, $config->endpoint_parameters)) {
+            if (!in_array($get_parameter_key, $this->config->endpoint_parameters)) {
                 unset($get_parameters[$get_parameter_key]);
             }
         }
@@ -247,15 +255,12 @@ class Request
     }
 
     /**
-     * @param Collector $collector
-     * @param Config    $config
-     *
      * @return array|null
      */
-    private function getSanitizedGet(Collector $collector, Config $config)
+    private function getSanitizedGet()
     {
-        $get_parameters = $collector->get;
-        foreach ($config->endpoint_parameters as $endpoint_parameter) {
+        $get_parameters = $this->collector->getFromGet();
+        foreach ($this->config->endpoint_parameters as $endpoint_parameter) {
             if (isset($get_parameters[$endpoint_parameter])) {
                 unset($get_parameters[$endpoint_parameter]);
             }
@@ -264,20 +269,20 @@ class Request
     }
 
     /**
-     * @param Collector $collector
-     * @param Config    $config
-     *
      * @return bool
      * @throws RequestException
+     * @throws \Exception
      */
-    private function validateRequiredParams(Collector $collector, Config $config)
+    private function validateRequiredParams()
     {
-        foreach ($config->endpoint_parameters as $parameter) {
-            if (!isset($collector->get[$parameter])) {
+        foreach ($this->config->endpoint_parameters as $parameter) {
+            $param_from_get = $this->collector->getParamFromGet($parameter);
+            if (!isset($param_from_get)) {
                 throw new RequestException("Required parameter $parameter is missing from request");
             }
         }
         $this->validated = true;
+        return true;
     }
 
     /**
@@ -321,14 +326,12 @@ class Request
     }
 
     /**
-     * @param Collector $collector
-     *
      * @return null|string
      */
-    public function parseControllerVersion(Collector $collector)
+    public function parseControllerVersion()
     {
         try {
-            $full_version = $collector->getParamFromGet('version');
+            $full_version = $this->collector->getParamFromGet('version');
         } catch (\Exception $exception) {
             return null;
         }
@@ -340,14 +343,12 @@ class Request
     }
 
     /**
-     * @param Collector $collector
-     *
      * @return null|string
      */
-    public function parseActionVersion(Collector $collector)
+    public function parseActionVersion()
     {
         try {
-            $full_version = $collector->getParamFromGet('version');
+            $full_version = $this->collector->getParamFromGet('version');
         } catch (\Exception $exception) {
             return null;
         }
@@ -360,14 +361,12 @@ class Request
     }
 
     /**
-     * @param Collector $collector
-     *
      * @return null|string
      */
-    public function createControllerName(Collector $collector)
+    public function createControllerName()
     {
         try {
-            $controller_name = $collector->getParamFromGet('controller');
+            $controller_name = $this->collector->getParamFromGet('controller');
         } catch (\Exception $exception) {
             return null;
         }
@@ -375,14 +374,12 @@ class Request
     }
 
     /**
-     * @param Collector $collector
-     *
      * @return null|string
      */
-    public function createActionName(Collector $collector)
+    public function createActionName()
     {
         try {
-            $action_name = $collector->getParamFromGet('action');
+            $action_name = $this->collector->getParamFromGet('action');
         } catch (\Exception $exception) {
             return null;
         }
@@ -390,19 +387,18 @@ class Request
     }
 
     /**
-     * @param Config $config
      * @param        $controller_name
      * @param        $controller_version
      *
      * @return string|null
      */
-    public function createControllerRef(Config $config, $controller_name, $controller_version)
+    public function createControllerRef($controller_name, $controller_version)
     {
         if (empty($controller_name)) {
             return null;
         }
         $processed_name = $this->stringToUpperCamel($controller_name, "_");
-        $controller_ref = $config->product_namespace . "\\Controller\\$controller_version\\$processed_name";
+        $controller_ref = $this->config->product_namespace . "\\Controller\\$controller_version\\$processed_name";
         return $controller_ref;
     }
 
