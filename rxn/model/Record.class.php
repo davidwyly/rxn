@@ -33,14 +33,14 @@ abstract class Record extends Model
      */
     protected $map;
 
-    protected $_columns;
-    protected $_requiredColumns;
+    protected $columns;
+    protected $required_columns;
 
     /**
      * @var string
      */
     protected $table;
-    private $primary_key;
+    private   $primary_key;
 
     /**
      * Record constructor.
@@ -94,7 +94,7 @@ abstract class Record extends Model
 
         // disallow explicit specification of the primary key
         if (isset($key_values[$this->primary_key])) {
-            throw new \Exception("'$this->primary_key' is not allowed in the create request; it is a primary key that will be auto-generated'",
+            throw new \Exception("'$this->primary_key' is forbidden in create request as field is auto-generated'",
                 400);
         }
 
@@ -119,10 +119,14 @@ abstract class Record extends Model
         }
         $placeholderValues = implode(",", $placeholders);
 
-        $table = $this->table;
-
         // generate the SQL statement
-        $createSql = "INSERT INTO $table ($columns) VALUES ($placeholderValues)";
+        $createSql = "
+            INSERT INTO {$this->table} (
+                $columns
+            ) VALUES (
+                $placeholderValues
+            )
+        ";
         $this->database->transactionOpen();
         $query  = $this->database->createQuery($createSql, $bindings);
         $result = $query->run();
@@ -136,36 +140,41 @@ abstract class Record extends Model
 
     public function read($record_id)
     {
-        $primaryKey = $this->primary_key;
-        $table      = $this->table;
-        $readSql    = "SELECT * FROM $table WHERE $primaryKey = :id";
-        $result     = $this->database->fetch($readSql, ['id' => $record_id]);
+        $readSql = "
+            SELECT * 
+            FROM {$this->table} 
+            WHERE {$this->primary_key} = :id
+        ";
+
+        $result = $this->database->fetch($readSql, ['id' => $record_id]);
         if (!$result) {
             throw new \Exception("Failed to find record '$record_id' on database '{$this->database->getName()}'", 404);
         }
         return $result;
     }
 
-    public function update($record_id, array $keyValues)
+    public function update($record_id, array $key_values)
     {
-        $primaryKey = $this->primary_key;
-        $table      = $this->table;
-
+        $keys        = array_keys($key_values);
         $expressions = [];
-        foreach ($keyValues as $key => $value) {
+        foreach ($keys as $key) {
             $expressions[] = "$key=:$key";
         }
 
-        $expressionList = implode(",", $expressions);
+        $expression_list = implode(",", $expressions);
 
         // append primary key onto the key value pairs for manual binding
-        $keyValues = $keyValues + ['id' => $record_id];
+        $key_values = $key_values + ['id' => $record_id];
 
         // generate SQL
-        $updateSql = "UPDATE $table SET $expressionList WHERE $primaryKey=:id";
+        $update_sql = "
+            UPDATE {$this->table} 
+            SET $expression_list 
+            WHERE {$this->primary_key}=:id
+        ";
 
         // update record
-        $result = $this->database->query($updateSql, $keyValues);
+        $result = $this->database->query($update_sql, $key_values);
         if (!$result) {
             throw new \Exception("Failed to update record '$record_id' on database '{$this->database->getName()}'",
                 500);
@@ -175,18 +184,21 @@ abstract class Record extends Model
 
     public function delete($record_id)
     {
-        $primaryKey = $this->primary_key;
-        $table      = $this->table;
+        $primary_key = $this->primary_key;
+        $table       = $this->table;
 
-        $deleteSql = "DELETE FROM $table WHERE $primaryKey=:id";
+        $delete_sql = "
+            DELETE FROM $table 
+            WHERE $primary_key=:id
+        ";
         $this->database->transactionOpen();
-        $result = $this->database->query($deleteSql, ['id' => $record_id]);
+        $result = $this->database->query($delete_sql, ['id' => $record_id]);
         if (!$result) {
-            throw new \Exception("Failed to delete record '$record_id' on database '{$this->database->getName()}'", 500);
+            throw new \Exception("Failed to delete record '$record_id'", 500);
         }
         $lastAffectedRows = $this->database->getLastAffectedRows();
         if (empty($lastAffectedRows)) {
-            throw new \Exception("Failed to find record '$record_id' on database '{$this->database->getName()}'", 404);
+            throw new \Exception("Failed to find record '$record_id'", 404);
         }
         $this->database->transactionClose();
         return $record_id;
@@ -212,7 +224,7 @@ abstract class Record extends Model
      */
     public function getColumns()
     {
-        return $this->_columns;
+        return $this->columns;
     }
 
     /**
@@ -220,7 +232,7 @@ abstract class Record extends Model
      */
     public function getRequiredColumns()
     {
-        return $this->_requiredColumns;
+        return $this->required_columns;
     }
 
     /**
@@ -233,7 +245,7 @@ abstract class Record extends Model
         foreach ($table->column_info as $column_name => $column_data) {
             $columns[$column_name] = $column_data['column_type'];
         }
-        $this->_columns = $columns;
+        $this->columns = $columns;
     }
 
     /**
@@ -250,7 +262,7 @@ abstract class Record extends Model
             }
             $required_columns[] = $column_name;
         }
-        $this->_requiredColumns = $required_columns;
+        $this->required_columns = $required_columns;
     }
 
     /**
