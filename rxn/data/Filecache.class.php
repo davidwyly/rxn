@@ -103,8 +103,9 @@ class Filecache
             mkdir($directory, 0777);
         }
         if (file_exists($filePath)) {
-            throw new \Exception("Trying to cache a file that is already cached; use 'isClassCached()' method first",
-                500);
+            throw new \Exception(
+                "Trying to cache a file that is already cached; use 'isClassCached()' method first", 500
+            );
         }
         file_put_contents($filePath, $serializedObject);
         return true;
