@@ -125,13 +125,12 @@ class Collector extends Service
                 if ($this->isEven($key)) {
                     $paired_key = $value;
                     $next_key   = $key + 1;
-                    if (isset($params[$next_key])) {
-                        $paired_value                  = $params[$next_key];
-                        $processed_params[$paired_key] = $paired_value;
-                    } else {
+                    if (!isset($params[$next_key])) {
                         $processed_params[$paired_key] = null;
+                        continue;
                     }
-
+                    $paired_value                  = $params[$next_key];
+                    $processed_params[$paired_key] = $paired_value;
                 }
             }
         }

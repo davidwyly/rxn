@@ -299,13 +299,13 @@ abstract class Record extends Model
 
         // validate that the relevant table exists in the database
         $relevantTables = $registry->tables[$databaseName];
-        if (in_array($tableName, $relevantTables)) {
-            return true;
-        } else {
+        if (!in_array($tableName, $relevantTables)) {
             $reflection = new \ReflectionObject($this);
             $recordName = $reflection->getName();
             throw new \Exception("Record '$recordName' references table '$tableName' which doesn't exist", 500);
         }
+
+        return true;
     }
 
     /**

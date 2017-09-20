@@ -438,29 +438,31 @@ class Query
                     throw new QueryException("PDO Exception ($error)", 500, $e);
                 }
             }
-        } else { // non-associative binding with "?" (e.g., [0] => "prepared value")
-            $array_size = substr_count($sql, '?');
-            // fail if the raw sql has an incorrect number of binding points
-            $binding_size = count($bindings);
-            if ($array_size != $binding_size) {
-                throw new QueryException("Trying to bind '$binding_size' properties "
-                    . "when sql statement has '$array_size' binding points", 500);
+            return $statement;
+        }
+
+        $array_size = substr_count($sql, '?');
+        // fail if the raw sql has an incorrect number of binding points
+        $binding_size = count($bindings);
+        if ($array_size != $binding_size) {
+            throw new QueryException("Trying to bind '$binding_size' properties "
+                . "when sql statement has '$array_size' binding points", 500);
+        }
+
+        foreach ($bindings as $key => $value) {
+            if (!is_string($value)
+                && !is_null($value)
+                && !is_int($value)
+                && !is_float($value)
+            ) {
+                throw new QueryException("Can only bind types: string, null, int, float", 500);
             }
-            foreach ($bindings as $key => $value) {
-                if (!is_string($value)
-                    && !is_null($value)
-                    && !is_int($value)
-                    && !is_float($value)
-                ) {
-                    throw new QueryException("Can only bind types: string, null, int, float", 500);
-                }
-                $next_key = $key + 1;
-                try {
-                    $statement->bindValue($next_key, trim($value));
-                } catch (\PDOException $e) {
-                    $error = $e->getMessage();
-                    throw new QueryException("PDO Exception ($error)", 500, $e);
-                }
+            $next_key = $key + 1;
+            try {
+                $statement->bindValue($next_key, trim($value));
+            } catch (\PDOException $e) {
+                $error = $e->getMessage();
+                throw new QueryException("PDO Exception ($error)", 500, $e);
             }
         }
         return $statement;
