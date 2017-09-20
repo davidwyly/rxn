@@ -55,20 +55,6 @@ class Collector extends Service
     }
 
     /**
-     * @param $paramName
-     *
-     * @return string
-     * @throws \Exception
-     */
-    public function getUrlParam($paramName)
-    {
-        if (!isset($this->get[$paramName])) {
-            throw new \Exception("No GET param by the name of '$paramName',500");
-        }
-        return (string)$this->get[$paramName];
-    }
-
-    /**
      * @return array|null
      */
     public function getRequestDataParams()
@@ -239,7 +225,7 @@ class Collector extends Service
      * @return mixed
      * @throws \Exception
      */
-    public function fromGet($parameter)
+    public function getParamFromGet($parameter)
     {
         if (array_key_exists($parameter, $this->get)) {
             return $this->get['parameter'];
@@ -254,7 +240,7 @@ class Collector extends Service
      * @return mixed
      * @throws \Exception
      */
-    public function fromPost($parameter)
+    public function getParamFromPost($parameter)
     {
         if (array_key_exists($parameter, $this->post)) {
             return $this->post['parameter'];
@@ -268,11 +254,36 @@ class Collector extends Service
      * @return mixed
      * @throws \Exception
      */
-    public function fromHeader($parameter)
+    public function getParamFromHeader($parameter)
     {
         if (array_key_exists($parameter, $this->header)) {
             return $this->header['parameter'];
         }
         throw new \Exception("Parameter '$parameter' is not part of the HEADER request");
+    }
+
+
+    /**
+     * @return array|null
+     */
+    public function getFromGet()
+    {
+        return $this->get;
+    }
+
+    /**
+     * @return array|null
+     */
+    public function getFromPost()
+    {
+        return $this->post;
+    }
+
+    /**
+     * @return array|null
+     */
+    public function getFromHeader()
+    {
+        return $this->header;
     }
 }

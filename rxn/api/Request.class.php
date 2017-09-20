@@ -328,7 +328,7 @@ class Request
     public function parseControllerVersion(Collector $collector)
     {
         try {
-            $full_version = $collector->getUrlParam('version');
+            $full_version = $collector->getParamFromGet('version');
         } catch (\Exception $exception) {
             return null;
         }
@@ -347,7 +347,7 @@ class Request
     public function parseActionVersion(Collector $collector)
     {
         try {
-            $full_version = $collector->getUrlParam('version');
+            $full_version = $collector->getParamFromGet('version');
         } catch (\Exception $exception) {
             return null;
         }
@@ -367,7 +367,7 @@ class Request
     public function createControllerName(Collector $collector)
     {
         try {
-            $controller_name = $collector->getUrlParam('controller');
+            $controller_name = $collector->getParamFromGet('controller');
         } catch (\Exception $exception) {
             return null;
         }
@@ -382,7 +382,7 @@ class Request
     public function createActionName(Collector $collector)
     {
         try {
-            $action_name = $collector->getUrlParam('action');
+            $action_name = $collector->getParamFromGet('action');
         } catch (\Exception $exception) {
             return null;
         }
