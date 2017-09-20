@@ -18,15 +18,16 @@ use \Rxn\Service\Registry;
 class Table extends Service
 {
     /**
-     * @var
+     * @var Registry
      */
-    public $name;
-    public $table_info;
-    public $column_info      = [];
-    public $primary_keys     = [];
-    public $field_references = [];
-    public $cacheTime        = null;
-    //protected $fromCache = false;
+    private $registry;
+    private $database;
+    private $table_name;
+    private $table_info;
+    private $column_info           = [];
+    private $primary_keys          = [];
+    private $field_references      = [];
+    private $create_reference_maps = false;
 
     /**
      * Table constructor.
@@ -34,37 +35,27 @@ class Table extends Service
      * @param Registry $registry
      * @param Database $database
      * @param string   $table_name
-     * @param bool     $create_reference_maps
      *
      * @throws \Exception
      */
-    public function __construct(
-        Registry $registry,
-        Database $database,
-        string $table_name,
-        bool $create_reference_maps = true
-    ) {
-        $this->validateTableExists($database, $registry, $table_name);
-        $construct_params = [
-            $registry,
-            $database,
-            $table_name,
-            $create_reference_maps,
-        ];
-        $this->initialize($construct_params);
+    public function __construct(Registry $registry, Database $database, string $table_name)
+    {
+
+        $this->registry   = $registry;
+        $this->database   = $database;
+        $this->table_name = $table_name;
+
+        $this->validateTableExists();
+        $this->initialize();
     }
 
     /**
-     * @param Database $database
-     * @param Registry $registry
-     * @param          $table_name
-     *
      * @throws \Exception
      */
-    private function validateTableExists(Database $database, Registry $registry, string $table_name)
+    private function validateTableExists()
     {
-        if (!$this->tableExists($database, $registry, $table_name)) {
-            throw new \Exception(__METHOD__ . " returned false: table '$table_name' doesn't exist", 500);
+        if (!$this->tableExists()) {
+            throw new \Exception(__METHOD__ . " returned false: table '$this->table_name' doesn't exist", 500);
         }
     }
 
@@ -73,41 +64,26 @@ class Table extends Service
      *
      * @throws \Exception
      */
-    public function initialize(array $construct_params)
+    public function initialize()
     {
-        $this->initializeNormally($construct_params);
-    }
-
-    /**
-     * @param array $construct_params {[Registry $registry, Database $database, string $table_name, bool
-     *                                $create_reference_maps]}
-     *
-     * @throws \Exception
-     */
-    public function initializeNormally(array $construct_params)
-    {
-        // reverse engineer the parameters
-        list($registry, $database, $table_name, $create_reference_maps) = $construct_params;
-
         // generate the table map
-        $this->name = $table_name;
-        $this->generateTableMap($database, $table_name, $create_reference_maps);
+        $this->generateTableMap();
     }
 
     /**
      * @param Database $database
      * @param string   $table_name
-     * @param bool     $create_reference_maps
      *
      * @return bool
      * @throws \Exception
+     *
      */
-    private function generateTableMap(Database $database, string $table_name, bool $create_reference_maps): bool
+    private function generateTableMap(): bool
     {
-        $this->table_info   = $this->getTableInfo($database, $table_name);
-        $this->column_info  = $this->getColumns($database, $table_name);
-        $this->primary_keys = $this->getPrimaryKeys($database, $table_name);
-        if ($create_reference_maps) {
+        $this->table_info   = $this->getTableInfo();
+        $this->column_info  = $this->getColumns();
+        $this->primary_keys = $this->getPrimaryKeys();
+        if ($this->create_reference_maps) {
             $this->createReferenceMaps();
         }
         return true;
@@ -137,16 +113,13 @@ class Table extends Service
     }
 
     /**
-     * @param Database $database
-     * @param          $table_name
-     *
      * @return array|mixed
-     * @throws \Exception
+     * @throws \Rxn\Error\QueryException
      */
-    protected function getTableDetails(Database $database, string $table_name)
+    protected function getTableDetails()
     {
-        $database_name = $database->getName();
-        $SQL           = /** @lang MySQL */
+        $database_name = $this->database->getName();
+        $sql           = /** @lang MySQL */
             "
             SELECT DISTINCT
                 c.column_name,
@@ -186,29 +159,27 @@ class Table extends Service
             GROUP BY c.column_name
             ORDER BY c.ordinal_position ASC
         ";
-        $bindings      = [
+
+        $bindings = [
             'database_name' => $database_name,
-            'table_name'    => $table_name,
+            'table_name'    => $this->table_name,
         ];
-        $result        = $database->fetchAll($SQL, $bindings, true, 1);
+
+        $result = $this->database->fetchAll($sql, $bindings);
         return $result;
     }
 
     /**
-     * @param Database $database
-     * @param Registry $registry
-     * @param string   $table_name
-     *
      * @return bool
-     * @throws \Exception
+     * @throws \Rxn\Error\QueryException
      */
-    public function tableExists(Database $database, Registry $registry, string $table_name): bool
+    public function tableExists(): bool
     {
-        $database_name = $database->getName();
-        if (in_array($table_name, $registry->tables[$database_name])) {
+        $database_name = $this->database->getName();
+        if (in_array($this->table_name, $this->registry->tables[$database_name])) {
             return true;
         }
-        $SQL = /** @lang MySQL */
+        $sql = /** @lang MySQL */
             "
 			SELECT
 				table_name
@@ -217,23 +188,21 @@ class Table extends Service
 				AND t.table_name LIKE ?
 				AND t.table_type = 'BASE TABLE'
 			";
-        if ($database->fetch($SQL, [$database_name, $table_name], true, 1)) {
+        if ($this->database->fetch($sql, [$database_name, $this->table_name])) {
             return true;
         }
         return false;
     }
 
     /**
-     * @param Database $database
-     * @param          $table_name
-     *
-     * @return array|mixed
-     * @throws \Exception
+     * @return mixed
+     * @throws \Rxn\Error\QueryException
      */
-    private function getTableInfo(Database $database, string $table_name)
+    private function getTableInfo()
     {
-        $database_name = $database->getName();
-        $SQL           = /** @lang MySQL */
+        $database_name = $this->database->getName();
+
+        $sql = /** @lang MySQL */
             "
             SELECT
                 t.table_catalog,
@@ -259,21 +228,20 @@ class Table extends Service
             WHERE t.table_schema LIKE ?
                 AND t.table_name LIKE ?
         ";
-        $result        = $database->fetch($SQL, [$database_name, $table_name], true, 1);
+
+        $result = $this->database->fetch($sql, [$database_name, $this->table_name]);
         return $result;
     }
 
     /**
-     * @param Database $database
-     * @param          $table_name
-     *
      * @return array|mixed
      * @throws \Exception
      */
-    private function getPrimaryKeys(Database $database, string $table_name)
+    private function getPrimaryKeys()
     {
-        $database_name = $database->getName();
-        $SQL           = /** @lang MySQL */
+        $database_name = $this->database->getName();
+
+        $sql = /** @lang MySQL */
             "
             SELECT COLUMN_NAME
             FROM information_schema.key_column_usage AS kcu
@@ -281,20 +249,18 @@ class Table extends Service
                 AND kcu.table_name LIKE ?
                 AND kcu.constraint_name LIKE 'PRIMARY'
         ";
-        $result        = $database->fetchArray($SQL, [$database_name, $table_name], true, 1);
+
+        $result = $this->database->fetchArray($sql, [$database_name, $this->table_name]);
         return $result;
     }
 
     /**
-     * @param Database $database
-     * @param          $table_name
-     *
      * @return array|mixed
      * @throws \Exception
      */
-    private function getColumns(Database $database, string $table_name)
+    private function getColumns()
     {
-        $result = $this->getTableDetails($database, $table_name);
+        $result = $this->getTableDetails();
         if (!$result) {
             throw new \Exception(__METHOD__ . " returned false", 500);
         }

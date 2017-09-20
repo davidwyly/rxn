@@ -14,8 +14,9 @@ use \Organization\Product\Model\Order;
 class OrderController extends CrudController
 {
 
-    public function init() {
-
+    public function init()
+    {
+        //
     }
 
     /**
