@@ -1,3 +1,10 @@
+ratings:
+    paths:
+    - "organization/**/*"
+    - "public/**/*"
+    - "rxn/**/*"
+    - "**.php"
+
 engines:
   # ... CONFIG CONTENT ...
   phpmd:
