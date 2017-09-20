@@ -102,7 +102,7 @@ class Session extends Service
     /**
      * @return null
      */
-    static public function getSessionParams()
+    public static function getSessionParams()
     {
         if (!isset($_SESSION) || empty($_SESSION)) {
             return null;

@@ -202,7 +202,7 @@ class Response
      *
      * @return int|mixed|string
      */
-    static public function getErrorCode(\Exception $exception)
+    public static function getErrorCode(\Exception $exception)
     {
         $code = $exception->getCode();
         if (empty($code)) {
@@ -216,7 +216,7 @@ class Response
      *
      * @return array
      */
-    static public function getErrorTrace(\Exception $exception)
+    public static function getErrorTrace(\Exception $exception)
     {
         $full_trace         = $exception->getTrace();
         $allowed_debug_keys = [
@@ -252,7 +252,7 @@ class Response
      *
      * @return string
      */
-    static public function getResponseCodeResult($code)
+    public static function getResponseCodeResult($code)
     {
         if (!isset(self::$response_codes[$code])) {
             return 'Unsupported Response Code';

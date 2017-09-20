@@ -82,7 +82,7 @@ class App extends Service
     /**
      * @var \Exception[]
      */
-    static private $environment_errors = [];
+    private static $environment_errors = [];
 
     /**
      * Application.class constructor.
@@ -210,7 +210,7 @@ class App extends Service
      *
      * @throws AppException
      */
-    static private function render(Response $response)
+    private static function render(Response $response)
     {
         // error out if output buffer has crap in it
         if (ob_get_contents()) {
@@ -237,7 +237,7 @@ class App extends Service
     /**
      * @return mixed
      */
-    static public function getElapsedMs()
+    public static function getElapsedMs()
     {
         $now       = microtime(true);
         $elapsedMs = round(($now - START) * 1000, 3);
@@ -249,7 +249,7 @@ class App extends Service
      *
      * @return bool
      */
-    static private function isJson($json)
+    private static function isJson($json)
     {
         json_decode($json);
         return (json_last_error() === JSON_ERROR_NONE);
@@ -258,7 +258,7 @@ class App extends Service
     /**
      * @return bool
      */
-    static public function hasEnvironmentErrors()
+    public static function hasEnvironmentErrors()
     {
         if (!empty(self::$environment_errors)) {
             return true;
@@ -273,7 +273,7 @@ class App extends Service
      *
      * @throws AppException
      */
-    static public function renderEnvironmentErrors(\Exception $exception = null)
+    public static function renderEnvironmentErrors(\Exception $exception = null)
     {
         if (!is_null($exception)) {
             self::appendEnvironmentError($exception);
@@ -295,7 +295,7 @@ class App extends Service
      * @internal param $errorLine
      * @internal param $errorMessage
      */
-    static public function appendEnvironmentError(\Exception $exception)
+    public static function appendEnvironmentError(\Exception $exception)
     {
         self::$environment_errors[] = [
             'file'    => $exception->getFile(),
