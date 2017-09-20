@@ -1,8 +1,16 @@
-
-
 engines:
+  phpmd:
+    enabled: true
+    checks:
+          Controversial/CamelCasePropertyName:
+            enabled: false
   phpcodesniffer:
     enabled: true
+  duplication:
+      enabled: true
+      config:
+        languages:
+        - php:
 
 ratings:
   paths:
