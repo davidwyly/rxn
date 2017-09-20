@@ -15,11 +15,10 @@ class Key
 {
     static private $encryption_min_length = 32;
     private        $encryption_key;
-    private        $encryption_method;
 
     public function __construct()
     {
-
+        //
     }
 
     /**
