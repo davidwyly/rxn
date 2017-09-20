@@ -1,0 +1,17 @@
+{
+  "name": "davidwyly/rxn",
+  "description": "Rxn PHP Framework",
+  "license": "MIT",
+  "version": "master",
+  "dist": {
+    "url": "git://github.com/davidwyly/rxn.git",
+    "type": "git",
+    "reference": "master"
+  },
+  "authors": [
+    {
+      "name": "David Wyly",
+      "email": "david.wyly@gmail.com"
+    }
+  ]
+}
