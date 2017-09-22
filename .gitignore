@@ -1,6 +1,10 @@
 rxn/framework/Config.class.php
 rxn/framework/Datasources.class.php
 
+# Dependencies #
+################
+vendor/*
+
 # Compiled source #
 ###################
 *.com
