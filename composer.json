@@ -4,7 +4,7 @@
   "license": "MIT",
   "autoload": {
     "psr-4": {
-      "Rxn\\Framework\\": "davidwyly/rxn/src/"
+      "Rxn\\Framework\\": "vendor/davidwyly/rxn/src/"
     }
   },
   "repositories": [
