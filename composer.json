@@ -4,7 +4,7 @@
   "license": "MIT",
   "autoload": {
     "psr-4": {
-      "Rxn\\Framework\\": "vendor/davidwyly/rxn/src/"
+      "Rxn\\": "src/"
     }
   },
   "repositories": [
@@ -21,6 +21,7 @@
       }
     }
   ],
+  "installation-source": "dist",
   "require": {
     "php": "^7.0"
   },

@@ -121,7 +121,7 @@ class Autoload extends Service
 
         // convert back into a string for directory reference
         $class_path = implode('/', $path_array);
-        $load_path  = realpath(__DIR__ . '/..') . '/' . $class_path . $extension;
+        $load_path  = __DIR__ . '/..' . $class_path . $extension;
 
         // validate the path
         if (!file_exists($load_path)) {
