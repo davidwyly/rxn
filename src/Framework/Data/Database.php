@@ -12,7 +12,7 @@
 namespace Rxn\Framework\Data;
 
 use \Rxn\Framework\Config;
-use \Rxn\Framework\Datasources;
+use \Rxn\Framework\Datasource;
 use \Rxn\Framework\Error\DatabaseException;
 
 class Database
@@ -28,7 +28,7 @@ class Database
     private $config;
 
     /**
-     * @var Datasources
+     * @var Datasource
      */
     private $datasources;
 
@@ -77,7 +77,7 @@ class Database
      */
     private $using_cache = false;
 
-    public function __construct(Config $config, Datasources $datasources, string $source = null)
+    public function __construct(Config $config, Datasource $datasources, string $source = null)
     {
         $this->config      = $config;
         $this->datasources = $datasources;
@@ -85,7 +85,7 @@ class Database
 
 
         if (is_null($this->source)) {
-            $this->source = Datasources::DEFAULT_READ;
+            $this->source = Datasource::DEFAULT_READ;
         }
         $this->setConfiguration();
         $this->connect();

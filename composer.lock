@@ -15,7 +15,8 @@
                 "url": "git@github.com:davidwyly/rxn.git",
                 "reference": "master"
             },
-            "type": "library"
+            "type": "library",
+            "time": "2018-09-21T23:19:08+00:00"
         },
         {
             "name": "doctrine/instantiator",

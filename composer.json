@@ -7,6 +7,9 @@
       "Rxn\\": "src/"
     }
   },
+  "config": {
+    "preferred-install": "source"
+  },
   "repositories": [
     {
       "type": "package",
@@ -21,7 +24,6 @@
       }
     }
   ],
-  "installation-source": "dist",
   "require": {
     "php": "^7.0"
   },

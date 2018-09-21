@@ -7,8 +7,7 @@ define(__NAMESPACE__ . '\ROOT', __DIR__ . '/../');
 
 try {
     $config = new Rxn\Framework\BaseConfig();
-    new Autoload($config);
-    $app = new App($config, new Datasources(), new Container());
+    $app = new App($config, new Datasource(), new Container());
 } catch (AppException $exception) {
     /** @noinspection PhpUnhandledExceptionInspection */
     App::renderEnvironmentErrors($exception);

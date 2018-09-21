@@ -1,6 +1,8 @@
 <?php
 
-namespace Rxn\Framework;
+namespace Organization\Product;
+
+use Rxn\Framework\BaseConfig;
 
 final class Config extends BaseConfig
 {
