@@ -25,7 +25,7 @@ class App extends Service
     private $config;
 
     /**
-     * @var Datasources
+     * @var Datasource
      */
     private $datasources;
 
@@ -83,13 +83,13 @@ class App extends Service
      * Application.class constructor.
      *
      * @param Config      $config
-     * @param Datasources $datasources
+     * @param Datasource $datasources
      * @param Container   $container
      *
      * @throws AppException
      * @throws Error\ContainerException
      */
-    public function __construct(Config $config, Datasources $datasources, Container $container)
+    public function __construct(Config $config, Datasource $datasources, Container $container)
     {
         $this->config      = $config;
         $this->datasources = $datasources;
@@ -101,7 +101,7 @@ class App extends Service
     {
         date_default_timezone_set($this->config->timezone);
         $this->databases = $this->registerDatabases();
-        $this->container->addInstance(Datasources::class, $this->datasources);
+        $this->container->addInstance(Datasource::class, $this->datasources);
         $this->container->addInstance(Config::class, $this->config);
         $this->registry   = $this->container->get(Registry::class, [$this->config]);
         $services_to_load = $this->config->getServices();

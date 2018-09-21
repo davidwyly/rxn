@@ -1,8 +1,10 @@
 <?php
 
-namespace Rxn\Framework;
+namespace Organization\Product;
 
-final class Datasources extends BaseDatasources
+use Rxn\Framework\BaseDatasource;
+
+final class Datasource extends BaseDatasource
 {
     public $databases = [
 

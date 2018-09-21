@@ -11,7 +11,7 @@
 
 namespace Rxn\Framework;
 
-class BaseDatasources extends Service
+class BaseDatasource extends Service
 {
     /**
      * @var string

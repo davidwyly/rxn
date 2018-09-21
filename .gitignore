@@ -1,5 +1,5 @@
 rxn/Config.php
-rxn/Datasources.php
+rxn/Datasource.php
 
 # Dependencies #
 ################
