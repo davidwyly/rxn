@@ -1,3 +1,4 @@
+# .gitattributes
 /app                export-ignore
 /config             export-ignore
 /database           export-ignore
@@ -8,3 +9,6 @@
 /.gitignore         export-ignore
 /composer.phar      export-ignore
 /docker-compose.yml export-ignore
+
+# Auto detect text files and perform LF normalization
+* text=auto
