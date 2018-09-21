@@ -2,6 +2,11 @@
   "name": "davidwyly/sample",
   "description": "Rxn PHP Sample Project",
   "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "Rxn\\Framework\\": "davidwyly/rxn/src/"
+    }
+  },
   "repositories": [
     {
       "type": "package",
