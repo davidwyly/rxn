@@ -9,7 +9,7 @@
  * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
  */
 
-namespace Rxn\Framework\Router;
+namespace Rxn\Framework\Http\Router;
 
 use \Rxn\Framework\Config;
 use \Rxn\Framework\Service;
