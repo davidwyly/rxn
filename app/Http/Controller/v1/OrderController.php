@@ -1,15 +1,13 @@
 <?php
 
-namespace Organization\Product\Controller\v1;
+namespace Organization\Product\Http\Controller\v1;
 
-use \Rxn\Framework\Container;
-use \Rxn\Framework\Http\CrudController;
-use \Organization\Product\Model\Order;
+use Rxn\Framework\Container;
+use Rxn\Framework\Http\CrudController;
+use Organization\Product\Model\Order;
 
 /**
  * Example Order controller
- *
- * @package Organization\Product\Controller\v1
  */
 class OrderController extends CrudController
 {
