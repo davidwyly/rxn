@@ -9,3 +9,4 @@
 /composer.json export-ignore
 /composer.phar export-ignore
 /docker-compose.yml export-ignore
+* text=auto
