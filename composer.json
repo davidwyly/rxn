@@ -1,17 +1,26 @@
 {
-  "name": "davidwyly/rxn",
-  "description": "Rxn PHP Framework",
+  "name": "davidwyly/sample",
+  "description": "Rxn PHP Sample Project",
   "license": "MIT",
-  "version": "master",
-  "dist": {
-    "url": "git://github.com/davidwyly/rxn.git",
-    "type": "git",
-    "reference": "master"
-  },
+  "repositories": [
+    {
+      "type": "package",
+      "package": {
+        "name": "davidwyly/rxn",
+        "version": "dev-master",
+        "source": {
+          "url": "git@github.com:davidwyly/rxn.git",
+          "type": "git",
+          "reference": "master"
+        }
+      }
+    }
+  ],
   "require": {
     "php": "^7.0"
   },
   "require-dev": {
+    "davidwyly/rxn": "dev-master",
     "phpunit/phpunit": "^6.2"
   },
   "authors": [

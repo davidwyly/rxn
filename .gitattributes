@@ -1,0 +1,6 @@
+app/ export-ignore
+config/ export-ignore
+database/ export-ignore
+docker/ export-ignore
+public/ export-ignore
+tests/ export-ignore
