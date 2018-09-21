@@ -11,7 +11,7 @@
 
 namespace Rxn\Framework;
 
-abstract class BaseConfig extends Service
+class BaseConfig extends Service
 {
     /**
      * @var array
