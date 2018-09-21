@@ -1,0 +1,33 @@
+version: '2'
+services:
+  nginx:
+    build:
+      context: ./docker/nginx
+    volumes:
+      - ./:/var/www/rxn
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/sites-available/:/etc/nginx/sites-available
+      - ./docker/nginx/conf.d/:/etc/nginx/conf.d
+    ports:
+      - "8080:80"
+    links:
+      - php
+
+  php:
+    build:
+      context: ./docker/php
+    volumes:
+      - ./:/var/www/rxn
+    environment:
+      XDEBUG_CONFIG: remote_host=host.docker.internal
+    links:
+      - mysql
+
+  mysql:
+    build:
+      context: ./docker/mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_DATABASE=mydb
+      - MYSQL_ROOT_PASSWORD=docker

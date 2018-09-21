@@ -1,23 +1,23 @@
 <?php
-/**
- * This file is part of the Rxn (Reaction) PHP API App
- *
- * @package    Rxn
- * @copyright  2015-2017 David Wyly
- * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
- * @link       Github <https://github.com/davidwyly/rxn>
- * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
- */
 
-namespace Rxn;
+namespace Rxn\Framework;
 
-require_once('../bootstrap.php');
+define(__NAMESPACE__ . '\START', microtime(true));
+define(__NAMESPACE__ . '\ROOT', __DIR__ . '/../');
+define(__NAMESPACE__ . '\RXN_ROOT', ROOT . 'src/');
+define(__NAMESPACE__ . '\APP_ROOT', ROOT . 'app/');
 
-autoload();
+require_once(RXN_ROOT . '/Service.php');
+require_once(RXN_ROOT . '/BaseConfig.php');
+require_once(ROOT . '/config/Config.php');
+require_once(RXN_ROOT . '/Autoload.php');
 
 try {
-    $app = new App(new Config(), new Datasources(), new Container());
-} catch (\Exception $exception) {
+    $config = new Config();
+    new Autoload($config);
+    $app = new App($config, new Datasources(), new Container());
+} catch (AppException $exception) {
+    /** @noinspection PhpUnhandledExceptionInspection */
     App::renderEnvironmentErrors($exception);
     die();
 }
