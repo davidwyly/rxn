@@ -1,5 +1,5 @@
-rxn/framework/Config.class.php
-rxn/framework/Datasources.class.php
+rxn/Config.php
+rxn/Datasources.php
 
 # Dependencies #
 ################
