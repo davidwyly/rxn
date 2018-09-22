@@ -11,7 +11,7 @@
 
 namespace Rxn\Framework\Service;
 
-use \Rxn\Framework\Config;
+use \Rxn\Framework\BaseConfig;
 use \Rxn\Framework\Service;
 use \Rxn\Framework\Data\Database;
 use \Rxn\Framework\Error\RegistryException;
@@ -19,7 +19,7 @@ use \Rxn\Framework\Error\RegistryException;
 class Registry extends Service
 {
     /**
-     * @var Config
+     * @var BaseConfig
      */
     private $config;
 
@@ -35,13 +35,13 @@ class Registry extends Service
     public $contracts;
 
     /**
-     * @param Config   $config
+     * @param BaseConfig   $config
      * @param Database $database
      *
      * @throws RegistryException
      * @throws \Rxn\Framework\Error\QueryException
      */
-    public function __construct(Config $config, Database $database)
+    public function __construct(BaseConfig $config, Database $database)
     {
         $this->config = $config;
         $this->database =  $database;
@@ -195,7 +195,7 @@ class Registry extends Service
 
         $database_name = $this->database->getName();
         $params        = [$database_name];
-        $tables        = $this->database->enableCaching()->fetchArray($sql, $params);
+        $tables        = $this->database->fetchArray($sql, $params);
 
         if (!$tables) {
             return false;
