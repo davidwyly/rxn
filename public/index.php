@@ -20,6 +20,7 @@ try {
      */
     $env = new Dotenv(constant(__NAMESPACE__ . '\\CONFIG_ROOT'));
     $env->load();
+    unset($env);
     require_once(__DIR__ . '/../app/Config/bootstrap.php');
 
     /**
