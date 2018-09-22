@@ -91,6 +91,18 @@ class BaseDatasource extends Service
     }
 
     /**
+     * @param $datasource_name
+     *
+     * @return null
+     */
+    public function getDatasourceByName($datasource_name) {
+        if (array_key_exists($datasource_name, $this->databases)) {
+            return $this->databases[$datasource_name];
+        }
+        return null;
+    }
+
+    /**
      * @return array
      */
     public function getAllowedSources()

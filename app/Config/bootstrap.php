@@ -1,15 +1,28 @@
 <?php
 
-/**
- * Bootstrap file for RXN Application
- */
+namespace Rxn\Framework;
 
-define('Rxn\\Framework\\ENVIRONMENT', getenv('Rxn\\Framework\\ENVIRONMENT'));
-define('Rxn\\Framework\\APP_NAMESPACE', getenv('Rxn\\Framework\\APP_NAMESPACE'));
-define('Rxn\\Framework\\APP_TIMEZONE', getenv('Rxn\\Framework\\APP_TIMEZONE'));
-define('Rxn\\Framework\\APP_MULTIBYTE', getenv('Rxn\\Framework\\APP_MULTIBYTE'));
+require_once(__DIR__ . '/../../vendor/autoload.php');
 
-define('Rxn\\Framework\\TEST_OAUTH_CONSUMER_KEY', getenv('Rxn\\Framework\\TEST_OAUTH_CONSUMER_KEY'));
-define('Rxn\\Framework\\TEST_OAUTH_CONSUMER_SECRET', getenv('Rxn\\Framework\\TEST_OAUTH_CONSUMER_SECRET'));
-define('Rxn\\Framework\\TEST_OAUTH_TOKEN_KEY', getenv('Rxn\\Framework\\TEST_OAUTH_TOKEN_KEY'));
-define('Rxn\\Framework\\TEST_OAUTH_TOKEN_SECRET', getenv('Rxn\\Framework\\TEST_OAUTH_TOKEN_SECRET'));
+const REQUIRED_ENV_KEYS = [
+    'ENVIRONMENT',
+    'APP_NAMESPACE',
+    'APP_TIMEZONE',
+
+    'DATABASE_READ_HOST',
+    'DATABASE_READ_NAME',
+    'DATABASE_READ_USERNAME',
+    'DATABASE_READ_PASSWORD',
+    'DATABASE_READ_CHARSET',
+
+    'DATABASE_WRITE_HOST',
+    'DATABASE_WRITE_NAME',
+    'DATABASE_WRITE_USERNAME',
+    'DATABASE_WRITE_PASSWORD',
+    'DATABASE_WRITE_CHARSET',
+
+    'TEST_OAUTH_CONSUMER_KEY',
+    'TEST_OAUTH_CONSUMER_SECRET',
+    'TEST_OAUTH_TOKEN_KEY',
+    'TEST_OAUTH_TOKEN_SECRET',
+];

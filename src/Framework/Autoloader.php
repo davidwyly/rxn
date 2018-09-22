@@ -15,9 +15,9 @@ class Autoloader
     {
         spl_autoload_register(function ($class) {
             $base_dir = constant(__NAMESPACE__ . '\\APP_ROOT');
-            $length   = strlen(APP_NAMESPACE);
+            $length   = strlen(getenv('APP_NAMESPACE'));
 
-            if (strncmp(APP_NAMESPACE, $class, $length) !== 0) {
+            if (strncmp(getenv('APP_NAMESPACE'), $class, $length) !== 0) {
                 return;
             }
 

@@ -1,13 +1,4 @@
 <?php
-/**
- * This file is part of the Rxn (Reaction) PHP API App
- *
- * @package    Rxn
- * @copyright  2015-2017 David Wyly
- * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
- * @link       Github <https://github.com/davidwyly/rxn>
- * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
- */
 
 namespace Rxn\Framework;
 
@@ -19,6 +10,10 @@ use \Rxn\Framework\Error\AppException;
 
 class App extends Service
 {
+    /**
+     * @var Startup
+     */
+    private $startup;
     /**
      * @var BaseConfig $config
      */
@@ -87,17 +82,13 @@ class App extends Service
      */
     public function __construct()
     {
-        $config_ref       = APP_NAMESPACE . 'Config\Config';
-        $this->config     = new $config_ref();
-        $datasource_ref   = APP_NAMESPACE . 'Config\Datasource';
-        $this->datasource = new $datasource_ref();
+        $this->startup    = new Startup();
         $this->container  = new Container();
         $this->initialize();
     }
 
     private function initialize()
     {
-        date_default_timezone_set($this->config->timezone);
         $this->databases = $this->registerDatabases();
         $this->container->addInstance(BaseDatasource::class, $this->datasource);
         $this->container->addInstance(BaseConfig::class, $this->config);
@@ -109,11 +100,7 @@ class App extends Service
 
     private function registerDatabases()
     {
-        $datasource_names = array_keys($this->datasource->getDatabases());
-        $databases        = [];
-        foreach ($datasource_names as $datasource_name) {
-            $databases[$datasource_name] = new Database($this->config, $this->datasource, $datasource_name);
-        }
+        $datasources = $this->startup->datasource->getDatabases();
         return $databases;
     }
 

@@ -17,20 +17,23 @@ use \Rxn\Framework\Error\DatabaseException;
 
 class Database
 {
+
+    const DEFAULT_READ = 'DATABASE_READ';
+
+    const DEFAULT_WRITE = 'DATABASE_WRITE';
+
+    const REQUIRED_PROPERTIES = [
+        'HOST',
+        'NAME',
+        'USERNAME',
+        'PASSWORD',
+        'CHARSET',
+    ];
+
     /**
      * @var \PDO|null
      */
     private $connection;
-
-    /**
-     * @var Config
-     */
-    private $config;
-
-    /**
-     * @var Datasource
-     */
-    private $datasource;
 
     /**
      * @var string
@@ -58,6 +61,11 @@ class Database
     private $password;
 
     /**
+     * @var string
+     */
+    private $charset = 'utf8';
+
+    /**
      * @var int
      */
     private $transaction_depth;
@@ -68,49 +76,38 @@ class Database
     private $in_transaction = false;
 
     /**
-     * @var string
-     */
-    private $charset = 'utf8';
-
-    /**
      * @var bool
      */
     private $using_cache = false;
 
-    public function __construct(BaseConfig $config, BaseDatasource $datasource, string $source = null)
+    public function __construct(string $source_name = null)
     {
-        $this->config      = $config;
-        $this->datasource = $datasource;
-        $this->source      = $source;
-
-
-        if (is_null($this->source)) {
-            $this->source = BaseDatasource::DEFAULT_READ;
+        if (is_null($source_name)) {
+            $source_name = self::DEFAULT_READ;
         }
-        $this->setConfiguration();
-        $this->connect();
+        $this->setConfiguration($source_name);
+        //$this->connect();
     }
 
     /**
-     * @throws DatabaseException
+     * @param string $source_name
+     *
+     * @throws \Exception
      */
-    private function setConfiguration()
+    private function setConfiguration(string $source_name)
     {
-
-        $databases = $this->datasource->getDatabases();
-        $this->setConnectionSettings($databases[$this->source]);
-    }
-
-    private function setConnectionSettings(array $database_settings)
-    {
-        foreach ($this->datasource->getRequiredFields() as $required_field) {
-            if (!array_key_exists($required_field, $database_settings)) {
-                throw new DatabaseException("Required database setting '$required_field' is missing");
+        foreach (self::REQUIRED_PROPERTIES as $required_property) {
+            $env_key = $source_name . '_' . $required_property;
+            $matching_env_value = getenv($env_key);
+            if ($matching_env_value === false) {
+                throw new \Exception("Cannot get value for .env key '$env_key'");
             }
-            $this->{$required_field} = $database_settings[$required_field];
-        }
-        if (!in_array($this->source, $this->datasource->getAllowedSources())) {
-            throw new DatabaseException("Data source '$this->source' is not whitelisted");
+            $property = mb_strtolower($required_property);
+            if (!property_exists($this, $property)) {
+                throw new \Exception("Cannot set value for .env key '$env_key'");
+
+            }
+            $this->{$property} = $matching_env_value;
         }
     }
 
