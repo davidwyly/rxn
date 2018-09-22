@@ -28,7 +28,7 @@ try {
      */
     new Autoloader();
 
-    $app        = new App();
+    $app = new App();
 } catch (Error\AppException $exception) {
     /** @noinspection PhpUnhandledExceptionInspection */
     App::renderEnvironmentErrors($exception);

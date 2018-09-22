@@ -99,8 +99,8 @@ class App extends Service
     {
         date_default_timezone_set($this->config->timezone);
         $this->databases = $this->registerDatabases();
-        $this->container->addInstance(Datasource::class, $this->datasource);
-        $this->container->addInstance(Config::class, $this->config);
+        $this->container->addInstance(BaseDatasource::class, $this->datasource);
+        $this->container->addInstance(BaseConfig::class, $this->config);
         $this->registry   = $this->container->get(Registry::class, [$this->config]);
         $services_to_load = $this->config->getServices();
         $this->loadServices($services_to_load);

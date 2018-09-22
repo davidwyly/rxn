@@ -10,23 +10,23 @@ final class Datasource extends BaseDatasource
 
         self::DEFAULT_READ => [
             'host'     => 'mysql',
-            'name'     => 'bitrunr',
-            'username' => 'root',
-            'password' => 'docker',
+            'name'     => 'rxn_app',
+            'username' => 'app_user',
+            'password' => 'password',
             'charset'  => 'utf8',
         ],
 
         self::DEFAULT_WRITE => [
             'host'     => 'mysql',
-            'name'     => 'bitrunr',
-            'username' => 'root',
-            'password' => 'docker',
+            'name'     => 'rxn_app',
+            'username' => 'app_user',
+            'password' => 'password',
             'charset'  => 'utf8',
         ],
 
         self::DEFAULT_ROOT => [
             'host'     => 'mysql',
-            'name'     => 'bitrunr',
+            'name'     => 'rxn_app',
             'username' => 'root',
             'password' => 'docker',
             'charset'  => 'utf8',
@@ -34,9 +34,9 @@ final class Datasource extends BaseDatasource
 
         self::DEFAULT_CACHE => [
             'host'     => 'mysql',
-            'name'     => 'bitrunr',
-            'username' => 'root',
-            'password' => 'docker',
+            'name'     => 'rxn_app',
+            'username' => 'app_user',
+            'password' => 'password',
             'charset'  => 'utf8',
         ],
     ];
