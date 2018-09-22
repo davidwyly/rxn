@@ -5,6 +5,10 @@ rxn/Datasource.php
 ################
 vendor/*
 
+# Composer #
+############
+/composer.phar
+
 # Compiled source #
 ###################
 *.com
@@ -45,3 +49,4 @@ Thumbs.db
 
 # IDE generated files
 .idea/
+
