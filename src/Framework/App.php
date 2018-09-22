@@ -20,14 +20,14 @@ use \Rxn\Framework\Error\AppException;
 class App extends Service
 {
     /**
-     * @var Config $config
+     * @var BaseConfig $config
      */
     private $config;
 
     /**
-     * @var Datasource
+     * @var BaseDatasource
      */
-    private $datasources;
+    private $datasource;
 
     /**
      * @var Container
@@ -82,18 +82,16 @@ class App extends Service
     /**
      * Application.class constructor.
      *
-     * @param Config      $config
-     * @param Datasource $datasources
-     * @param Container   $container
-     *
      * @throws AppException
      * @throws Error\ContainerException
      */
-    public function __construct(Config $config, Datasource $datasources, Container $container)
+    public function __construct()
     {
-        $this->config      = $config;
-        $this->datasources = $datasources;
-        $this->container   = $container;
+        $config_ref       = APP_NAMESPACE . 'Config\Config';
+        $this->config     = new $config_ref();
+        $datasource_ref   = APP_NAMESPACE . 'Config\Datasource';
+        $this->datasource = new $datasource_ref();
+        $this->container  = new Container();
         $this->initialize();
     }
 
@@ -101,7 +99,7 @@ class App extends Service
     {
         date_default_timezone_set($this->config->timezone);
         $this->databases = $this->registerDatabases();
-        $this->container->addInstance(Datasource::class, $this->datasources);
+        $this->container->addInstance(Datasource::class, $this->datasource);
         $this->container->addInstance(Config::class, $this->config);
         $this->registry   = $this->container->get(Registry::class, [$this->config]);
         $services_to_load = $this->config->getServices();
@@ -111,10 +109,10 @@ class App extends Service
 
     private function registerDatabases()
     {
-        $datasource_names = array_keys($this->datasources->getDatabases());
+        $datasource_names = array_keys($this->datasource->getDatabases());
         $databases        = [];
         foreach ($datasource_names as $datasource_name) {
-            $databases[$datasource_name] = new Database($this->config, $this->datasources, $datasource_name);
+            $databases[$datasource_name] = new Database($this->config, $this->datasource, $datasource_name);
         }
         return $databases;
     }

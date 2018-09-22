@@ -11,8 +11,8 @@
 
 namespace Rxn\Framework\Data;
 
-use \Rxn\Framework\Config;
-use \Rxn\Framework\Datasource;
+use \Rxn\Framework\BaseConfig;
+use \Rxn\Framework\BaseDatasource;
 use \Rxn\Framework\Error\DatabaseException;
 
 class Database
@@ -30,7 +30,7 @@ class Database
     /**
      * @var Datasource
      */
-    private $datasources;
+    private $datasource;
 
     /**
      * @var string
@@ -77,15 +77,15 @@ class Database
      */
     private $using_cache = false;
 
-    public function __construct(Config $config, Datasource $datasources, string $source = null)
+    public function __construct(BaseConfig $config, BaseDatasource $datasource, string $source = null)
     {
         $this->config      = $config;
-        $this->datasources = $datasources;
+        $this->datasource = $datasource;
         $this->source      = $source;
 
 
         if (is_null($this->source)) {
-            $this->source = Datasource::DEFAULT_READ;
+            $this->source = BaseDatasource::DEFAULT_READ;
         }
         $this->setConfiguration();
         $this->connect();
@@ -97,19 +97,19 @@ class Database
     private function setConfiguration()
     {
 
-        $databases = $this->datasources->getDatabases();
+        $databases = $this->datasource->getDatabases();
         $this->setConnectionSettings($databases[$this->source]);
     }
 
     private function setConnectionSettings(array $database_settings)
     {
-        foreach ($this->datasources->getRequiredFields() as $required_field) {
+        foreach ($this->datasource->getRequiredFields() as $required_field) {
             if (!array_key_exists($required_field, $database_settings)) {
                 throw new DatabaseException("Required database setting '$required_field' is missing");
             }
             $this->{$required_field} = $database_settings[$required_field];
         }
-        if (!in_array($this->source, $this->datasources->getAllowedSources())) {
+        if (!in_array($this->source, $this->datasource->getAllowedSources())) {
             throw new DatabaseException("Data source '$this->source' is not whitelisted");
         }
     }

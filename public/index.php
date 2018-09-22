@@ -1,14 +1,33 @@
 <?php declare(strict_types=1);
 
-require_once(__DIR__ . '/../vendor/autoload.php');
-require_once(__DIR__ . '/../app/Autoloader.php');
+namespace Rxn\Framework;
 
-define(__NAMESPACE__ . '\START', microtime(true));
-define(__NAMESPACE__ . '\ROOT', __DIR__ . '/../');
+use Dotenv\Dotenv;
+
+require_once(__DIR__ . '/../vendor/autoload.php');
+
+/**
+ * define root paths
+ */
+define(__NAMESPACE__ . '\\START', microtime(true));
+define(__NAMESPACE__ . '\\ROOT', realpath(__DIR__ . '/..') . '/');
+define(__NAMESPACE__ . '\\APP_ROOT', constant(__NAMESPACE__ . '\\ROOT') . 'app/');
+define(__NAMESPACE__ . '\\CONFIG_ROOT', constant(__NAMESPACE__ . '\\ROOT') . 'app/Config/');
 
 try {
-    $config = new Config();
-    $app = new App($config, new BaseDatasource(), new Container());
+    /**
+     * process .env and bootstrap constants
+     */
+    $env = new Dotenv(constant(__NAMESPACE__ . '\\CONFIG_ROOT'));
+    $env->load();
+    require_once(__DIR__ . '/../app/Config/bootstrap.php');
+
+    /**
+     * spin up the app autoloader
+     */
+    new Autoloader();
+
+    $app        = new App();
 } catch (Error\AppException $exception) {
     /** @noinspection PhpUnhandledExceptionInspection */
     App::renderEnvironmentErrors($exception);
