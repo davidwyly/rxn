@@ -25,7 +25,8 @@
     }
   ],
   "require": {
-    "php": "^7.0"
+    "php": "^7.0",
+    "vlucas/phpdotenv": "^2.5"
   },
   "require-dev": {
     "davidwyly/rxn": "dev-master",
