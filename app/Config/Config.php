@@ -1,6 +1,6 @@
 <?php
 
-namespace Organization\Product;
+namespace Organization\Product\Config;
 
 use Rxn\Framework\BaseConfig;
 
