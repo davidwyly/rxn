@@ -6,7 +6,6 @@ use Dotenv\Dotenv;
 
 class Startup
 {
-
     /**
      * @var BaseConfig
      */
@@ -15,7 +14,7 @@ class Startup
     /**
      * @var BaseDatasource
      */
-    public $datasource;
+    public $databases;
 
     /**
      * @var Dotenv
@@ -32,6 +31,7 @@ class Startup
         $this->initialize();
         $this->setAutoloader();
         $this->setEnv();
+        $this->verifyMultibyte();
         $this->setDefaultTimezone();
         $this->setDatabases();
     }
@@ -53,20 +53,22 @@ class Startup
     {
         $this->env = new Dotenv(constant(__NAMESPACE__ . '\\CONFIG_ROOT'));
         $this->env->load();
-        $this->validateRequiredEnvKeys();
+        $this->env->required(constant('Rxn\Framework\REQUIRED_ENV_KEYS'));
+        foreach (constant('Rxn\Framework\BOOLEAN_ENV_KEYS') as $boolean_env_key) {
+            $this->env->required($boolean_env_key)->isBoolean();
+        }
+        foreach (constant('Rxn\Framework\INTEGER_ENV_KEYS') as $integer_env_key) {
+            $this->env->required($integer_env_key)->isInteger();
+        }
+        foreach (constant('Rxn\Framework\ALLOWED_VALUES_ENV_KEYS') as $env_key => $allowed_values) {
+            $this->env->required($env_key)->allowedValues($allowed_values);
+        }
     }
 
-    private function validateRequiredEnvKeys()
-    {
-        $missing_keys      = [];
-        $required_env_keys = constant('Rxn\Framework\REQUIRED_ENV_KEYS');
-        foreach ($required_env_keys as $required_env_key) {
-            if (!array_key_exists($required_env_key, $_ENV)) {
-                $missing_keys[] = $required_env_key;
-            }
-        }
-        if (!empty($missing_keys)) {
-            throw new \Exception('Missing the required .env keys: ' . implode(', ', $missing_keys));
+    private function verifyMultibyte() {
+        $multibyte_enabled = getenv('APP_MULTIBYTE_ENABLED');
+        if ($multibyte_enabled && !function_exists('mb_strlen')) {
+            throw new \Exception("Multibyte functions are not available");
         }
     }
 
@@ -76,6 +78,20 @@ class Startup
     }
 
     private function setDatabases() {
-        $database = new Data\Database('DATABASE_READ');
+        $env_defined_databases = $this->getEnvDefinedDatabases();
+        foreach ($env_defined_databases as $env_defined_database) {
+            $this->databases[$env_defined_database] = new Data\Database($env_defined_database);
+        }
+    }
+
+    private function getEnvDefinedDatabases() {
+        $env_defined_databases = [];
+        foreach ($_ENV as $env_key => $env_value) {
+            preg_match('#(?<=DATABASE_).+(?=_HOST)#',$env_key,$matches);
+            if (isset($matches[0])) {
+                $env_defined_databases[] = mb_strtolower($matches[0]);
+            }
+        }
+        return $env_defined_databases;
     }
 }

@@ -1,13 +1,4 @@
-<?php
-/**
- * This file is part of the Rxn (Reaction) PHP API App
- *
- * @package    Rxn
- * @copyright  2015-2017 David Wyly
- * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
- * @link       Github <https://github.com/davidwyly/rxn>
- * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
- */
+<?php declare(strict_types=1);
 
 namespace Rxn\Framework\Service;
 
@@ -26,12 +17,11 @@ class Auth extends Service
     /**
      * Auth constructor.
      *
-     * @param Config  $config
      * @param Container $container
      *
      * @throws \Exception
      */
-    public function __construct(Config $config, Container $container)
+    public function __construct(Container $container)
     {
         $this->key = $container->get(Key::class);
     }

@@ -4,11 +4,7 @@ namespace Rxn\Framework\Service;
 
 use \Rxn\Framework\Service;
 
-class Model extends Service
+class Router extends Service
 {
 
-    public function __construct()
-    {
-
-    }
 }
