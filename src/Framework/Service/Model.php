@@ -7,8 +7,4 @@ use \Rxn\Framework\Service as BaseService;
 class Model extends BaseService
 {
 
-    public function __construct()
-    {
-
-    }
 }

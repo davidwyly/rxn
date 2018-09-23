@@ -20,14 +20,6 @@ class Api extends BaseService
     public $request;
 
     /**
-     * Api constructor.
-     */
-    public function __construct()
-    {
-
-    }
-
-    /**
      * @param Request $request
      *
      * @return string

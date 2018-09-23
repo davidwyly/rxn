@@ -6,9 +6,5 @@ use \Rxn\Framework\Service as BaseService;
 
 class Utility extends BaseService
 {
-
-    public function __construct()
-    {
-
-    }
+    
 }

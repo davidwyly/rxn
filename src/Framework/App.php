@@ -87,8 +87,12 @@ class App extends Service
 
     private function loadServices()
     {
-        foreach ($this->getEnvDefinedServices() as $service_name => $service_class) {
+        $env_defined_services = $this->getEnvDefinedServices();
+        foreach ($env_defined_services as $service_name => $service_class) {
             try {
+                if (!property_exists($this,$service_name)) {
+                    throw new \Exception("Service $service_name is not supported by this version");
+                }
                 $this->{$service_name} = $this->container->get($service_class);
             } catch (\Exception $exception) {
                 self::appendEnvironmentError($exception);
@@ -102,7 +106,8 @@ class App extends Service
             if ($env_value == "1") {
                 preg_match('#(?<=APP_USE_SERVICE_).+$#', $env_key, $matches);
                 if (isset($matches[0])) {
-                    $env_defined_services[] = 'Rxn\\Framework\\Service\\' . ucfirst(mb_strtolower($matches[0]));
+                    $service_name = mb_strtolower($matches[0]);
+                    $env_defined_services[$service_name] = 'Rxn\\Framework\\Service\\' . ucfirst($service_name);
                 }
             }
         }

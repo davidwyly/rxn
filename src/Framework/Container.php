@@ -75,11 +75,10 @@ class Container
     private function generateInstance($class_name, array $passed_parameters)
     {
         $reflection = new \ReflectionClass($class_name);
-        $class_name = $this->parseClassName($reflection->getName());
 
         $constructor = $reflection->getConstructor();
         if (!$constructor) {
-            throw new ContainerException("Class '$class_name' does not have a valid constructor");
+            return $reflection->newInstanceWithoutConstructor();
         }
 
         $constructor_parameters = $constructor->getParameters();
