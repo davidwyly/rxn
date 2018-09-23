@@ -1,0 +1,9 @@
+{
+  "methodCalls": [
+    {
+      "class": "\\Rxn\\Framework\\Container",
+      "method": "get",
+      "position": 0
+    }
+  ]
+}

@@ -1,13 +1,4 @@
-<?php
-/**
- * This file is part of the Rxn (Reaction) PHP API App
- *
- * @package    Rxn
- * @copyright  2015-2017 David Wyly
- * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
- * @link       Github <https://github.com/davidwyly/rxn>
- * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
- */
+<?php declare(strict_types=1);
 
 namespace Rxn\Framework\Service;
 
@@ -18,11 +9,6 @@ use \Rxn\Framework\Error\RegistryException;
 
 class Registry extends Service
 {
-    /**
-     * @var BaseConfig
-     */
-    private $config;
-
     /**
      * @var Database
      */
@@ -35,22 +21,19 @@ class Registry extends Service
     public $contracts;
 
     /**
-     * @param BaseConfig   $config
      * @param Database $database
      *
      * @throws RegistryException
      * @throws \Rxn\Framework\Error\QueryException
      */
-    public function __construct(BaseConfig $config, Database $database)
+    public function __construct(Database $database)
     {
-        $this->config = $config;
-        $this->database =  $database;
+        $this->database = $database;
 
         /**
          * register self and dependencies
          */
         $this->registerObject($this);
-        $this->registerObject($this->config);
         $this->registerObject($this->database);
         $this->fetchTables();
     }

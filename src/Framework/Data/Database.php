@@ -18,9 +18,9 @@ use \Rxn\Framework\Error\DatabaseException;
 class Database
 {
 
-    const DEFAULT_READ = 'DATABASE_READ';
+    const DEFAULT_READ = 'read';
 
-    const DEFAULT_WRITE = 'DATABASE_WRITE';
+    const DEFAULT_WRITE = 'write';
 
     const REQUIRED_PROPERTIES = [
         'HOST',
@@ -38,7 +38,12 @@ class Database
     /**
      * @var string
      */
-    private $source;
+    private $source_name;
+
+    /**
+     * @var string
+     */
+    private $source_key;
 
     /**
      * @var string
@@ -85,34 +90,46 @@ class Database
         if (is_null($source_name)) {
             $source_name = self::DEFAULT_READ;
         }
-        $this->setConfiguration($source_name);
-        //$this->connect();
+        $this->source_name = $source_name;
+        $this->source_key = 'DATABASE_' . mb_strtoupper($source_name);
+        $this->setConnectionProperties();
     }
 
     /**
-     * @param string $source_name
-     *
      * @throws \Exception
      */
-    private function setConfiguration(string $source_name)
+    private function setConnectionProperties()
     {
+        $missing_env_keys = [];
+        $extra_env_keys   = [];
         foreach (self::REQUIRED_PROPERTIES as $required_property) {
-            $env_key = $source_name . '_' . $required_property;
+            $env_key            = $this->source_key . '_' . $required_property;
+            $property           = mb_strtolower($required_property);
             $matching_env_value = getenv($env_key);
-            if ($matching_env_value === false) {
-                throw new \Exception("Cannot get value for .env key '$env_key'");
-            }
-            $property = mb_strtolower($required_property);
-            if (!property_exists($this, $property)) {
-                throw new \Exception("Cannot set value for .env key '$env_key'");
 
+            if ($matching_env_value === false) {
+                $missing_env_keys[] = $env_key;
+                continue;
             }
+
+            if (!property_exists($this, $property)) {
+                $extra_env_keys[] = $env_key;
+                continue;
+            }
+
             $this->{$property} = $matching_env_value;
+        }
+        if (!empty($missing_env_keys)) {
+            throw new \Exception('Missing .env keys ' . implode(', ', $missing_env_keys));
+        }
+        if (!empty($extra_env_keys)) {
+            throw new \Exception('Extraneous .env keys ' . implode(', ', $extra_env_keys));
         }
     }
 
     public function createQuery(string $type, string $sql, array $bindings = [])
     {
+        $this->connect($this->connection);
         $query = new Query($this->connection, $type, $sql, $bindings);
         $query->setInTransaction($this->in_transaction);
         return $query;

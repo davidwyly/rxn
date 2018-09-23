@@ -1,13 +1,4 @@
-<?php
-/**
- * This file is part of the Rxn (Reaction) PHP API App
- *
- * @package    Rxn
- * @copyright  2015-2017 David Wyly
- * @author     David Wyly (davidwyly) <david.wyly@gmail.com>
- * @link       Github <https://github.com/davidwyly/rxn>
- * @license    MIT License (MIT) <https://github.com/davidwyly/rxn/blob/master/LICENSE>
- */
+<?php declare(strict_types=1);
 
 namespace Rxn\Framework\Http;
 
@@ -16,11 +7,6 @@ use \Rxn\Framework\Service;
 
 class Collector extends Service
 {
-    /**
-     * @var Config
-     */
-    private $config;
-
     /**
      * @var array|null
      */
@@ -38,12 +24,9 @@ class Collector extends Service
 
     /**
      * Collector constructor.
-     *
-     * @param Config $config
      */
-    public function __construct(Config $config)
+    public function __construct()
     {
-        $this->config = $config;
         $this->get    = $this->getRequestUrlParams();
         $this->post   = $this->getRequestDataParams();
         $this->header = $this->getRequestHeaderParams();

@@ -1,10 +1,4 @@
-<?php
-/**
- * This file is part of the Rxn (Reaction) PHP API App
- *
- * @license MIT License (MIT)
- * @author  David Wyly (davidwyly) <david.wyly@gmail.com>
- */
+<?php declare(strict_types=1);
 
 namespace Rxn\Framework\Http;
 

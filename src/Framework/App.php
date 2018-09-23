@@ -14,15 +14,11 @@ class App extends Service
      * @var Startup
      */
     private $startup;
-    /**
-     * @var BaseConfig $config
-     */
-    private $config;
 
     /**
-     * @var BaseDatasource
+     * @var Service\Stats $stats
      */
-    private $datasource;
+    public $stats;
 
     /**
      * @var Container
@@ -30,7 +26,7 @@ class App extends Service
     private $container;
 
     /**
-     * @var array $databases
+     * @var Database[] $databases
      */
     public $databases;
 
@@ -60,11 +56,6 @@ class App extends Service
     public $registry;
 
     /**
-     * @var Service\Stats $stats
-     */
-    public $stats;
-
-    /**
      * @var Service\Utility $utility
      */
     public $utility;
@@ -82,31 +73,21 @@ class App extends Service
      */
     public function __construct()
     {
-        $this->startup    = new Startup();
-        $this->container  = new Container();
+        $this->container = new Container();
         $this->initialize();
     }
 
     private function initialize()
     {
-        $this->databases = $this->registerDatabases();
-        $this->container->addInstance(BaseDatasource::class, $this->datasource);
-        $this->container->addInstance(BaseConfig::class, $this->config);
-        $this->registry   = $this->container->get(Registry::class, [$this->config]);
-        $services_to_load = $this->config->getServices();
-        $this->loadServices($services_to_load);
+        $this->startup = $this->container->get(Startup::class);
+        $this->registry = $this->container->get(Registry::class);
+        $this->loadServices();
         $this->finalize($this->registry, START);
     }
 
-    private function registerDatabases()
+    private function loadServices()
     {
-        $datasources = $this->startup->datasource->getDatabases();
-        return $databases;
-    }
-
-    private function loadServices(array $services)
-    {
-        foreach ($services as $service_name => $service_class) {
+        foreach ($this->getEnvDefinedServices() as $service_name => $service_class) {
             try {
                 $this->{$service_name} = $this->container->get($service_class);
             } catch (\Exception $exception) {
@@ -115,19 +96,36 @@ class App extends Service
         }
     }
 
+    private function getEnvDefinedServices() {
+        $env_defined_services = [];
+        foreach ($_ENV as $env_key => $env_value) {
+            if ($env_value == "1") {
+                preg_match('#(?<=APP_USE_SERVICE_).+$#', $env_key, $matches);
+                if (isset($matches[0])) {
+                    $env_defined_services[] = 'Rxn\\Framework\\Service\\' . ucfirst(mb_strtolower($matches[0]));
+                }
+            }
+        }
+        return $env_defined_services;
+    }
+
     /**
      * @param Registry $registry
      * @param          $time_start
      *
+     * @return bool
      * @throws AppException
      */
     private function finalize(Registry $registry, $time_start)
     {
         $registry->sortClasses();
-        $this->stats->stop($time_start);
-        if (!empty(self::$environment_errors)) {
-            self::renderEnvironmentErrors();
+        try {
+            $this->stats = $this->container->get(Service\Stats::class);
+        } catch (Error\ContainerException $e){
+            return true;
         }
+        $this->stats->stop($time_start);
+        return true;
     }
 
     /**
