@@ -3,11 +3,11 @@
 namespace Rxn\Framework\Service;
 
 use \Rxn\Framework\BaseConfig;
-use \Rxn\Framework\Service;
+use \Rxn\Framework\Service as BaseService;
 use \Rxn\Framework\Data\Database;
 use \Rxn\Framework\Error\RegistryException;
 
-class Registry extends Service
+class Registry extends BaseService
 {
     /**
      * @var Database

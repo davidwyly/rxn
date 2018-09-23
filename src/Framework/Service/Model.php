@@ -2,9 +2,9 @@
 
 namespace Rxn\Framework\Service;
 
-use \Rxn\Framework\Service;
+use \Rxn\Framework\Service as BaseService;
 
-class Model extends Service
+class Model extends BaseService
 {
 
     public function __construct()

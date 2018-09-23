@@ -2,7 +2,7 @@
 
 namespace Rxn\Framework\Service;
 
-use \Rxn\Framework\Service;
+use \Rxn\Framework\Service as BaseService;
 use \Rxn\Framework\Data\Map;
 use \Rxn\Framework\Container;
 use \Rxn\Framework\Data\Database;
@@ -11,7 +11,7 @@ use \Rxn\Framework\Data\Filecache;
 /**
  * TODO: work in progress
  */
-class Data extends Service
+class Data extends BaseService
 {
     /**
      * @var Filecache
