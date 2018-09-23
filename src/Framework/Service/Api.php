@@ -2,11 +2,11 @@
 
 namespace Rxn\Framework\Service;
 
-use \Rxn\Framework\Service;
+use \Rxn\Framework\Service as BaseService;
 use \Rxn\Framework\Http\Request;
 use \Rxn\Framework\Http\Controller;
 
-class Api extends Service
+class Api extends BaseService
 {
 
     /**

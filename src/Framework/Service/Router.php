@@ -2,9 +2,12 @@
 
 namespace Rxn\Framework\Service;
 
-use \Rxn\Framework\Service;
+use \Rxn\Framework\Service as BaseService;
 
-class Router extends Service
+class Router extends BaseService
 {
+    public function __construct()
+    {
 
+    }
 }

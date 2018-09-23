@@ -3,11 +3,11 @@
 namespace Rxn\Framework\Service;
 
 use \Rxn\Framework\Config;
-use \Rxn\Framework\Service;
+use \Rxn\Framework\Service as BaseService;
 use \Rxn\Framework\Auth\Key;
 use \Rxn\Framework\Container;
 
-class Auth extends Service
+class Auth extends BaseService
 {
     /**
      * @var Key

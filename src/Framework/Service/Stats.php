@@ -2,9 +2,9 @@
 
 namespace Rxn\Framework\Service;
 
-use \Rxn\Framework\Service;
+use \Rxn\Framework\Service as BaseService;
 
-class Stats extends Service
+class Stats extends BaseService
 {
     /**
      * @var float
