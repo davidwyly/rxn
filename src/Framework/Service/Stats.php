@@ -17,14 +17,6 @@ class Stats extends BaseService
     public $load_ms;
 
     /**
-     * Stats constructor.
-     */
-    public function __construct()
-    {
-        // intentionally left blank
-    }
-
-    /**
      * @param $time_start
      */
     public function stop($time_start)

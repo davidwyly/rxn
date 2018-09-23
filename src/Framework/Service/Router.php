@@ -6,8 +6,5 @@ use \Rxn\Framework\Service as BaseService;
 
 class Router extends BaseService
 {
-    public function __construct()
-    {
 
-    }
 }
