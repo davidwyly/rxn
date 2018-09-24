@@ -114,7 +114,7 @@ class Query
     private $executed = false;
 
     /**
-     * Query constructor.
+     * Builder constructor.
      *
      * @param \PDO   $connection
      * @param string $type
@@ -580,7 +580,7 @@ class Query
     public function setType(string $type)
     {
         if (!in_array($type, $this->allowed_types)) {
-            throw new QueryException("Query type '$type' is not allowed", 500);
+            throw new QueryException("Builder type '$type' is not allowed", 500);
         }
         $this->type = $type;
     }

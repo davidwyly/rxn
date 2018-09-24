@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "cdf98663a7052ee7fa98fcb7a6ba0b22",
+    "content-hash": "bd53df885ce550b34e963dc75ba3bb56",
     "packages": [
         {
             "name": "vlucas/phpdotenv",
@@ -58,17 +58,6 @@
         }
     ],
     "packages-dev": [
-        {
-            "name": "davidwyly/rxn",
-            "version": "dev-master",
-            "source": {
-                "type": "git",
-                "url": "git@github.com:davidwyly/rxn.git",
-                "reference": "49536dae57dfd3810129ec38573832184a9f5048"
-            },
-            "type": "library",
-            "time": "2018-09-23T22:15:59+00:00"
-        },
         {
             "name": "doctrine/instantiator",
             "version": "1.1.0",
@@ -1480,9 +1469,7 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {
-        "davidwyly/rxn": 20
-    },
+    "stability-flags": [],
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
