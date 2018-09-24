@@ -26,20 +26,23 @@ class Startup
      */
     private $autoloader;
 
+    private $time_elapsed;
+
     public function __construct()
     {
-        $this->initialize();
+        $this->defineConstants();
         $this->setAutoloader();
         $this->setEnv();
         $this->verifyMultibyte();
         $this->setDefaultTimezone();
         $this->setDatabases();
+        $this->finalize();
     }
 
-    private function initialize()
+    private function defineConstants()
     {
         define(__NAMESPACE__ . '\\START', microtime(true));
-        define(__NAMESPACE__ . '\\ROOT', realpath(__DIR__ . '/../..') . '/');
+        define(__NAMESPACE__ . '\\ROOT', __DIR__ . '/../..');
         define(__NAMESPACE__ . '\\APP_ROOT', constant(__NAMESPACE__ . '\\ROOT') . 'app/');
         define(__NAMESPACE__ . '\\CONFIG_ROOT', constant(__NAMESPACE__ . '\\ROOT') . 'app/Config/');
     }
@@ -65,7 +68,8 @@ class Startup
         }
     }
 
-    private function verifyMultibyte() {
+    private function verifyMultibyte()
+    {
         $multibyte_enabled = getenv('APP_MULTIBYTE_ENABLED');
         if ($multibyte_enabled && !function_exists('mb_strlen')) {
             throw new \Exception("Multibyte functions are not available");
@@ -77,21 +81,21 @@ class Startup
         date_default_timezone_set(getenv('APP_TIMEZONE'));
     }
 
-    private function setDatabases() {
+    private function setDatabases()
+    {
         $env_defined_databases = $this->getEnvDefinedDatabases();
         foreach ($env_defined_databases as $env_defined_database) {
             $this->databases[$env_defined_database] = new Data\Database($env_defined_database);
         }
     }
 
-    private function getEnvDefinedDatabases() {
-        $env_defined_databases = [];
-        foreach ($_ENV as $env_key => $env_value) {
-            preg_match('#(?<=DATABASE_).+(?=_HOST)#',$env_key,$matches);
-            if (isset($matches[0])) {
-                $env_defined_databases[] = mb_strtolower($matches[0]);
-            }
-        }
-        return $env_defined_databases;
+    private function getEnvDefinedDatabases()
+    {
+        return explode(',',getenv('APP_ENABLE_DATABASES'));
+    }
+
+    private function finalize()
+    {
+        $this->time_elapsed = round((microtime(true) - constant(__NAMESPACE__ . '\\START')) * 1000, 4);
     }
 }

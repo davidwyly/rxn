@@ -1,19 +1,26 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Rxn\Framework;
 
+use Davidwyly\Reflect\ReflectObject;
 use \Rxn\Framework\Http\Request;
 use \Rxn\Framework\Data\Database;
 use \Rxn\Framework\Service\Registry;
 use \Rxn\Framework\Http\Response;
 use \Rxn\Framework\Error\AppException;
 
-class App extends Service
+class App
 {
-    /**
-     * @var Startup
-     */
-    private $startup;
+    const SERVICES = [
+        'Api',
+        'Auth',
+        'Data',
+        'Model',
+        'Registry',
+        'Router',
+        'Stats',
+        'Utility',
+    ];
 
     /**
      * @var Service\Stats $stats
@@ -21,44 +28,14 @@ class App extends Service
     public $stats;
 
     /**
+     * @var Service[]
+     */
+    public $services;
+
+    /**
      * @var Container
      */
     private $container;
-
-    /**
-     * @var Database[] $databases
-     */
-    public $databases;
-
-    /**
-     * @var Service\Api $api
-     */
-    public $api;
-
-    /**
-     * @var Service\Auth $auth
-     */
-    public $auth;
-
-    /**
-     * @var Service\Data $data
-     */
-    public $data;
-
-    /**
-     * @var Service\Model $model
-     */
-    public $model;
-
-    /**
-     * @var Service\Registry $registry
-     */
-    public $registry;
-
-    /**
-     * @var Service\Utility $utility
-     */
-    public $utility;
 
     /**
      * @var \Exception[]
@@ -74,61 +51,50 @@ class App extends Service
     public function __construct()
     {
         $this->container = new Container();
+        $callable_methods = ReflectObject::getCallableMethods($this->container);
         $this->initialize();
     }
 
     private function initialize()
     {
-        $this->startup = $this->container->get(Startup::class);
-        $this->registry = $this->container->get(Registry::class);
+
         $this->loadServices();
-        $this->finalize($this->registry, START);
+        $this->finalize(START);
+    }
+
+    private function loadService($service_class) {
+        /** @var Service $service */
+        $service = $this->container->get($service_class);
+        $service->getShortName();
+        $this->services[$service_class] = $service;
     }
 
     private function loadServices()
     {
-        $env_defined_services = $this->getEnvDefinedServices();
-        foreach ($env_defined_services as $service_name => $service_class) {
+        $this->loadService(Startup::class);
+        $this->loadService(Registry::class);
+        $env_disabled_services = $this->getEnvDisabledServices();
+        foreach (self::SERVICES as $service) {
+            if (in_array($service, $env_disabled_services)) {
+                continue;
+            }
             try {
-                if (!property_exists($this,$service_name)) {
-                    throw new \Exception("Service $service_name is not supported by this version");
-                }
-                $this->{$service_name} = $this->container->get($service_class);
+                $service_class = __NAMESPACE__ . '\\Service\\' . $service;
+                $this->loadService($service_class);
             } catch (\Exception $exception) {
                 self::appendEnvironmentError($exception);
             }
         }
     }
 
-    private function getEnvDefinedServices() {
-        $env_defined_services = [];
-        foreach ($_ENV as $env_key => $env_value) {
-            if ($env_value == "1") {
-                preg_match('#(?<=APP_USE_SERVICE_).+$#', $env_key, $matches);
-                if (isset($matches[0])) {
-                    $service_name = mb_strtolower($matches[0]);
-                    $env_defined_services[$service_name] = 'Rxn\\Framework\\Service\\' . ucfirst($service_name);
-                }
-            }
-        }
-        return $env_defined_services;
+    private function getEnvDisabledServices()
+    {
+        return explode(',', getenv('APP_DISABLE_SERVICES'));
     }
 
-    /**
-     * @param Registry $registry
-     * @param          $time_start
-     *
-     * @return bool
-     * @throws AppException
-     */
-    private function finalize(Registry $registry, $time_start)
+    private function finalize($time_start)
     {
-        $registry->sortClasses();
-        try {
-            $this->stats = $this->container->get(Service\Stats::class);
-        } catch (Error\ContainerException $e){
-            return true;
-        }
+        $this->stats = $this->container->get(Service\Stats::class);
         $this->stats->stop($time_start);
         return true;
     }
