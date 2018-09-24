@@ -2,12 +2,12 @@
 
 namespace Organization\Product\Model\v1;
 
-use Rxn\Framework\Model\Record;
+use Rxn\Orm\DataModel;
 
 /**
  * Example Order model
  */
-class Order extends Record
+class Order extends DataModel
 {
     /**
      * Tie the record to a particular database table

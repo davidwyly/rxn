@@ -7,16 +7,6 @@ use Dotenv\Dotenv;
 class Startup
 {
     /**
-     * @var BaseConfig
-     */
-    public $config;
-
-    /**
-     * @var BaseDatasource
-     */
-    public $databases;
-
-    /**
      * @var Dotenv
      */
     private $env;
