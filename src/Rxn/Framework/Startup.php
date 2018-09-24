@@ -42,7 +42,7 @@ class Startup
     private function defineConstants()
     {
         define(__NAMESPACE__ . '\\START', microtime(true));
-        define(__NAMESPACE__ . '\\ROOT', __DIR__ . '/../..');
+        define(__NAMESPACE__ . '\\ROOT', __DIR__ . '/../src');
         define(__NAMESPACE__ . '\\APP_ROOT', constant(__NAMESPACE__ . '\\ROOT') . 'app/');
         define(__NAMESPACE__ . '\\CONFIG_ROOT', constant(__NAMESPACE__ . '\\ROOT') . 'app/Config/');
     }

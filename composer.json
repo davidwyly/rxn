@@ -4,32 +4,18 @@
   "license": "MIT",
   "autoload": {
     "psr-4": {
-      "Rxn\\": "src/Rxn/"
+      "Rxn\\": "src/Rxn/",
+      "Davidwyly\\": "src/Davidwyly/"
     }
   },
   "config": {
     "preferred-install": "source"
   },
-  "repositories": [
-    {
-      "type": "package",
-      "package": {
-        "name": "davidwyly/rxn",
-        "version": "dev-master",
-        "source": {
-          "url": "git@github.com:davidwyly/rxn.git",
-          "type": "git",
-          "reference": "49536dae57dfd3810129ec38573832184a9f5048"
-        }
-      }
-    }
-  ],
   "require": {
     "php": "^7.0",
     "vlucas/phpdotenv": "^2.5"
   },
   "require-dev": {
-    "davidwyly/rxn": "dev-master",
     "phpunit/phpunit": "^7"
   },
   "authors": [
