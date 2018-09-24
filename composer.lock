@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "78bbb64e39d836387873489db223438a",
+    "content-hash": "cdf98663a7052ee7fa98fcb7a6ba0b22",
     "packages": [
         {
             "name": "vlucas/phpdotenv",
@@ -64,9 +64,10 @@
             "source": {
                 "type": "git",
                 "url": "git@github.com:davidwyly/rxn.git",
-                "reference": "master"
+                "reference": "49536dae57dfd3810129ec38573832184a9f5048"
             },
-            "type": "library"
+            "type": "library",
+            "time": "2018-09-23T22:15:59+00:00"
         },
         {
             "name": "doctrine/instantiator",
