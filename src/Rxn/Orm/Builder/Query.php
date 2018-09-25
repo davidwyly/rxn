@@ -3,16 +3,12 @@
 namespace Rxn\Orm\Builder;
 
 use Rxn\Orm\Builder;
+use Rxn\Orm\Builder\Query\Select;
+use Rxn\Orm\Builder\Query\From;
+use Rxn\Orm\Builder\Query\Join;
 
 class Query extends Builder
 {
-
-    const JOIN_COMMANDS = [
-        'inner' => 'INNER JOIN',
-        'left'  => 'LEFT JOIN',
-        'right' => 'RIGHT JOIN',
-    ];
-
     const WHERE_COMMANDS = [
         'where' => 'WHERE',
         'and'   => 'AND',
@@ -44,82 +40,10 @@ class Query extends Builder
      */
     public function select(array $columns = ['*'], $distinct = false): Query
     {
-        if ($columns === ['*']
-            || empty($columns)
-        ) {
-            $this->selectAll($distinct);
-        } elseif ($this->isAssociative($columns)) {
-            $this->selectAssociative($columns, $distinct);
-        } else {
-            $this->selectNumerical($columns, $distinct);
-        }
+        $select = new Select();
+        $select->selectClause($columns, $distinct);
+        $this->loadCommands($select);
         return $this;
-    }
-
-    /**
-     * @param bool $distinct
-     */
-    private function selectAll($distinct = false)
-    {
-        $command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
-        $this->addCommand($command, "*");
-    }
-
-    /**
-     * @param array $columns
-     * @param bool  $distinct
-     */
-    private function selectAssociative(array $columns, $distinct = false)
-    {
-        $command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
-        foreach ($columns as $column => $alias) {
-            $filtered_column   = $this->filterString($column);
-            $escaped_reference = $this->escapedReference($filtered_column);
-            if (empty($alias)) {
-                $value = $escaped_reference;
-            } else {
-                $filtered_alias = $this->filterString($alias);
-                $value = "$escaped_reference AS `$filtered_alias`";
-            }
-            $this->addCommand($command, $value);
-        }
-    }
-
-    /**
-     * Converts a numerical array into an associative array
-     *
-     * @param array $numerical_columns
-     * @param bool  $distinct
-     */
-    private function selectNumerical(array $numerical_columns, $distinct = false)
-    {
-        $associative_columns = [];
-        foreach ($numerical_columns as $key => $numerical_column) {
-            $numerical_column = trim($numerical_column);
-            $clauses = preg_split('#(\s*\,\s*)+#',$numerical_column);
-            if (count($clauses) > 1) {
-                $clauses = array_reverse($clauses);
-                unset($numerical_columns[$key]);
-                foreach ($clauses as $clause) {
-                    array_unshift($numerical_columns, $clause);
-                }
-            }
-        }
-        foreach ($numerical_columns as $key => $numerical_column) {
-            $splits_in_clause = preg_split('#\s+[aA][sS]\s+#',$numerical_column);
-            if (count($splits_in_clause) == 2) {
-                unset($numerical_columns[$key]);
-                $reference = array_shift($splits_in_clause);
-                $alias = array_shift($splits_in_clause);
-                $associative_columns[$reference] = $alias;
-            }
-        }
-        if (!empty($numerical_columns)) {
-            foreach ($numerical_columns as $column) {
-                $associative_columns[$column] = null;
-            }
-        }
-        return $this->selectAssociative($associative_columns, $distinct);
     }
 
     /**
@@ -130,40 +54,27 @@ class Query extends Builder
      */
     public function from(string $table, string $alias = null): Query
     {
-        $escaped_table = $this->escapedReference($table);
-        if (empty($alias)) {
-            $value = $escaped_table;
-        } else {
-            $escaped_alias = $this->escapedReference($alias);
-            $value         = "$escaped_table AS $escaped_alias";
-        }
-        $this->addCommand('FROM', $value);
+        $from = new From();
+        $from->fromClause($table, $alias);
+        $this->loadCommands($from);
         return $this;
     }
 
     /**
      * @param string      $table
-     * @param callable    $join_callable
+     * @param callable    $callable
      * @param string|null $alias
      * @param string      $type
      *
      * @return Query
      * @throws \Exception
      */
-    public function joinCustom(
-        string $table,
-        callable $join_callable,
-        string $alias = null,
-        string $type = 'inner'
-    ): Query {
-        if (!array_key_exists($type, self::JOIN_COMMANDS)) {
-            throw new \Exception("");
-        }
-        $command = self::JOIN_COMMANDS[$type];
-        $join    = new Join($table, $alias);
-        call_user_func($join_callable, $join);
-        $this->addCommandWithKey($command, $join->commands, $table);
-        $this->addBindings($join->bindings);
+    public function joinCustom(string $table, callable $callable, string $alias = null, string $type = 'inner'): Query
+    {
+        $join = new Join();
+        $join->joinClause($table, $callable, $alias, $type);
+        $this->loadCommands($join);
+        $this->loadBindings($join);
         return $this;
     }
 
@@ -178,8 +89,13 @@ class Query extends Builder
      * @throws \Exception
      * @see      innerJoin
      */
-    public function join(string $table, string $first_operand, string $operator, $second_operand, string $alias): Query
-    {
+    public function join(
+        string $table,
+        string $first_operand,
+        string $operator,
+        $second_operand,
+        string $alias = null
+    ): Query {
         return $this->innerJoin($table, $first_operand, $operator, $second_operand, $alias);
     }
 

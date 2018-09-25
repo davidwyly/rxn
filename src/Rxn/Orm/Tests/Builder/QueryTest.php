@@ -172,4 +172,12 @@ final class QueryTest extends TestCase
         $this->assertEquals('`user`.`id` AS `user_id`', $query->commands['SELECT'][0]);
         $this->assertEquals('`order`.`id`', $query->commands['SELECT'][1]);
     }
+
+    public function testJoin() {
+        $query = new Query();
+        $query->select()
+              ->from('users')
+              ->join('orders','orders.user_id','=','users.id','o');
+
+    }
 }
