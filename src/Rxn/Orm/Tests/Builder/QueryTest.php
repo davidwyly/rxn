@@ -75,9 +75,9 @@ final class QueryTest extends TestCase
          */
         $query = new Query();
         $query->select([
-            '`user `.id  '  => '`user_id``',
-            '`order.id` ' => ' `order_id`',
-            '`name` ' => null,
+            '`user `.id  ' => '`user_id``',
+            '`order.id` '  => ' `order_id`',
+            '`name` '      => null,
         ]);
         $this->assertEquals('`user`.`id` AS `user_id`', $query->commands['SELECT'][0]);
         $this->assertEquals('`order`.`id` AS `order_id`', $query->commands['SELECT'][1]);
@@ -115,7 +115,7 @@ final class QueryTest extends TestCase
         $query = new Query();
         $query->select([
             'id',
-            'name'
+            'name',
         ]);
         $this->assertEquals('`id`', $query->commands['SELECT'][0]);
 
@@ -126,7 +126,7 @@ final class QueryTest extends TestCase
         $query = new Query();
         $query->select([
             'user.id',
-            'order.id'
+            'order.id',
         ]);
         $this->assertEquals('`user`.`id`', $query->commands['SELECT'][0]);
         $this->assertEquals('`order`.`id`', $query->commands['SELECT'][1]);
@@ -173,11 +173,19 @@ final class QueryTest extends TestCase
         $this->assertEquals('`order`.`id`', $query->commands['SELECT'][1]);
     }
 
-    public function testJoin() {
+    public function testJoin()
+    {
         $query = new Query();
-        $query->select()
-              ->from('users')
-              ->join('orders','orders.user_id','=','users.id','o');
+        $query->select()->from('users')->join('orders', 'orders.user_id', '=', 'users.id', 'o');
+        $this->assertEquals('*', $query->commands['SELECT'][0]);
+        $this->assertEquals('`users`', $query->commands['FROM'][0]);
+        $expected = [
+            'orders' => [
+                'AS' => ['`o`'],
+                'ON' => ['`orders`.`user_id` = `users`.`id`'],
+            ],
+        ];
+        $this->assertEquals($expected, $query->commands['INNER JOIN']);
 
     }
 }
