@@ -2,7 +2,9 @@
 
 namespace Rxn\Orm\Builder;
 
-class Query
+use Rxn\Orm\Builder;
+
+class Query extends Builder
 {
 
     const JOIN_COMMANDS = [
@@ -33,16 +35,6 @@ class Query
         '>',
         '>=',
     ];
-
-    /**
-     * @var array
-     */
-    public $commands = [];
-
-    /**
-     * @var array
-     */
-    public $bindings = [];
 
     /**
      * @param array $columns
@@ -81,53 +73,94 @@ class Query
     {
         $command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
         foreach ($columns as $column => $alias) {
-            $filtered_column = $this->filterString($column);
+            $filtered_column   = $this->filterString($column);
             $escaped_reference = $this->escapedReference($filtered_column);
-            $value = "$escaped_reference AS `{$this->filterString($alias)}`";
+            if (empty($alias)) {
+                $value = $escaped_reference;
+            } else {
+                $filtered_alias = $this->filterString($alias);
+                $value = "$escaped_reference AS `$filtered_alias`";
+            }
             $this->addCommand($command, $value);
         }
     }
 
     /**
-     * @param array $columns
+     * Converts a numerical array into an associative array
+     *
+     * @param array $numerical_columns
      * @param bool  $distinct
      */
-    private function selectNumerical(array $columns, $distinct = false)
+    private function selectNumerical(array $numerical_columns, $distinct = false)
     {
-        $command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
-        foreach ($columns as $column) {
-            $value = "`{$this->filterString($column)}`";
-            $this->addCommand($command, $value);
+        $associative_columns = [];
+        foreach ($numerical_columns as $key => $numerical_column) {
+            $numerical_column = trim($numerical_column);
+            $clauses = preg_split('#(\s*\,\s*)+#',$numerical_column);
+            if (count($clauses) > 1) {
+                $clauses = array_reverse($clauses);
+                unset($numerical_columns[$key]);
+                foreach ($clauses as $clause) {
+                    array_unshift($numerical_columns, $clause);
+                }
+            }
         }
+        foreach ($numerical_columns as $key => $numerical_column) {
+            $splits_in_clause = preg_split('#\s+[aA][sS]\s+#',$numerical_column);
+            if (count($splits_in_clause) == 2) {
+                unset($numerical_columns[$key]);
+                $reference = array_shift($splits_in_clause);
+                $alias = array_shift($splits_in_clause);
+                $associative_columns[$reference] = $alias;
+            }
+        }
+        if (!empty($numerical_columns)) {
+            foreach ($numerical_columns as $column) {
+                $associative_columns[$column] = null;
+            }
+        }
+        return $this->selectAssociative($associative_columns, $distinct);
     }
 
     /**
-     * @param string $table
+     * @param string      $table
+     * @param string|null $alias
      *
      * @return Query
      */
-    public function from($table): Query
+    public function from(string $table, string $alias = null): Query
     {
-        $value = "`{$this->filterString($table)}`";
+        $escaped_table = $this->escapedReference($table);
+        if (empty($alias)) {
+            $value = $escaped_table;
+        } else {
+            $escaped_alias = $this->escapedReference($alias);
+            $value         = "$escaped_table AS $escaped_alias";
+        }
         $this->addCommand('FROM', $value);
         return $this;
     }
 
     /**
-     * @param string   $table
-     * @param callable $join_callable
-     * @param string   $type
+     * @param string      $table
+     * @param callable    $join_callable
+     * @param string|null $alias
+     * @param string      $type
      *
      * @return Query
      * @throws \Exception
      */
-    public function joinCustom(string $table, callable $join_callable, string $type = 'inner'): Query
-    {
+    public function joinCustom(
+        string $table,
+        callable $join_callable,
+        string $alias = null,
+        string $type = 'inner'
+    ): Query {
         if (!array_key_exists($type, self::JOIN_COMMANDS)) {
             throw new \Exception("");
         }
         $command = self::JOIN_COMMANDS[$type];
-        $join    = new Join($table);
+        $join    = new Join($table, $alias);
         call_user_func($join_callable, $join);
         $this->addCommandWithKey($command, $join->commands, $table);
         $this->addBindings($join->bindings);
@@ -139,14 +172,15 @@ class Query
      * @param string       $first_operand
      * @param string       $operator
      * @param string|array $second_operand
+     * @param string       $alias
      *
      * @return Query
      * @throws \Exception
      * @see      innerJoin
      */
-    public function join(string $table, string $first_operand, string $operator, $second_operand): Query
+    public function join(string $table, string $first_operand, string $operator, $second_operand, string $alias): Query
     {
-        return $this->innerJoin($table, $first_operand, $operator, $second_operand);
+        return $this->innerJoin($table, $first_operand, $operator, $second_operand, $alias);
     }
 
     /**
@@ -154,15 +188,21 @@ class Query
      * @param string       $first_operand
      * @param string       $operator
      * @param string|array $second_operand
+     * @param string|null  $alias
      *
      * @return Query
      * @throws \Exception
      */
-    public function innerJoin(string $table, string $first_operand, string $operator, $second_operand): Query
-    {
+    public function innerJoin(
+        string $table,
+        string $first_operand,
+        string $operator,
+        $second_operand,
+        string $alias = null
+    ): Query {
         return $this->joinCustom($table, function (Join $join) use ($first_operand, $operator, $second_operand) {
             $join->on($first_operand, $operator, $second_operand);
-        }, 'inner');
+        }, $alias, 'inner');
     }
 
     /**
@@ -170,15 +210,21 @@ class Query
      * @param string       $first_operand
      * @param string       $operator
      * @param string|array $second_operand
+     * @param string       $alias
      *
      * @return Query
      * @throws \Exception
      */
-    public function leftJoin(string $table, string $first_operand, string $operator, $second_operand): Query
-    {
+    public function leftJoin(
+        string $table,
+        string $first_operand,
+        string $operator,
+        $second_operand,
+        string $alias
+    ): Query {
         return $this->joinCustom($table, function (Join $join) use ($first_operand, $operator, $second_operand) {
             $join->on($first_operand, $operator, $second_operand);
-        }, 'left');
+        }, $alias, 'left');
     }
 
     /**
@@ -186,15 +232,21 @@ class Query
      * @param string       $first_operand
      * @param string       $operator
      * @param string|array $second_operand
+     * @param string       $alias
      *
      * @return Query
      * @throws \Exception
      */
-    public function rightJoin(string $table, string $first_operand, string $operator, $second_operand): Query
-    {
+    public function rightJoin(
+        string $table,
+        string $first_operand,
+        string $operator,
+        $second_operand,
+        string $alias
+    ): Query {
         return $this->joinCustom($table, function (Join $join) use ($first_operand, $operator, $second_operand) {
             $join->on($first_operand, $operator, $second_operand);
-        }, 'right');
+        }, $alias, 'right');
     }
 
     /**
@@ -245,7 +297,7 @@ class Query
 
         list($binding, $bindings) = $this->getOperandBindings($second_operand);
         $escaped_operand = $this->escapedReference($first_operand);
-        $value = "$escaped_operand $operator $binding";
+        $value           = "$escaped_operand $operator $binding";
         $this->addBindings($bindings);
 
         $command = self::WHERE_COMMANDS[$type];
@@ -466,70 +518,5 @@ class Query
     public function union(): Query
     {
 
-    }
-
-    /**
-     * @param string $string
-     *
-     * @return string
-     */
-    protected function filterString(string $string): string
-    {
-        preg_match('#[\p{L}\_\.]+#', $string, $matches);
-        if (isset($matches[0])) {
-            return $matches[0];
-        }
-        return '';
-    }
-
-    protected function isAssociative(array $array)
-    {
-        if ([] === $array) {
-            return false;
-        }
-        ksort($array);
-        return array_keys($array) !== range(0, count($array) - 1);
-    }
-
-    protected function addCommandWithKey($command, $value, $key)
-    {
-        $this->commands[$command][$key] = $value;
-    }
-
-    protected function addCommand($command, $value)
-    {
-        $this->commands[$command][] = $value;
-    }
-
-    protected function addBindings($key_values)
-    {
-        if (empty($key_values)) {
-            return false;
-        }
-        foreach ($key_values as $value) {
-            $this->addBinding($value);
-        }
-    }
-
-    protected function addBinding($value)
-    {
-        $this->bindings[] = $value;
-    }
-
-    protected function getOperandBindings($operand): array
-    {
-        if (is_array($operand)) {
-            $bindings     = [];
-            $parsed_array = [];
-            if (empty($bindings)) {
-                foreach ($operand as $value) {
-                    $parsed_array[] = '?';
-                    $bindings[]     = $value;
-                }
-                return ['(' . implode(",", $parsed_array) . ')', $bindings];
-            }
-        }
-
-        return ['?', [$operand]];
     }
 }
