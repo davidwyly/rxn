@@ -2,9 +2,7 @@
 
 namespace Rxn\Orm;
 
-use Rxn\Orm\Builder\Query;
-
-class Builder
+abstract class Builder
 {
     /**
      * @var array
@@ -40,14 +38,26 @@ class Builder
         return array_keys($array) !== range(0, count($array) - 1);
     }
 
-    protected function addCommandWithKey($command, $value, $key)
+    protected function addCommandWithModifiers($command, $modifiers, $key)
     {
-        $this->commands[$command][$key] = $value;
+        $this->commands[$command][$key] = $modifiers;
     }
 
     protected function addCommand($command, $value)
     {
         $this->commands[$command][] = $value;
+    }
+
+    protected function loadCommands(Builder $builder) {
+        $this->commands = array_merge($this->commands, $builder->commands);
+    }
+
+    protected function loadBindings(Builder $builder) {
+        $this->bindings = array_merge($this->bindings, $builder->bindings);
+    }
+
+    protected function getCommands() {
+        return $this->commands;
     }
 
     protected function addBindings($key_values)
