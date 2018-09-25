@@ -84,7 +84,7 @@ final class QueryTest extends TestCase
         $this->assertEquals('`name`', $query->commands['SELECT'][2]);
     }
 
-    public function testSelect()
+    public function testSelectNumeric()
     {
         /**
          * test a single element
