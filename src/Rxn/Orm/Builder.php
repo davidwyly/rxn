@@ -23,7 +23,7 @@ class Builder
      */
     protected function filterString(string $string): string
     {
-        $string = preg_replace('#\`#','',$string);
+        $string = preg_replace('#[\`\s]#','',$string);
         preg_match('#[\p{L}\_\.\-\`]+#', $string, $matches);
         if (isset($matches[0])) {
             return $matches[0];

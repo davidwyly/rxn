@@ -11,7 +11,7 @@ require_once(__DIR__ . '/../app/Config/bootstrap.php');
 try {
     $test = new Query();
     $test2 = new QueryTest;
-    $test2->testSelectNumerical();
+    $test2->testSelectAssociative();
     $test->select([
             'u.id AS user_id',
             'o.id AS order_id',
