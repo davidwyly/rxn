@@ -19,7 +19,7 @@ services:
     volumes:
       - ./:/var/www/rxn
     environment:
-      XDEBUG_CONFIG: remote_host=host.docker.internal
+      XDEBUG_CONFIG: "remote_host=host.docker.internal"
     links:
       - mysql
 
