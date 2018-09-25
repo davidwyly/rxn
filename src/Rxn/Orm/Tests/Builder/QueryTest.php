@@ -53,7 +53,7 @@ final class QueryTest extends TestCase
         $this->assertEquals('`user`.`id` AS `user_id`', $query->commands['SELECT'][0]);
 
         /**
-         * null value means there is no alias
+         * test with null value as alias
          */
         $query = new Query();
         $query->select(['user.id' => null]);
@@ -61,6 +61,7 @@ final class QueryTest extends TestCase
 
         /**
          * test multiple elements in the array
+         * with table and column
          */
         $query = new Query();
         $query->select([
@@ -69,9 +70,26 @@ final class QueryTest extends TestCase
         ]);
         $this->assertEquals('`user`.`id` AS `user_id`', $query->commands['SELECT'][0]);
         $this->assertEquals('`order`.`id` AS `order_id`', $query->commands['SELECT'][1]);
+
+        /**
+         * test multiple elements in the array
+         * with table and column
+         * with accidental whitespace
+         * with incorrect back-tics
+         * with null value as alias
+         */
+        $query = new Query();
+        $query->select([
+            '`user `.id  '  => '`user_id``',
+            '`order.id` ' => ' `order_id`',
+            '`name` ' => null,
+        ]);
+        $this->assertEquals('`user`.`id` AS `user_id`', $query->commands['SELECT'][0]);
+        $this->assertEquals('`order`.`id` AS `order_id`', $query->commands['SELECT'][1]);
+        $this->assertEquals('`name`', $query->commands['SELECT'][2]);
     }
 
-    public function testSelectNumerical()
+    public function testSelect()
     {
         /**
          * test a single element
