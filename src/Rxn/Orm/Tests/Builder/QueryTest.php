@@ -7,11 +7,6 @@ use Rxn\Orm\Builder\Query;
 
 final class QueryTest extends TestCase
 {
-    public function __after()
-    {
-
-    }
-
     public function testSelectStar()
     {
         /**
