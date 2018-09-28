@@ -186,7 +186,7 @@ abstract class Builder
     private function parseJoinAliases(array $command_details, $command_type)
     {
         foreach ($command_details as $command_table => $table_commands) {
-            foreach ($table_commands['ON'] as $key => $value) {
+            foreach ((array)$table_commands['ON'] as $key => $value) {
                 foreach ($this->table_aliases as $table => $alias) {
                     $new_value = str_replace("`$table`", "`$alias`", $value);
                     if ($new_value != $value) {
@@ -195,12 +195,14 @@ abstract class Builder
                     }
                 }
             }
-            foreach ($table_commands['WHERE'] as $key => $value) {
-                foreach ($this->table_aliases as $table => $alias) {
-                    $new_value = str_replace("`$table`", "`$alias`", $value);
-                    if ($new_value != $value) {
-                        $value                                                     = $new_value;
-                        $this->commands[$command_type][$command_table]['WHERE'][$key] = $value;
+            if (isset($table_commands['WHERE'])) {
+                foreach ($table_commands['WHERE'] as $key => $value) {
+                    foreach ($this->table_aliases as $table => $alias) {
+                        $new_value = str_replace("`$table`", "`$alias`", $value);
+                        if ($new_value != $value) {
+                            $value                                                        = $new_value;
+                            $this->commands[$command_type][$command_table]['WHERE'][$key] = $value;
+                        }
                     }
                 }
             }
