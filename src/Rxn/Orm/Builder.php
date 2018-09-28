@@ -15,19 +15,60 @@ abstract class Builder
     public $bindings = [];
 
     /**
-     * @param string $string
+     * @var array
+     */
+    public $table_aliases = [];
+
+    /**
+     * @param string $reference
      *
      * @return string
      */
-    protected function filterString(string $string): string
+    protected function cleanReference(string $reference): string
     {
-        $string = preg_replace('#[\`\s]#','',$string);
-        preg_match('#[\p{L}\_\.\-\`]+#', $string, $matches);
+        $filtered_reference = $this->filterReference($reference);
+        return $this->escapeReference($filtered_reference);
+    }
+
+    function changeKey(&$array, $old_key, $new_key)
+    {
+        if (!array_key_exists($old_key, $array)) {
+            return $array;
+        }
+        $keys                                = array_keys($array);
+        $keys[array_search($old_key, $keys)] = $new_key;
+        return array_combine($keys, $array);
+    }
+
+    /**
+     * @param string $operand
+     *
+     * @return string
+     */
+    protected function filterReference(string $operand): string
+    {
+        $operand = preg_replace('#[\`\s]#', '', $operand);
+        preg_match('#[\p{L}\_\.\-\`]+#', $operand, $matches);
         if (isset($matches[0])) {
             return $matches[0];
         }
         return '';
     }
+
+    /**
+     * @param string $operand
+     *
+     * @return string
+     */
+    protected function escapeReference(string $operand): string
+    {
+        $exploded_operand = explode('.', $operand);
+        if (count($exploded_operand) === 2) {
+            return "`{$exploded_operand[0]}`.`{$exploded_operand[1]}`";
+        }
+        return "`$operand`";
+    }
+
 
     protected function isAssociative(array $array)
     {
@@ -48,22 +89,30 @@ abstract class Builder
         $this->commands[$command][] = $value;
     }
 
-    protected function loadCommands(Builder $builder) {
-        $this->commands = array_merge($this->commands, $builder->commands);
+    protected function loadCommands(Builder $builder)
+    {
+        $this->commands = array_merge((array)$this->commands, (array)$builder->commands);
     }
 
-    protected function loadBindings(Builder $builder) {
-        $this->bindings = array_merge($this->bindings, $builder->bindings);
+    protected function loadBindings(Builder $builder)
+    {
+        $this->bindings = array_merge((array)$this->bindings, (array)$builder->bindings);
     }
 
-    protected function getCommands() {
+    protected function loadTableAliases(Builder $builder)
+    {
+        $this->table_aliases = array_merge((array)$this->table_aliases, (array)$builder->table_aliases);
+    }
+
+    protected function getCommands()
+    {
         return $this->commands;
     }
 
     protected function addBindings($key_values)
     {
         if (empty($key_values)) {
-            return false;
+            return null;
         }
         foreach ($key_values as $value) {
             $this->addBinding($value);
@@ -90,6 +139,67 @@ abstract class Builder
         }
 
         return ['?', [$operand]];
+    }
+
+    public function parseCommandAliases()
+    {
+        foreach ($this->commands as $command_type => $command_details) {
+            switch ($command_type) {
+                case 'INNER JOIN':
+                    // no break
+                case 'LEFT JOIN':
+                    // no break
+                case 'RIGHT JOIN':
+                    // no break
+                case 'CROSS JOIN':
+                    // no break
+                case 'NATURAL JOIN':
+                    $this->parseJoinAliases($command_details, $command_type);
+                    break;
+
+                default:
+                    $this->parseAliases($command_details, $command_type);
+            }
+        }
+    }
+
+    private function parseAliases(array $command_details, $command_type)
+    {
+        foreach ($command_details as $key => $value) {
+            if ($value == '*') {
+                break;
+            }
+            foreach ($this->table_aliases as $table => $alias) {
+                $new_value = str_replace("`$table`", "`$alias`", $value);
+                if ($new_value != $value) {
+                    $this->commands[$command_type][$key] = $new_value;
+                }
+            }
+        }
+    }
+
+    private function parseJoinAliases(array $command_details, $command_type)
+    {
+        foreach ($command_details as $command_table => $table_commands) {
+            foreach ($table_commands['ON'] as $key => $value) {
+                foreach ($this->table_aliases as $table => $alias) {
+                    $new_value = str_replace("`$table`", "`$alias`", $value);
+                    if ($new_value != $value) {
+                        $value                                                     = $new_value;
+                        $this->commands[$command_type][$command_table]['ON'][$key] = $value;
+                    }
+                }
+            }
+            foreach ($table_commands['WHERE'] as $key => $value) {
+                foreach ($this->table_aliases as $table => $alias) {
+                    $new_value = str_replace("`$table`", "`$alias`", $value);
+                    if ($new_value != $value) {
+                        $value                                                     = $new_value;
+                        $this->commands[$command_type][$command_table]['WHERE'][$key] = $value;
+                    }
+                }
+            }
+        }
     }
 
 }

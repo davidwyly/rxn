@@ -57,6 +57,7 @@ class Query extends Builder
         $from = new From();
         $from->fromClause($table, $alias);
         $this->loadCommands($from);
+        $this->loadTableAliases($from);
         return $this;
     }
 
@@ -75,6 +76,7 @@ class Query extends Builder
         $join->joinClause($table, $callable, $alias, $type);
         $this->loadCommands($join);
         $this->loadBindings($join);
+        $this->loadTableAliases($join);
         return $this;
     }
 
@@ -116,9 +118,11 @@ class Query extends Builder
         $second_operand,
         string $alias = null
     ): Query {
-        return $this->joinCustom($table, function (Join $join) use ($first_operand, $operator, $second_operand) {
-            $join->on($first_operand, $operator, $second_operand);
-        }, $alias, 'inner');
+        return $this->joinCustom($table,
+            function (Join $join) use ($first_operand, $operator, $second_operand, $alias) {
+                $join->as($alias);
+                $join->on($first_operand, $operator, $second_operand);
+            }, $alias, 'inner');
     }
 
     /**
@@ -138,9 +142,11 @@ class Query extends Builder
         $second_operand,
         string $alias
     ): Query {
-        return $this->joinCustom($table, function (Join $join) use ($first_operand, $operator, $second_operand) {
-            $join->on($first_operand, $operator, $second_operand);
-        }, $alias, 'left');
+        return $this->joinCustom($table,
+            function (Join $join) use ($first_operand, $operator, $second_operand, $alias) {
+                $join->as($alias);
+                $join->on($first_operand, $operator, $second_operand);
+            }, $alias, 'left');
     }
 
     /**
@@ -160,9 +166,11 @@ class Query extends Builder
         $second_operand,
         string $alias
     ): Query {
-        return $this->joinCustom($table, function (Join $join) use ($first_operand, $operator, $second_operand) {
-            $join->on($first_operand, $operator, $second_operand);
-        }, $alias, 'right');
+        return $this->joinCustom($table,
+            function (Join $join) use ($first_operand, $operator, $second_operand, $alias) {
+                $join->as($alias);
+                $join->on($first_operand, $operator, $second_operand);
+            }, $alias, 'right');
     }
 
     /**
@@ -212,10 +220,9 @@ class Query extends Builder
         }
 
         list($binding, $bindings) = $this->getOperandBindings($second_operand);
-        $escaped_operand = $this->escapedReference($first_operand);
+        $escaped_operand = $this->escapeReference($first_operand);
         $value           = "$escaped_operand $operator $binding";
         $this->addBindings($bindings);
-
         $command = self::WHERE_COMMANDS[$type];
         $this->addCommand($command, $value);
         return $this;
@@ -265,15 +272,6 @@ class Query extends Builder
         $command  = self::WHERE_COMMANDS[$type];
         $this->addCommand($command, $value);
         return $this;
-    }
-
-    protected function escapedReference($operand)
-    {
-        $exploded_operand = explode('.', $operand);
-        if (count($exploded_operand) === 2) {
-            return "`{$exploded_operand[0]}`.`{$exploded_operand[1]}`";
-        }
-        return "`$operand`";
     }
 
     /**

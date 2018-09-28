@@ -2,15 +2,15 @@
 
 namespace Rxn\Framework;
 
-use Rxn\Orm\Builder\Join;
+use Rxn\Orm\Builder\Query\Join;
 use Rxn\Orm\Builder\Query;
-use Rxn\Orm\Tests\Builder\QueryTest;
+use Rxn\Orm\Tests\Builder\Query as QueryTest;
 
 require_once(__DIR__ . '/../app/Config/bootstrap.php');
 
 try {
     $test = new Query();
-    $test2 = new QueryTest;
+    $test2 = new QueryTest\JoinTest;
     $test2->testJoin();
     $test->select([
             'u.id AS user_id',

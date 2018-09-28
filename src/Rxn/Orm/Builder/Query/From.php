@@ -7,12 +7,13 @@ use Rxn\Orm\Builder\Query;
 class From extends Query {
 
     public function fromClause(string $table, string $alias = null) {
-        $escaped_table = $this->escapedReference($table);
+        $escaped_table = $this->escapeReference($table);
         if (empty($alias)) {
             $value = $escaped_table;
         } else {
-            $escaped_alias = $this->escapedReference($alias);
+            $escaped_alias = $this->escapeReference($alias);
             $value         = "$escaped_table AS $escaped_alias";
+            $this->table_aliases[$table] = $alias;
         }
         $this->addCommand('FROM', $value);
     }
