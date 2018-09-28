@@ -7,7 +7,33 @@ use Rxn\Orm\Builder\Query;
 
 final class JoinTest extends TestCase
 {
-    public function testJoin()
+    public function testJoinUnparsed()
+    {
+        $query = new Query();
+        $query->select(['users.id' => 'user_id'])
+              ->from('users', 'u')
+              ->join('orders', 'orders.user_id', '=', 'users.id', 'o');
+
+        $expected_table_aliases = [
+            'users' => 'u',
+            'orders' => 'o',
+        ];
+        $this->assertEquals($expected_table_aliases, $query->table_aliases);
+
+        $this->assertEquals('`users`.`id` AS `user_id`', $query->commands['SELECT'][0]);
+
+        $this->assertEquals('`users` AS `u`', $query->commands['FROM'][0]);
+        $expected_join = [
+            'orders' => [
+                'AS' => ['`o`'],
+                'ON' => ['`orders`.`user_id` = `users`.`id`'],
+            ],
+        ];
+
+        $this->assertEquals($expected_join, $query->commands['INNER JOIN']);
+    }
+
+    public function testJoinParsed()
     {
         $query = new Query();
         $query->select(['users.id' => 'user_id'])
@@ -32,6 +58,5 @@ final class JoinTest extends TestCase
         ];
 
         $this->assertEquals($expected_join, $query->commands['INNER JOIN']);
-
     }
 }
