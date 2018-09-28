@@ -36,29 +36,37 @@ class Join extends Builder
         if (!array_key_exists($type, self::JOIN_COMMANDS)) {
             throw new \Exception("");
         }
-        $this->setAlias($alias);
+        $this->table = $table;
+        $this->addAlias($alias);
         $command = self::JOIN_COMMANDS[$type];
         call_user_func($callable, $this);
-        $this->addCommandWithModifiers($command, $this->modifiers, $table);
         $this->addBindings($this->bindings);
+        $this->addCommandWithModifiers($command, $this->modifiers, $table);
+
     }
 
     public function on(string $first, string $condition, $second) {
-        $value = "`$first` $condition `$second`";
+        $first = $this->cleanReference($first);
+        $second = $this->cleanReference($second);
+        $value = "$first $condition $second";
         $this->modifiers['ON'][] = $value;
         return $this;
     }
 
-    private function setAlias($alias) {
+    public function as(string $alias) {
+        $this->alias = $alias;
+        $clean_alias = $this->cleanReference($alias);
+        if (!in_array($clean_alias, (array)$this->modifiers['AS'])) {
+            $this->modifiers['AS'][]           = $clean_alias;
+            $this->table_aliases[$this->table] = $alias;
+        }
+        return $this;
+    }
+
+    private function addAlias($alias) {
         if (!empty($alias)) {
             $this->as($alias);
         }
-    }
-
-    private function as(string $alias) {
-        $value = "`$alias`";
-        $this->modifiers['AS'][] = $value;
-        return $this;
     }
 
     protected function addCommand($command, $value)

@@ -1,11 +1,11 @@
 <?php declare(strict_types=1);
 
-namespace Rxn\Orm\Tests\Builder;
+namespace Rxn\Orm\Tests\Builder\Query;
 
 use PHPUnit\Framework\TestCase;
 use Rxn\Orm\Builder\Query;
 
-final class QueryTest extends TestCase
+final class SelectTest extends TestCase
 {
     public function testSelectStar()
     {
@@ -171,21 +171,5 @@ final class QueryTest extends TestCase
         $query->select(['`user.id` AS   user_id , `order.`id `']);
         $this->assertEquals('`user`.`id` AS `user_id`', $query->commands['SELECT'][0]);
         $this->assertEquals('`order`.`id`', $query->commands['SELECT'][1]);
-    }
-
-    public function testJoin()
-    {
-        $query = new Query();
-        $query->select()->from('users')->join('orders', 'orders.user_id', '=', 'users.id', 'o');
-        $this->assertEquals('*', $query->commands['SELECT'][0]);
-        $this->assertEquals('`users`', $query->commands['FROM'][0]);
-        $expected = [
-            'orders' => [
-                'AS' => ['`o`'],
-                'ON' => ['`orders`.`user_id` = `users`.`id`'],
-            ],
-        ];
-        $this->assertEquals($expected, $query->commands['INNER JOIN']);
-
     }
 }

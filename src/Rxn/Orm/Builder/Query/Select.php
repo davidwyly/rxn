@@ -39,14 +39,13 @@ class Select extends Query
     public function selectAssociative(array $columns, $distinct = false)
     {
         $command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
-        foreach ($columns as $column => $alias) {
-            $filtered_column   = $this->filterString($column);
-            $escaped_reference = $this->escapedReference($filtered_column);
+        foreach ($columns as $reference => $alias) {
+            $reference = $this->cleanReference($reference);
             if (empty($alias)) {
-                $value = $escaped_reference;
+                $value = $reference;
             } else {
-                $filtered_alias = $this->filterString($alias);
-                $value          = "$escaped_reference AS `$filtered_alias`";
+                $alias = $this->cleanReference($alias);
+                $value = "$reference AS $alias";
             }
             $this->addCommand($command, $value);
         }
