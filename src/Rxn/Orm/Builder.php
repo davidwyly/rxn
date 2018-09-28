@@ -145,6 +145,11 @@ abstract class Builder
     {
         foreach ($this->commands as $command_type => $command_details) {
             switch ($command_type) {
+
+                case 'FROM':
+                    // do nothing
+                    break;
+
                 case 'INNER JOIN':
                     // no break
                 case 'LEFT JOIN':
