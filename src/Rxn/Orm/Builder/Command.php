@@ -9,7 +9,7 @@ abstract class Command
     /**
      * @var string
      */
-    public $command;
+    protected $command;
 
     /**
      * @var array
@@ -19,7 +19,7 @@ abstract class Command
     /**
      * @var array
      */
-    public $bindings = [];
+    protected $bindings = [];
 
     protected function isAssociative(array $array)
     {

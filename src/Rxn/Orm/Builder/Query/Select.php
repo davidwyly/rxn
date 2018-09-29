@@ -11,7 +11,13 @@ class Select extends Command
      */
     public $command;
 
-    public function set(array $columns = ['*'], $distinct = false)
+    /**
+     * @param array $columns
+     * @param bool  $distinct
+     *
+     * @return $this
+     */
+    public function select(array $columns = ['*'], $distinct = false)
     {
         if ($columns === ['*']
             || empty($columns)
@@ -32,7 +38,6 @@ class Select extends Command
     {
         $this->command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
         $this->addColumn('*');
-        $this->addClause('*');
     }
 
     /**

@@ -24,7 +24,7 @@ class Query extends Builder
      */
     public function select(array $columns = ['*'], $distinct = false): Query
     {
-        $this->commands[] = (new Select())->set($columns, $distinct);
+        $this->commands[] = (new Select())->select($columns, $distinct);
         return $this;
     }
 
@@ -36,7 +36,7 @@ class Query extends Builder
      */
     public function from(string $table, string $alias = null): Query
     {
-        $this->commands[] = (new From())->set($table, $alias);
+        $this->commands[] = (new From())->from($table, $alias);
         return $this;
     }
 
@@ -51,16 +51,17 @@ class Query extends Builder
      */
     public function joinCustom(string $table, callable $callable, string $alias = null, string $type = 'inner'): Query
     {
-        $this->commands[] = (new Join())->set($table, $callable, $alias, $type);
+        $this->commands[] = (new Join())->join($table, $callable, $alias, $type);
         return $this;
     }
 
     /**
-     * @param string       $table
-     * @param string       $first_operand
-     * @param string       $operator
-     * @param string|array $second_operand
-     * @param string       $alias
+     * @param string        $table
+     * @param string        $operand_1
+     * @param string        $operator
+     * @param string|array  $operand_2
+     * @param string        $alias
+     * @param callable|null $callback
      *
      * @return Query
      * @throws \Exception
@@ -68,68 +69,76 @@ class Query extends Builder
      */
     public function join(
         string $table,
-        string $first_operand,
+        string $operand_1,
         string $operator,
-        $second_operand,
-        string $alias = null
+        $operand_2,
+        string $alias = null,
+        callable $callback = null
     ): Query {
-        return $this->innerJoin($table, $first_operand, $operator, $second_operand, $alias);
+        return $this->innerJoin($table, $operand_1, $operator, $operand_2, $alias, $callback);
     }
 
     /**
-     * @param string       $table
-     * @param string       $first_operand
-     * @param string       $operator
-     * @param string|array $second_operand
-     * @param string|null  $alias
+     * @param string        $table
+     * @param string        $operand_1
+     * @param string        $operator
+     * @param string|array  $operand_2
+     * @param string|null   $alias
+     * @param callable|null $callback
      *
      * @return Query
      * @throws \Exception
      */
     public function innerJoin(
         string $table,
-        string $first_operand,
+        string $operand_1,
         string $operator,
-        $second_operand,
-        string $alias = null
+        $operand_2,
+        string $alias = null,
+        callable $callback = null
     ): Query {
         return $this->joinCustom($table,
-            function (Join $join) use ($first_operand, $operator, $second_operand, $alias) {
-                $join->on($first_operand, $operator, $second_operand);
+            function (Join $join) use ($operand_1, $operator, $operand_2, $alias, $callback) {
+                $join->on($operand_1, $operator, $operand_2);
+                if (!is_null($callback)) {
+                    call_user_func($callback, $join);
+                }
             }, $alias, 'inner');
     }
 
     /**
-     * @param string       $table
-     * @param string       $first_operand
-     * @param string       $operator
-     * @param string|array $second_operand
-     * @param string       $alias
+     * @param string        $table
+     * @param string        $operand_1
+     * @param string        $operator
+     * @param string|array  $operand_2
+     * @param string        $alias
+     * @param callable|null $callback
      *
      * @return Query
      * @throws \Exception
      */
     public function leftJoin(
         string $table,
-        string $first_operand,
+        string $operand_1,
         string $operator,
-        $second_operand,
-        string $alias
+        $operand_2,
+        string $alias,
+        callable $callback = null
     ): Query {
         return $this->joinCustom($table,
-            function (Join $join) use ($first_operand, $operator, $second_operand, $alias) {
-                if (!empty($alias)) {
-                    $join->as($alias);
+            function (Join $join) use ($operand_1, $operator, $operand_2, $alias, $callback) {
+                $join->on($operand_1, $operator, $operand_2);
+                if (!is_null($callback)) {
+                    call_user_func($callback, $join);
                 }
-                $join->on($first_operand, $operator, $second_operand);
             }, $alias, 'left');
     }
 
     /**
      * @param string       $table
-     * @param string       $first_operand
+     * @param string       $operand_1
      * @param string       $operator
-     * @param string|array $second_operand
+     * @param string|array $operand_2
      * @param string       $alias
      *
      * @return Query
@@ -137,18 +146,14 @@ class Query extends Builder
      */
     public function rightJoin(
         string $table,
-        string $first_operand,
+        string $operand_1,
         string $operator,
-        $second_operand,
+        $operand_2,
         string $alias
     ): Query {
-        return $this->joinCustom($table,
-            function (Join $join) use ($first_operand, $operator, $second_operand, $alias) {
-                if (!empty($alias)) {
-                    $join->as($alias);
-                }
-                $join->on($first_operand, $operator, $second_operand);
-            }, $alias, 'right');
+        return $this->joinCustom($table, function (Join $join) use ($operand_1, $operator, $operand_2, $alias) {
+            $join->on($operand_1, $operator, $operand_2);
+        }, $alias, 'right');
     }
 
     /**
@@ -181,54 +186,30 @@ class Query extends Builder
     }
 
     public function where(
-        string $first_operand,
+        string $operand_1,
         string $operator,
-        string $second_operand,
+        string $operand_2,
         callable $callback = null,
         string $type = 'where'
     ): Query {
-        $where = new Where();
-        $where->set($first_operand, $operator, $second_operand, $callback, $type);
-        $this->commands[] = $where;
-        $this->loadBindings($where);
+        $this->commands[] = (new Where())->where($operand_1, $operator, $operand_2, $callback, $type);
         return $this;
     }
 
-    /**
-     * @param string        $operand
-     * @param array         $values
-     * @param callable|null $callback
-     * @param string        $type
-     * @param bool          $not
-     *
-     * @return Query
-     */
     public function whereIn(
         string $operand,
-        array $values,
+        array $operands,
         callable $callback = null,
         string $type = 'where',
         $not = false
     ) {
-        $where = new Where();
-        $where->setIn($operand, $values, $callback, $type, $not);
-        $this->loadCommands($where);
-        $this->loadBindings($where);
+        $this->commands[] = (new Where())->in($operand, $operands, $callback, $type, $not);
         return $this;
     }
 
-    /**
-     * @param string        $operand
-     * @param string|array  $values
-     * @param callable|null $callback
-     * @param string        $type
-     *
-     * @return Query
-     * @throws \Exception
-     */
-    public function whereNotIn(string $operand, array $values, callable $callback = null, string $type = 'where')
+    public function whereNotIn(string $operand, array $operands, callable $callback = null, string $type = 'where')
     {
-        return $this->whereIn($operand, $values, $callback, $type, true);
+        return $this->whereIn($operand, $operands, $callback, $type, true);
     }
 
     /**
@@ -241,10 +222,7 @@ class Query extends Builder
      */
     public function whereIsNull(string $operand, callable $callback = null, $type = 'where', $not = false)
     {
-        $where = new Where();
-        $where->setNull($operand, $callback, $type, $not);
-        $this->loadCommands($where);
-        $this->loadBindings($where);
+        $this->commands[] = (new Where())->isNull($operand, $callback, $type, $not);
         return $this;
     }
 
@@ -261,37 +239,29 @@ class Query extends Builder
     }
 
     /**
-     * @param string        $first_operand
+     * @param string        $operand_1
      * @param string        $operator
-     * @param string        $second_operand
+     * @param string        $operand_2
      * @param callable|null $callback
      *
      * @return Query
      */
-    public function and (
-        string $first_operand,
-        string $operator,
-        string $second_operand,
-        callable $callback = null
-    ): Query {
-        return $this->andWhere($first_operand, $operator, $second_operand, $callback);
+    public function and (string $operand_1, string $operator, string $operand_2, callable $callback = null): Query
+    {
+        return $this->andWhere($operand_1, $operator, $operand_2, $callback);
     }
 
     /**
-     * @param string        $first_operand
+     * @param string        $operand_1
      * @param string        $operator
-     * @param string        $second_operand
+     * @param string        $operand_2
      * @param callable|null $callback
      *
      * @return Query
      */
-    public function andWhere(
-        string $first_operand,
-        string $operator,
-        string $second_operand,
-        callable $callback = null
-    ): Query {
-        return $this->where($first_operand, $operator, $second_operand, $callback, 'and');
+    public function andWhere(string $operand_1, string $operator, string $operand_2, callable $callback = null): Query
+    {
+        return $this->where($operand_1, $operator, $operand_2, $callback, 'and');
     }
 
     /**
@@ -342,29 +312,29 @@ class Query extends Builder
     }
 
     /**
-     * @param string        $first_operand
+     * @param string        $operand_1
      * @param string        $operator
-     * @param               $second_operand
+     * @param               $operand_2
      * @param callable|null $callback
      *
      * @return Query
      */
-    public function or (string $first_operand, string $operator, $second_operand, callable $callback = null): Query
+    public function or (string $operand_1, string $operator, $operand_2, callable $callback = null): Query
     {
-        return $this->orWhere($first_operand, $operator, $second_operand, $callback);
+        return $this->orWhere($operand_1, $operator, $operand_2, $callback);
     }
 
     /**
-     * @param string        $first_operand
+     * @param string        $operand_1
      * @param string        $operator
-     * @param               $second_operand
+     * @param               $operand_2
      * @param callable|null $callback
      *
      * @return Query
      */
-    public function orWhere(string $first_operand, string $operator, $second_operand, callable $callback = null): Query
+    public function orWhere(string $operand_1, string $operator, $operand_2, callable $callback = null): Query
     {
-        return $this->where($first_operand, $operator, $second_operand, $callback, 'or');
+        return $this->where($operand_1, $operator, $operand_2, $callback, 'or');
     }
 
     /**

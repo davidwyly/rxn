@@ -8,16 +8,16 @@ class On extends Command
 {
     public $command = 'ON';
 
-    public $first_operand;
+    public $operand_1;
     public $operator;
-    public $second_operand;
+    public $operand_2;
 
-    public function __construct(string $first_operand, $operator, $second_operand)
+    public function __construct(string $operand_1, $operator, $operand_2)
     {
-        $this->first_operand  = $first_operand;
+        $this->operand_1  = $operand_1;
         $this->operator       = $operator;
-        $this->second_operand = $second_operand;
-        $this->addColumn($first_operand);
-        $this->addColumn($second_operand);
+        $this->operand_2 = $operand_2;
+        $this->addColumn($operand_1);
+        $this->addColumn($operand_2);
     }
 }

@@ -4,6 +4,7 @@ namespace Rxn\Orm\Tests\Builder\Query;
 
 use PHPUnit\Framework\TestCase;
 use Rxn\Orm\Builder\Query;
+use Rxn\Orm\Builder\Query\Join;
 use Rxn\Orm\Builder\Query\Where;
 
 final class JoinTest extends TestCase
@@ -12,11 +13,16 @@ final class JoinTest extends TestCase
     {
         $query = new Query();
         $query->select(['users.id' => 'user_id'])
-              ->from('users','o')
-              ->join('orders', 'orders.user_id', '=', 'users.id', 'o')
+              ->from('users', 'o')
+              ->leftJoin('orders', 'orders.user_id', '=', 'users.id', 'o', function (Join $join) {
+                  $join->whereIsNull('users.test2','and',true, function (Where $where) {
+                      $where->orIsNotNull('users.test3');
+                  });
+              })
               ->join('invoices', 'invoices.id', '=', 'orders.invoice_id', 'i')
               ->where('users.first_name', '=', 'David', function (Where $where) {
                   $where->and('users.last_name', '=', 'Wyly');
+                  $where->andIn('users.type', [1, 2, 3]);
               })
               ->and('users.first_name', '=', 'Lance', function (Where $where) {
                   $where->and('users.last_name', '=', 'Badger');
