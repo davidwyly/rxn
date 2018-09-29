@@ -2,6 +2,8 @@
 
 namespace Rxn\Orm;
 
+use Rxn\Orm\Builder\QueryParser;
+
 abstract class Builder
 {
     /**
@@ -149,6 +151,12 @@ abstract class Builder
 
         return ['?', [$operand]];
     }
+
+    public function build() {
+        $parser = new QueryParser($this);
+        $this->rawSql = $parser->getSql();
+    }
+
 
     public function parseCommandAliases()
     {
