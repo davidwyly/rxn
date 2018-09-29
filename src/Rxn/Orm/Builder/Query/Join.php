@@ -32,7 +32,7 @@ class Join extends Builder
      */
     public $bindings;
 
-    public function joinClause(string $table, callable $callable, string $alias = null, string $type = 'inner') {
+    public function set(string $table, callable $callable, string $alias = null, string $type = 'inner') {
         if (!array_key_exists($type, self::JOIN_COMMANDS)) {
             throw new \Exception("");
         }
@@ -45,13 +45,7 @@ class Join extends Builder
 
     }
 
-    public function on(string $first, string $condition, $second) {
-        $first = $this->cleanReference($first);
-        $second = $this->cleanReference($second);
-        $value = "$first $condition $second";
-        $this->modifiers['ON'][] = $value;
-        return $this;
-    }
+
 
     public function as(string $alias) {
         $this->alias = $alias;
@@ -60,6 +54,14 @@ class Join extends Builder
             $this->modifiers['AS'][]           = $clean_alias;
             $this->table_aliases[$this->table] = $alias;
         }
+        return $this;
+    }
+
+    public function on(string $first, string $condition, $second) {
+        $first = $this->cleanReference($first);
+        $second = $this->cleanReference($second);
+        $value = "$first $condition $second";
+        $this->modifiers['ON'][] = $value;
         return $this;
     }
 

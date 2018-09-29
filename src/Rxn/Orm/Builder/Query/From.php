@@ -6,7 +6,7 @@ use Rxn\Orm\Builder\Query;
 
 class From extends Query {
 
-    public function fromClause(string $table, string $alias = null) {
+    public function set(string $table, string $alias = null) {
         $escaped_table = $this->escapeReference($table);
         if (empty($alias)) {
             $value = $escaped_table;
