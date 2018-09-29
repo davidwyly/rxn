@@ -24,9 +24,7 @@ class Query extends Builder
      */
     public function select(array $columns = ['*'], $distinct = false): Query
     {
-        $select = new Select();
-        $select->set($columns, $distinct);
-        $this->commands[] = $select;
+        $this->commands[] = (new Select())->set($columns, $distinct);
         return $this;
     }
 
@@ -38,9 +36,7 @@ class Query extends Builder
      */
     public function from(string $table, string $alias = null): Query
     {
-        $from = new From();
-        $from->set($table, $alias);
-        $this->commands[] = $from;
+        $this->commands[] = (new From())->set($table, $alias);
         return $this;
     }
 
@@ -55,9 +51,7 @@ class Query extends Builder
      */
     public function joinCustom(string $table, callable $callable, string $alias = null, string $type = 'inner'): Query
     {
-        $join = new Join();
-        $join->set($table, $callable, $alias, $type);
-        $this->commands[] = $join;
+        $this->commands[] = (new Join())->set($table, $callable, $alias, $type);
         return $this;
     }
 
@@ -195,12 +189,7 @@ class Query extends Builder
     ): Query {
         $where = new Where();
         $where->set($first_operand, $operator, $second_operand, $callback, $type);
-        if (!is_null($callback)) {
-            $group = $where::WHERE_COMMANDS[$type];
-            $this->loadGroupCommands($where, $group);
-        } else {
-            $this->loadCommands($where);
-        }
+        $this->commands[] = $where;
         $this->loadBindings($where);
         return $this;
     }

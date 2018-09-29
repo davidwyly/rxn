@@ -3,6 +3,7 @@
 namespace Rxn\Orm\Builder\Query;
 
 use Rxn\Orm\Builder\Command;
+use Rxn\Orm\Builder\Query\Join\On;
 use Rxn\Orm\Builder\Table;
 
 class Join extends Command
@@ -35,6 +36,7 @@ class Join extends Command
         $this->command = self::JOIN_COMMANDS[$type];
         $this->addTable($table,$alias);
         call_user_func($callable, $this);
+        return $this;
     }
 
     public function on(string $first_operand, string $operator, $second_operand) {

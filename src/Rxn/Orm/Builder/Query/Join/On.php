@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace Rxn\Orm\Builder\Query;
+namespace Rxn\Orm\Builder\Query\Join;
 
 use Rxn\Orm\Builder\Command;
 

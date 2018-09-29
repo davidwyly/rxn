@@ -18,7 +18,7 @@ final class JoinTest extends TestCase
               ->where('users.first_name', '=', 'David', function (Where $where) {
                   $where->and('users.last_name', '=', 'Wyly');
               })
-              ->where('users.first_name', '=', 'Lance', function (Where $where) {
+              ->and('users.first_name', '=', 'Lance', function (Where $where) {
                   $where->and('users.last_name', '=', 'Badger');
               })
               ->or('users.first_name2', '=', 'Joseph', function (Where $where) {

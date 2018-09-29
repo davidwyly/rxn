@@ -8,9 +8,13 @@ class Where extends Command
 {
 
     const WHERE_COMMANDS = [
-        'where' => 'WHERE',
-        'and'   => 'WHERE',
-        'or'    => 'OR',
+        'where'       => 'WHERE',
+        'and'         => 'AND',
+        'or'          => 'OR',
+        'in'          => 'IN',
+        'not in'      => 'NOT IN',
+        'is null'     => 'IS NULL',
+        'is not null' => 'IS NOT NULL',
     ];
 
     const WHERE_OPERATORS = [
@@ -30,6 +34,17 @@ class Where extends Command
         '>=',
     ];
 
+    public $command = 'WHERE';
+
+    public $first_operand;
+    public $operator;
+    public $second_operand;
+
+    /**
+     * @var Command[]
+     */
+    public $commands;
+
     public function set(
         string $first_operand,
         string $operator,
@@ -37,34 +52,91 @@ class Where extends Command
         callable $callback = null,
         string $type = 'where'
     ) {
+        $this->command  = self::WHERE_COMMANDS[$type];
+        $this->operator = $operator;
         $this->validateType($type);
         if ($this->isReference($first_operand)
             && $this->isReference($second_operand)
         ) {
-            $first_operand  = $this->cleanReference($first_operand);
-            $second_operand = $this->cleanReference($second_operand);
+            $this->first_operand  = $this->cleanReference($first_operand);
+            $this->second_operand = $this->cleanReference($second_operand);
         } elseif ($this->isReference($first_operand)
             && !$this->isReference($second_operand)
         ) {
-            $first_operand = $this->cleanReference($first_operand);
-            list($second_operand, $bindings) = $this->getOperandBindings($second_operand);
+            $this->first_operand = $this->cleanReference($first_operand);
+            list($this->second_operand, $bindings) = $this->getOperandBindings($second_operand);
             $this->addBindings($bindings);
         } elseif (!$this->isReference($first_operand)
             && $this->isReference($second_operand)
         ) {
-            list($first_operand, $bindings) = $this->getOperandBindings($first_operand);
+            list($this->first_operand, $bindings) = $this->getOperandBindings($first_operand);
             $this->addBindings($bindings);
-            $second_operand = $this->cleanReference($second_operand);
+            $this->second_operand = $this->cleanReference($second_operand);
         }
-        $value   = "$first_operand $operator $second_operand";
         if (!is_null($callback)) {
-            $command = self::WHERE_COMMANDS['where'];
-            $this->addCommand($command, $value);
             call_user_func($callback, $this);
-        } else {
-            $command = self::WHERE_COMMANDS[$type];
-            $this->addCommand($command, $value);
         }
+        return $this;
+    }
+
+    public function and (
+        string $first_operand,
+        string $operator,
+        string $second_operand,
+        callable $callback = null,
+        string $type = 'and'
+    ) {
+        $this->commands[] = (new Where())->set($first_operand, $operator, $second_operand, $callback, $type);
+    }
+
+    public function or (
+        string $first_operand,
+        string $operator,
+        string $second_operand,
+        callable $callback = null,
+        string $type = 'or'
+    ) {
+        $this->commands[] = (new Where())->set($first_operand, $operator, $second_operand, $callback, $type);
+    }
+
+    public function in(
+        string $first_operand,
+        string $operator,
+        string $second_operand,
+        callable $callback = null,
+        string $type = 'in'
+    ) {
+        $this->commands[] = (new Where())->setIn($first_operand, $operator, $second_operand, $callback, $type);
+    }
+
+    public function notIn(
+        string $first_operand,
+        string $operator,
+        string $second_operand,
+        callable $callback = null,
+        string $type = 'not in'
+    ) {
+        $this->commands[] = (new Where())->setIn($first_operand, $operator, $second_operand, $callback, $type);
+    }
+
+    public function isNull(
+        string $first_operand,
+        string $operator,
+        string $second_operand,
+        callable $callback = null,
+        string $type = 'not in'
+    ) {
+        $this->commands[] = (new Where())->setIsNull($first_operand, $operator, $second_operand, $callback, $type);
+    }
+
+    public function isNotNull(
+        string $first_operand,
+        string $operator,
+        string $second_operand,
+        callable $callback = null,
+        string $type = 'not in'
+    ) {
+        $this->commands[] = (new Where())->setIsNull($first_operand, $operator, $second_operand, $callback, $type);
     }
 
     public function setIn(
@@ -87,7 +159,7 @@ class Where extends Command
         }
     }
 
-    public function setNull(string $operand, callable $callback = null, string $type = 'where', $not = false)
+    public function setIsNull(string $operand, callable $callback = null, string $type = 'where', $not = false)
     {
         $this->validateType($type);
         $operand  = $this->cleanReference($operand);

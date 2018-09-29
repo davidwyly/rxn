@@ -11,5 +11,6 @@ class From extends Command
     {
         $this->command = 'FROM';
         $this->addTable($table, $alias, $database);
+        return $this;
     }
 }

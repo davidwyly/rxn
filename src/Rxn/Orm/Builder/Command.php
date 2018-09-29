@@ -16,6 +16,11 @@ abstract class Command
      */
     protected $tables = [];
 
+    /**
+     * @var array
+     */
+    public $bindings = [];
+
     protected function isAssociative(array $array)
     {
         if ($array === []) {
@@ -106,5 +111,42 @@ abstract class Command
             return $matches[0];
         }
         return '';
+    }
+
+    /**
+     * @param $operand
+     *
+     * @return array
+     */
+    protected function getOperandBindings($operand): array
+    {
+        if (is_array($operand)) {
+            $bindings     = [];
+            $parsed_array = [];
+            if (empty($bindings)) {
+                foreach ($operand as $value) {
+                    $parsed_array[] = '?';
+                    $bindings[]     = $value;
+                }
+                return ['(' . implode(",", $parsed_array) . ')', $bindings];
+            }
+        }
+
+        return ['?', [$operand]];
+    }
+
+    protected function addBindings($key_values)
+    {
+        if (empty($key_values)) {
+            return null;
+        }
+        foreach ($key_values as $value) {
+            $this->addBinding($value);
+        }
+    }
+
+    protected function addBinding($value)
+    {
+        $this->bindings[] = $value;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Rxn\Orm;
 
+use Rxn\Orm\Builder\Command;
 use Rxn\Orm\Builder\QueryParser;
 
 abstract class Builder
@@ -41,18 +42,13 @@ abstract class Builder
         $this->commands[$command][$key] = $modifiers;
     }
 
-    protected function loadCommands(Builder $builder)
-    {
-        $this->commands = array_merge_recursive((array)$this->commands, (array)$builder->commands);
+    protected function loadGroupCommands(Command $command, $type) {
+        $this->commands[$type][] = $command;
     }
 
-    protected function loadGroupCommands(Builder $builder, $type) {
-        $this->commands[$type][] = $builder->commands;
-    }
-
-    protected function loadBindings(Builder $builder)
+    protected function loadBindings(Command $command)
     {
-        $this->bindings = array_merge((array)$this->bindings, (array)$builder->bindings);
+        $this->bindings = array_merge((array)$this->bindings, (array)$command->bindings);
     }
 
     protected function loadTableAliases(Builder $builder)
@@ -63,38 +59,6 @@ abstract class Builder
     protected function getCommands()
     {
         return $this->commands;
-    }
-
-    protected function addBindings($key_values)
-    {
-        if (empty($key_values)) {
-            return null;
-        }
-        foreach ($key_values as $value) {
-            $this->addBinding($value);
-        }
-    }
-
-    protected function addBinding($value)
-    {
-        $this->bindings[] = $value;
-    }
-
-    protected function getOperandBindings($operand): array
-    {
-        if (is_array($operand)) {
-            $bindings     = [];
-            $parsed_array = [];
-            if (empty($bindings)) {
-                foreach ($operand as $value) {
-                    $parsed_array[] = '?';
-                    $bindings[]     = $value;
-                }
-                return ['(' . implode(",", $parsed_array) . ')', $bindings];
-            }
-        }
-
-        return ['?', [$operand]];
     }
 
     public function build() {
