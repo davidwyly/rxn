@@ -10,7 +10,7 @@ class Select extends Query
      * @param array $columns
      * @param bool  $distinct
      */
-    public function selectClause(array $columns = ['*'], $distinct = false)
+    public function set(array $columns = ['*'], $distinct = false)
     {
         if ($columns === ['*']
             || empty($columns)

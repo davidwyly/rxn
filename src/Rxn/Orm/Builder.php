@@ -30,6 +30,11 @@ abstract class Builder
         return $this->escapeReference($filtered_reference);
     }
 
+    protected function cleanValue(string $value): string
+    {
+        return "'$value'";
+    }
+
     function changeKey(&$array, $old_key, $new_key)
     {
         if (!array_key_exists($old_key, $array)) {
@@ -48,7 +53,7 @@ abstract class Builder
     protected function filterReference(string $operand): string
     {
         $operand = preg_replace('#[\`\s]#', '', $operand);
-        preg_match('#[\p{L}\_\.\-\`]+#', $operand, $matches);
+        preg_match('#[\p{L}\_\.\-\`0-9]+#', $operand, $matches);
         if (isset($matches[0])) {
             return $matches[0];
         }
@@ -91,7 +96,11 @@ abstract class Builder
 
     protected function loadCommands(Builder $builder)
     {
-        $this->commands = array_merge((array)$this->commands, (array)$builder->commands);
+        $this->commands = array_merge_recursive((array)$this->commands, (array)$builder->commands);
+    }
+
+    protected function loadGroupCommands(Builder $builder, $type) {
+        $this->commands[$type][] = $builder->commands;
     }
 
     protected function loadBindings(Builder $builder)
