@@ -2,14 +2,15 @@
 
 namespace Rxn\Orm\Builder\Query;
 
-use Rxn\Orm\Builder\Query;
+use Rxn\Orm\Builder\Command;
 
-class Select extends Query
+class Select extends Command
 {
     /**
-     * @param array $columns
-     * @param bool  $distinct
+     * @var string
      */
+    public $command;
+
     public function set(array $columns = ['*'], $distinct = false)
     {
         if ($columns === ['*']
@@ -21,6 +22,7 @@ class Select extends Query
         } else {
             $this->selectNumerical($columns, $distinct);
         }
+        return $this;
     }
 
     /**
@@ -28,8 +30,9 @@ class Select extends Query
      */
     public function selectAll($distinct = false)
     {
-        $command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
-        $this->addCommand($command, "*");
+        $this->command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
+        $this->addColumn('*');
+        $this->addClause('*');
     }
 
     /**
@@ -38,16 +41,10 @@ class Select extends Query
      */
     public function selectAssociative(array $columns, $distinct = false)
     {
-        $command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
-        foreach ($columns as $reference => $alias) {
-            $reference = $this->cleanReference($reference);
-            if (empty($alias)) {
-                $value = $reference;
-            } else {
-                $alias = $this->cleanReference($alias);
-                $value = "$reference AS $alias";
-            }
-            $this->addCommand($command, $value);
+        $this->command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
+        foreach ($columns as $column => $alias) {
+            $column = $this->cleanReference($column);
+            $this->addColumn($column, $alias);
         }
     }
 

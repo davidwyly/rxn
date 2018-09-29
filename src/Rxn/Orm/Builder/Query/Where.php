@@ -2,9 +2,9 @@
 
 namespace Rxn\Orm\Builder\Query;
 
-use Rxn\Orm\Builder\Query;
+use Rxn\Orm\Builder\Command;
 
-class Where extends Query
+class Where extends Command
 {
 
     const WHERE_COMMANDS = [

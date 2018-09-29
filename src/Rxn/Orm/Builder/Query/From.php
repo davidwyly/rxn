@@ -2,19 +2,14 @@
 
 namespace Rxn\Orm\Builder\Query;
 
-use Rxn\Orm\Builder\Query;
+use Rxn\Orm\Builder\Command;
 
-class From extends Query {
+class From extends Command
+{
 
-    public function set(string $table, string $alias = null) {
-        $escaped_table = $this->escapeReference($table);
-        if (empty($alias)) {
-            $value = $escaped_table;
-        } else {
-            $escaped_alias = $this->escapeReference($alias);
-            $value         = "$escaped_table AS $escaped_alias";
-            $this->table_aliases[$table] = $alias;
-        }
-        $this->addCommand('FROM', $value);
+    public function set(string $table, string $alias = null, $database = null)
+    {
+        $this->command = 'FROM';
+        $this->addTable($table, $alias, $database);
     }
 }

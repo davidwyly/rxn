@@ -2,9 +2,10 @@
 
 namespace Rxn\Orm\Builder\Query;
 
-use Rxn\Orm\Builder;
+use Rxn\Orm\Builder\Command;
+use Rxn\Orm\Builder\Table;
 
-class Join extends Builder
+class Join extends Command
 {
     const JOIN_COMMANDS = [
         'inner' => 'INNER JOIN',
@@ -13,62 +14,40 @@ class Join extends Builder
     ];
 
     /**
-     * @var string
+     * @var Table[]
      */
-    public $table;
-
-    /**
-     * @var string
-     */
-    public $alias;
+    public $tables;
 
     /**
      * @var
      */
-    public $modifiers;
+    public $command;
 
     /**
-     * @var
+     * @var On[]|Where[]
      */
-    public $bindings;
+    public $commands;
 
     public function set(string $table, callable $callable, string $alias = null, string $type = 'inner') {
         if (!array_key_exists($type, self::JOIN_COMMANDS)) {
             throw new \Exception("");
         }
-        $this->table = $table;
-        $this->addAlias($alias);
-        $command = self::JOIN_COMMANDS[$type];
+        $this->command = self::JOIN_COMMANDS[$type];
+        $this->addTable($table,$alias);
         call_user_func($callable, $this);
-        $this->addBindings($this->bindings);
-        $this->addCommandWithModifiers($command, $this->modifiers, $table);
-
     }
 
-
-
-    public function as(string $alias) {
-        $this->alias = $alias;
-        $clean_alias = $this->cleanReference($alias);
-        if (!in_array($clean_alias, (array)$this->modifiers['AS'])) {
-            $this->modifiers['AS'][]           = $clean_alias;
-            $this->table_aliases[$this->table] = $alias;
-        }
+    public function on(string $first_operand, string $operator, $second_operand) {
+        $command = new On($first_operand, $operator, $second_operand);
+        $this->commands[] = $command;
         return $this;
     }
 
-    public function on(string $first, string $condition, $second) {
-        $first = $this->cleanReference($first);
-        $second = $this->cleanReference($second);
-        $value = "$first $condition $second";
-        $this->modifiers['ON'][] = $value;
+    public function where(string $first_operand, string $operator, $second_operand) {
+        $command = new Where();
+        $command->set($first_operand,$operator,$second_operand);
+        $this->commands[] = $command;
         return $this;
-    }
-
-    private function addAlias($alias) {
-        if (!empty($alias)) {
-            $this->as($alias);
-        }
     }
 
     protected function addCommand($command, $value)

@@ -12,7 +12,7 @@ final class JoinTest extends TestCase
     {
         $query = new Query();
         $query->select(['users.id' => 'user_id'])
-              ->from('users')
+              ->from('users','o')
               ->join('orders', 'orders.user_id', '=', 'users.id', 'o')
               ->join('invoices', 'invoices.id', '=', 'orders.invoice_id', 'i')
               ->where('users.first_name', '=', 'David', function (Where $where) {
@@ -25,8 +25,7 @@ final class JoinTest extends TestCase
                   $where->and('users.last_name2', '=', 'Andrews', function (Where $where) {
                       $where->or('users.last_name2', '=', 'Andrews, III');
                   });
-              })
-              ->build();
+              });
 
         $this->assertEquals('`users`.`id` AS `user_id`', $query->commands['SELECT'][0]);
 

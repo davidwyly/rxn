@@ -10,6 +10,22 @@ use Rxn\Orm\Builder\Query\Where;
 
 class Query extends Builder
 {
+
+    /**
+     * @var Select
+     */
+    public $select;
+
+    /**
+     * @var From
+     */
+    public $from;
+
+    /**
+     * @var Join[]
+     */
+    public $joins;
+
     /**
      * @param array $columns
      * @param bool  $distinct
@@ -18,9 +34,8 @@ class Query extends Builder
      */
     public function select(array $columns = ['*'], $distinct = false): Query
     {
-        $select = new Select();
-        $select->set($columns, $distinct);
-        $this->loadCommands($select);
+        $this->select = new Select();
+        $this->select->set($columns, $distinct);
         return $this;
     }
 
@@ -32,10 +47,8 @@ class Query extends Builder
      */
     public function from(string $table, string $alias = null): Query
     {
-        $from = new From();
-        $from->set($table, $alias);
-        $this->loadCommands($from);
-        $this->loadTableAliases($from);
+        $this->from = new From();
+        $this->from->set($table, $alias);
         return $this;
     }
 
@@ -52,9 +65,7 @@ class Query extends Builder
     {
         $join = new Join();
         $join->set($table, $callable, $alias, $type);
-        $this->loadCommands($join);
-        $this->loadBindings($join);
-        $this->loadTableAliases($join);
+        $this->joins[] = $join;
         return $this;
     }
 
@@ -98,9 +109,6 @@ class Query extends Builder
     ): Query {
         return $this->joinCustom($table,
             function (Join $join) use ($first_operand, $operator, $second_operand, $alias) {
-                if (!empty($alias)) {
-                    $join->as($alias);
-                }
                 $join->on($first_operand, $operator, $second_operand);
             }, $alias, 'inner');
     }

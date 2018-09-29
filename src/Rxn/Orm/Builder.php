@@ -21,17 +21,6 @@ abstract class Builder
      */
     public $table_aliases = [];
 
-    /**
-     * @param string $reference
-     *
-     * @return string
-     */
-    protected function cleanReference(string $reference): string
-    {
-        $filtered_reference = $this->filterReference($reference);
-        return $this->escapeReference($filtered_reference);
-    }
-
     protected function cleanValue(string $value): string
     {
         return "'$value'";
@@ -47,53 +36,9 @@ abstract class Builder
         return array_combine($keys, $array);
     }
 
-    /**
-     * @param string $operand
-     *
-     * @return string
-     */
-    protected function filterReference(string $operand): string
-    {
-        $operand = preg_replace('#[\`\s]#', '', $operand);
-        preg_match('#[\p{L}\_\.\-\`0-9]+#', $operand, $matches);
-        if (isset($matches[0])) {
-            return $matches[0];
-        }
-        return '';
-    }
-
-    /**
-     * @param string $operand
-     *
-     * @return string
-     */
-    protected function escapeReference(string $operand): string
-    {
-        $exploded_operand = explode('.', $operand);
-        if (count($exploded_operand) === 2) {
-            return "`{$exploded_operand[0]}`.`{$exploded_operand[1]}`";
-        }
-        return "`$operand`";
-    }
-
-
-    protected function isAssociative(array $array)
-    {
-        if ([] === $array) {
-            return false;
-        }
-        ksort($array);
-        return array_keys($array) !== range(0, count($array) - 1);
-    }
-
     protected function addCommandWithModifiers($command, $modifiers, $key)
     {
         $this->commands[$command][$key] = $modifiers;
-    }
-
-    protected function addCommand($command, $value)
-    {
-        $this->commands[$command][] = $value;
     }
 
     protected function loadCommands(Builder $builder)
