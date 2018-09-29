@@ -14,14 +14,14 @@ class Join extends Command
     ];
 
     /**
-     * @var Table[]
-     */
-    public $tables;
-
-    /**
      * @var
      */
     public $command;
+
+    /**
+     * @var Table[]
+     */
+    public $tables;
 
     /**
      * @var On[]|Where[]

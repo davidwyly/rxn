@@ -12,19 +12,9 @@ class Query extends Builder
 {
 
     /**
-     * @var Select
+     * @var Command[]
      */
-    public $select;
-
-    /**
-     * @var From
-     */
-    public $from;
-
-    /**
-     * @var Join[]
-     */
-    public $joins;
+    public $commands;
 
     /**
      * @param array $columns
@@ -34,8 +24,9 @@ class Query extends Builder
      */
     public function select(array $columns = ['*'], $distinct = false): Query
     {
-        $this->select = new Select();
-        $this->select->set($columns, $distinct);
+        $select = new Select();
+        $select->set($columns, $distinct);
+        $this->commands[] = $select;
         return $this;
     }
 
@@ -47,8 +38,9 @@ class Query extends Builder
      */
     public function from(string $table, string $alias = null): Query
     {
-        $this->from = new From();
-        $this->from->set($table, $alias);
+        $from = new From();
+        $from->set($table, $alias);
+        $this->commands[] = $from;
         return $this;
     }
 
@@ -65,7 +57,7 @@ class Query extends Builder
     {
         $join = new Join();
         $join->set($table, $callable, $alias, $type);
-        $this->joins[] = $join;
+        $this->commands[] = $join;
         return $this;
     }
 
