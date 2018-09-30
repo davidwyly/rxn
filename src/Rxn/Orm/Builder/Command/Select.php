@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace Rxn\Orm\Builder\Query;
+namespace Rxn\Orm\Builder\Command;
 
 use Rxn\Orm\Builder\Command;
 
@@ -48,6 +48,9 @@ class Select extends Command
     {
         $this->command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
         foreach ($columns as $column => $alias) {
+            if (is_numeric($column)) {
+                $column = $alias;
+            }
             $column = $this->cleanReference($column);
             $this->addColumn($column, $alias);
         }

@@ -1,9 +1,9 @@
 <?php declare(strict_types=1);
 
-namespace Rxn\Orm\Builder\Query;
+namespace Rxn\Orm\Builder\Command;
 
 use Rxn\Orm\Builder\Command;
-use Rxn\Orm\Builder\Query\Join\On;
+use Rxn\Orm\Builder\Command\Where;
 use Rxn\Orm\Builder\Table;
 
 class Join extends Command
@@ -24,9 +24,6 @@ class Join extends Command
      */
     public $tables;
 
-    /**
-     * @var On[]|Where[]
-     */
     public $commands;
 
     /**
@@ -49,22 +46,16 @@ class Join extends Command
         return $this;
     }
 
-    public function on(string $operand_1, string $operator, $operand_2)
+    public function equals(string $operand_1, $operand_2)
     {
-        $command          = new On($operand_1, $operator, $operand_2);
-        $this->commands[] = $command;
+        $this->commands[] = (new Where())->equals($operand_1, $operand_2);
         return $this;
     }
 
-    public function where(
-        string $operand_1,
-        string $operator,
-        string $operand_2,
-        string $type = 'and',
-        callable $callback = null
-    ): Command {
-        $this->commands[] = (new Where())->where($operand_1, $operator, $operand_2, $callback, $type);
-        return $this;
+    public function where() {
+        $where = new Where();
+        $this->commands[] = $where;
+        return $where;
     }
 
     public function whereIn(
@@ -74,13 +65,13 @@ class Join extends Command
         $not = false,
         callable $callback = null
     ) {
-        $this->commands[] = (new Where())->in($operand, $operands, $callback, $type, $not);
+        $this->commands[] = (new Where())->in($operand, $operands, $not);
         return $this;
     }
 
     public function whereIsNull(string $operand, $type = 'and', $not = false, callable $callback = null)
     {
-        $this->commands[] = (new Where())->isNull($operand, $callback, $type, $not);
+        $this->commands[] = (new Where())->null($operand, $not);
         return $this;
     }
 

@@ -3,10 +3,15 @@
 namespace Rxn\Orm\Builder;
 
 use Rxn\Orm\Builder;
-use Rxn\Orm\Builder\Query\Select;
-use Rxn\Orm\Builder\Query\From;
-use Rxn\Orm\Builder\Query\Join;
-use Rxn\Orm\Builder\Query\Where;
+use Rxn\Orm\Builder\Command\Select;
+use Rxn\Orm\Builder\Command\From;
+use Rxn\Orm\Builder\Command\Join;
+use Rxn\Orm\Builder\Command\Where;
+use Rxn\Orm\Builder\Command\Group;
+use Rxn\Orm\Builder\Command\Limit;
+use Rxn\Orm\Builder\Command\Offset;
+use Rxn\Orm\Builder\Command\Order;
+use Rxn\Orm\Builder\Command\Having;
 
 class Query extends Builder
 {
@@ -28,13 +33,19 @@ class Query extends Builder
         return $this;
     }
 
+    public function from(string $table): Query
+    {
+        $this->commands[] = (new From())->from($table);
+        return $this;
+    }
+
     /**
      * @param string      $table
      * @param string|null $alias
      *
      * @return Query
      */
-    public function from(string $table, string $alias = null): Query
+    public function fromAs(string $table, string $alias = null): Query
     {
         $this->commands[] = (new From())->from($table, $alias);
         return $this;
@@ -55,83 +66,37 @@ class Query extends Builder
         return $this;
     }
 
-    /**
-     * @param string        $table
-     * @param string        $operand_1
-     * @param string        $operator
-     * @param string|array  $operand_2
-     * @param string        $alias
-     * @param callable|null $callback
-     *
-     * @return Query
-     * @throws \Exception
-     * @see      innerJoin
-     */
-    public function join(
-        string $table,
-        string $operand_1,
-        string $operator,
-        $operand_2,
-        string $alias = null,
-        callable $callback = null
-    ): Query {
-        return $this->innerJoin($table, $operand_1, $operator, $operand_2, $alias, $callback);
+    public function join(string $table, string $operand_1, $operand_2): Query
+    {
+        return $this->innerJoin($table, function (Where $where) use ($operand_1, $operand_2) {
+            $where->equals($operand_1, $operand_2);
+        });
     }
 
-    /**
-     * @param string        $table
-     * @param string        $operand_1
-     * @param string        $operator
-     * @param string|array  $operand_2
-     * @param string|null   $alias
-     * @param callable|null $callback
-     *
-     * @return Query
-     * @throws \Exception
-     */
-    public function innerJoin(
-        string $table,
-        string $operand_1,
-        string $operator,
-        $operand_2,
-        string $alias = null,
-        callable $callback = null
-    ): Query {
-        return $this->joinCustom($table,
-            function (Join $join) use ($operand_1, $operator, $operand_2, $alias, $callback) {
-                $join->on($operand_1, $operator, $operand_2);
-                if (!is_null($callback)) {
-                    call_user_func($callback, $join);
-                }
-            }, $alias, 'inner');
+    public function innerJoin(string $table, callable $callback): Query
+    {
+        $this->commands[] = (new Join())->join($table, $callback, null, 'inner');
+        return $this;
     }
 
-    /**
-     * @param string        $table
-     * @param string        $operand_1
-     * @param string        $operator
-     * @param string|array  $operand_2
-     * @param string        $alias
-     * @param callable|null $callback
-     *
-     * @return Query
-     * @throws \Exception
-     */
+    public function innerJoinAs(string $table, string $alias, callable $callback): Query
+    {
+        $this->commands[] = (new Join())->join($table, $callback, $alias, 'inner');
+        return $this;
+    }
+
     public function leftJoin(
         string $table,
-        string $operand_1,
-        string $operator,
-        $operand_2,
-        string $alias,
         callable $callback = null
     ): Query {
-        return $this->joinCustom($table,
-            function (Join $join) use ($operand_1, $operator, $operand_2, $alias, $callback) {
-                $join->on($operand_1, $operator, $operand_2);
-                if (!is_null($callback)) {
-                    call_user_func($callback, $join);
-                }
-            }, $alias, 'left');
+        $this->commands[] = (new Join())->join($table, $callback, null, 'left');
+        return $this;
+    }
+
+    public function leftJoinAs(string $table, string $alias, callable $callable): Query
+    {
+        $this->commands[] = (new Join())->join($table, $callable, $alias, 'left');
+        return $this;
     }
 
     /**
@@ -172,241 +137,39 @@ class Query extends Builder
         // TODO
     }
 
-    /**
-     * @param string|int    $id
-     * @param string        $id_key
-     * @param callable|null $callback
-     * @param string        $type
-     *
-     * @return Query
-     */
-    public function whereId($id, string $id_key = 'id', callable $callback = null, string $type = 'where'): Query
-    {
-        return $this->where($id_key, '=', $id, $callback, $type);
-    }
-
-    public function where(
-        string $operand_1,
-        string $operator,
-        string $operand_2,
-        callable $callback = null,
-        string $type = 'where'
-    ): Query {
-        $this->commands[] = (new Where())->where($operand_1, $operator, $operand_2, $callback, $type);
+    public function where(callable $callback): Query {
+        $this->commands[] = (new Where())->and($callback)->unset();
         return $this;
     }
 
-    public function whereIn(
-        string $operand,
-        array $operands,
-        callable $callback = null,
-        string $type = 'where',
-        $not = false
-    ) {
-        $this->commands[] = (new Where())->in($operand, $operands, $callback, $type, $not);
+    public function groupBy(array $columns): Query
+    {
+        $this->commands[] = (new Group())->groupBy($columns);
         return $this;
     }
 
-    public function whereNotIn(string $operand, array $operands, callable $callback = null, string $type = 'where')
+    public function orderBy(array $columns): Query
     {
-        return $this->whereIn($operand, $operands, $callback, $type, true);
-    }
-
-    /**
-     * @param string        $operand
-     * @param callable|null $callback
-     * @param string        $type
-     * @param bool          $not
-     *
-     * @return $this
-     */
-    public function whereIsNull(string $operand, callable $callback = null, $type = 'where', $not = false)
-    {
-        $this->commands[] = (new Where())->isNull($operand, $callback, $type, $not);
+        $this->commands[] = (new Order())->orderBy($columns);
         return $this;
     }
 
-    /**
-     * @param string        $operand
-     * @param callable|null $callback
-     * @param string        $type
-     *
-     * @return Query
-     */
-    public function whereIsNotNull(string $operand, callable $callback = null, $type = 'where')
+    public function limit(int $limit): Query
     {
-        return $this->whereIsNull($operand, $callback, $type, true);
-    }
-
-    /**
-     * @param string        $operand_1
-     * @param string        $operator
-     * @param string        $operand_2
-     * @param callable|null $callback
-     *
-     * @return Query
-     */
-    public function and (string $operand_1, string $operator, string $operand_2, callable $callback = null): Query
-    {
-        return $this->andWhere($operand_1, $operator, $operand_2, $callback);
-    }
-
-    /**
-     * @param string        $operand_1
-     * @param string        $operator
-     * @param string        $operand_2
-     * @param callable|null $callback
-     *
-     * @return Query
-     */
-    public function andWhere(string $operand_1, string $operator, string $operand_2, callable $callback = null): Query
-    {
-        return $this->where($operand_1, $operator, $operand_2, $callback, 'and');
-    }
-
-    /**
-     * @param string        $operand
-     * @param               $values
-     * @param callable|null $callback
-     *
-     * @return Query
-     */
-    public function andWhereIn(string $operand, $values, callable $callback = null)
-    {
-        return $this->whereIn($operand, $values, $callback, 'and');
-    }
-
-    /**
-     * @param string        $operand
-     * @param               $values
-     * @param callable|null $callback
-     *
-     * @return Query
-     * @throws \Exception
-     */
-    public function andWhereNotIn(string $operand, $values, callable $callback = null)
-    {
-        return $this->whereNotIn($operand, $values, $callback, 'and');
-    }
-
-    /**
-     * @param string        $operand
-     * @param callable|null $callback
-     *
-     * @return Query
-     */
-    public function andWhereIsNull(string $operand, callable $callback = null)
-    {
-        return $this->whereIsNull($operand, $callback, 'and');
-    }
-
-    /**
-     * @param string        $operand
-     * @param callable|null $callback
-     *
-     * @return Query
-     */
-    public function andWhereIsNotNull(string $operand, callable $callback = null)
-    {
-        return $this->whereIsNotNull($operand, $callback, 'and');
-    }
-
-    /**
-     * @param string        $operand_1
-     * @param string        $operator
-     * @param               $operand_2
-     * @param callable|null $callback
-     *
-     * @return Query
-     */
-    public function or (string $operand_1, string $operator, $operand_2, callable $callback = null): Query
-    {
-        return $this->orWhere($operand_1, $operator, $operand_2, $callback);
-    }
-
-    /**
-     * @param string        $operand_1
-     * @param string        $operator
-     * @param               $operand_2
-     * @param callable|null $callback
-     *
-     * @return Query
-     */
-    public function orWhere(string $operand_1, string $operator, $operand_2, callable $callback = null): Query
-    {
-        return $this->where($operand_1, $operator, $operand_2, $callback, 'or');
-    }
-
-    /**
-     * @param string        $operand
-     * @param               $values
-     * @param callable|null $callback
-     *
-     * @return Query
-     */
-    public function orWhereIn(string $operand, $values, callable $callback = null)
-    {
-        return $this->whereIn($operand, $values, $callback, 'or');
-    }
-
-    /**
-     * @param string        $operand
-     * @param               $values
-     * @param callable|null $callback
-     *
-     * @return Query
-     * @throws \Exception
-     */
-    public function orWhereNotIn(string $operand, $values, callable $callback = null)
-    {
-        return $this->whereNotIn($operand, $values, $callback, 'or');
-    }
-
-    /**
-     * @param string        $operand
-     * @param callable|null $callback
-     *
-     * @return Query
-     */
-    public function orWhereIsNull(string $operand, callable $callback = null)
-    {
-        return $this->whereIsNull($operand, $callback, 'or');
-    }
-
-    /**
-     * @param string        $operand
-     * @param callable|null $callback
-     *
-     * @return Query
-     */
-    public function orWhereIsNotNull(string $operand, callable $callback = null)
-    {
-        return $this->whereIsNotNull($operand, $callback, 'or');
-    }
-
-    public function groupBy(): Query
-    {
+        $this->commands[] = (new Limit())->limit($limit);
         return $this;
     }
 
-    public function orderBy(): Query
+    public function offset(int $offset): Query
     {
-
+        $this->commands[] = (new Offset())->offset($offset);
+        return $this;
     }
 
-    public function limit(): Query
+    public function having(callable $callback): Query
     {
-
-    }
-
-    public function offset(): Query
-    {
-
-    }
-
-    public function having(): Query
-    {
-
+        $this->commands[] = (new Having())->having($callback);
+        return $this;
     }
 
     public function union(): Query
