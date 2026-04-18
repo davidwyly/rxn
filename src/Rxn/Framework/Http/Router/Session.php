@@ -103,6 +103,31 @@ class Session extends Service
     }
 
     /**
+     * CSRF synchronizer token. Lazily generated per session; call
+     * this from any endpoint that renders a form or returns JSON the
+     * frontend needs to echo back on mutating requests.
+     */
+    public static function token(): string
+    {
+        if (empty($_SESSION['_csrf'])) {
+            $_SESSION['_csrf'] = bin2hex(random_bytes(32));
+        }
+        return $_SESSION['_csrf'];
+    }
+
+    /**
+     * Verify a CSRF token from an incoming request against the
+     * session. Uses a constant-time compare.
+     */
+    public static function validateToken(string $submitted): bool
+    {
+        if (empty($_SESSION['_csrf']) || !is_string($submitted)) {
+            return false;
+        }
+        return hash_equals($_SESSION['_csrf'], $submitted);
+    }
+
+    /**
      * @return null
      */
     public static function getSessionParams()
