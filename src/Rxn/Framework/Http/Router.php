@@ -102,7 +102,12 @@ final class Router
             if (!array_key_exists($placeholder, $params)) {
                 throw new \InvalidArgumentException("Missing param '$placeholder' for route '$name'");
             }
-            $url = str_replace('{' . $placeholder . '}', (string)$params[$placeholder], $url);
+            // Covers both `{id}` and `{id:int}` forms.
+            $url = preg_replace(
+                '/\{' . preg_quote($placeholder, '/') . '(?::[a-zA-Z_][a-zA-Z0-9_]*)?\}/',
+                (string)$params[$placeholder],
+                $url
+            );
         }
         return $url;
     }
@@ -192,6 +197,33 @@ final class Router
     }
 
     /**
+     * Named constraint types available inside `{name:type}` placeholders.
+     * Custom types can be added via `constraint()` — handy for app-
+     * specific formats like `hash`, `year`, etc.
+     *
+     * @var array<string, string>
+     */
+    private array $constraints = [
+        'int'   => '\d+',
+        'slug'  => '[a-z0-9-]+',
+        'alpha' => '[a-zA-Z]+',
+        'uuid'  => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+        'any'   => '[^/]+',
+    ];
+
+    /**
+     * Register (or override) a named regex constraint usable as
+     * `{name:type}` in route patterns. The regex must NOT include
+     * anchors or capturing groups — it gets inlined inside an outer
+     * capture.
+     */
+    public function constraint(string $name, string $regex): self
+    {
+        $this->constraints[$name] = $regex;
+        return $this;
+    }
+
+    /**
      * @return array{0: string, 1: string[]} [regex, paramNames]
      */
     private function compile(string $pattern): array
@@ -207,9 +239,13 @@ final class Router
         $params = [];
         $parts  = [];
         foreach (explode('/', ltrim($pattern, '/')) as $segment) {
-            if (preg_match('/^\{([a-zA-Z_][a-zA-Z0-9_]*)\}$/', $segment, $m)) {
+            if (preg_match('/^\{([a-zA-Z_][a-zA-Z0-9_]*)(?::([a-zA-Z_][a-zA-Z0-9_]*))?\}$/', $segment, $m)) {
                 $params[] = $m[1];
-                $parts[]  = '([^/]+)';
+                $type     = $m[2] ?? 'any';
+                if (!isset($this->constraints[$type])) {
+                    throw new \InvalidArgumentException("Unknown route constraint type '$type'");
+                }
+                $parts[] = '(' . $this->constraints[$type] . ')';
             } else {
                 $parts[] = preg_quote($segment, '#');
             }

@@ -104,17 +104,26 @@ class App
         }
 
         $code = $response->getCode() ?: Response::DEFAULT_SUCCESS_CODE;
-        $json = json_encode(
-            (object)$response->stripEmptyParams(),
-            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
-        );
-
-        // Null bytes can trip JSON decoders on the other end.
-        $json = str_replace('\\u0000', '', $json);
-
-        header('content-type: application/json');
         http_response_code((int)$code);
-        echo $json;
+        // 304 / 204 are headers-only by spec.
+        if ($code === 304 || $code === 204) {
+            return;
+        }
+        // Errors are RFC 7807 Problem Details. The whole ecosystem
+        // — API gateways, client libraries, error aggregators —
+        // already speaks this shape, and shipping a single format
+        // kills a whole class of negotiation bugs. Success stays on
+        // the `{data, meta}` envelope because 7807 is errors-only.
+        if ($response->isError()) {
+            header('content-type: application/problem+json');
+            echo json_encode(
+                $response->toProblemDetails($_SERVER['REQUEST_URI'] ?? null),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+            );
+            return;
+        }
+        header('content-type: application/json');
+        echo $response->toJson();
     }
 
     public static function getElapsedMs(): string

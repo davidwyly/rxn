@@ -3,6 +3,7 @@
 namespace Rxn\Framework\Http;
 
 use \Rxn\Framework\App;
+use \Rxn\Framework\Http\Binding\ValidationException;
 
 /**
  * Class Response
@@ -33,6 +34,14 @@ class Response
      * @var
      */
     public $errors;
+
+    /**
+     * Structured per-field errors captured from a ValidationException,
+     * surfaced as the `errors` extension member on Problem Details.
+     *
+     * @var list<array{field: string, message: string}>|null
+     */
+    public ?array $validation_errors = null;
 
     /**
      * @var
@@ -171,6 +180,9 @@ class Response
             'type'    => self::getResponseCodeResult($code),
             'message' => $exception->getMessage(),
         ];
+        if ($exception instanceof ValidationException) {
+            $this->validation_errors = $exception->errors();
+        }
         // Only expose file / line / stack trace outside production,
         // so error payloads never leak server internals to end users.
         if (getenv('ENVIRONMENT') !== 'production') {
@@ -294,5 +306,86 @@ class Response
             }
         }
         return $array;
+    }
+
+    /**
+     * Serialize this envelope exactly the way the top-level renderer
+     * does. Extracted here so middleware (ETag, compression, etc.)
+     * can inspect the wire bytes without duplicating the encoder
+     * flags.
+     */
+    public function toJson(): string
+    {
+        $json = json_encode(
+            (object)$this->stripEmptyParams(),
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+        );
+        // Null bytes can trip JSON decoders on the other end.
+        return str_replace('\\u0000', '', $json);
+    }
+
+    /**
+     * Build a body-less "304 Not Modified" response. Used by the
+     * ETag middleware to short-circuit when the client already has
+     * a fresh copy; the renderer emits headers only.
+     */
+    public static function notModified(): self
+    {
+        $r = (new \ReflectionClass(self::class))->newInstanceWithoutConstructor();
+        $r->rendered = true;
+        $r->code     = 304;
+        $r->meta     = ['success' => true, 'code' => 304];
+        return $r;
+    }
+
+    /**
+     * True when this response represents a rendered failure — i.e.
+     * `getFailure()` has populated `$this->errors`.
+     */
+    public function isError(): bool
+    {
+        return !empty($this->errors);
+    }
+
+    /**
+     * Render the error envelope as an RFC 7807 Problem Details
+     * document. Only meaningful on a rendered failure; callers
+     * should gate on `isError()` first. `$instance` is the optional
+     * URI for the specific occurrence (typically `REQUEST_URI`).
+     *
+     * The Rxn debug fields (`file`, `line`, `trace`) come along as
+     * `x-rxn-*` extension members when present, so dev-mode Problem
+     * Details stays as informative as the native envelope.
+     *
+     * @return array<string, mixed>
+     */
+    public function toProblemDetails(?string $instance = null): array
+    {
+        $status = (int)($this->code ?? 500);
+        $out = [
+            'type'   => 'about:blank',
+            'title'  => (string)($this->errors['type'] ?? self::getResponseCodeResult($status)),
+            'status' => $status,
+            'detail' => (string)($this->errors['message'] ?? ''),
+        ];
+        if ($instance !== null && $instance !== '') {
+            $out['instance'] = $instance;
+        }
+        if ($this->validation_errors !== null) {
+            // RFC 7807 extension member. Using `errors` (array of
+            // {field, message}) is the shape tools like Laravel's
+            // validator, Spring, and most REST style guides already
+            // emit — so consumers don't need a Rxn-specific reader.
+            $out['errors'] = $this->validation_errors;
+        }
+        if (is_array($this->meta) && isset($this->meta['elapsed_ms'])) {
+            $out['x-rxn-elapsed-ms'] = $this->meta['elapsed_ms'];
+        }
+        foreach (['file', 'line', 'trace'] as $k) {
+            if (isset($this->errors[$k])) {
+                $out['x-rxn-' . $k] = $this->errors[$k];
+            }
+        }
+        return $out;
     }
 }

@@ -72,6 +72,52 @@ final class ControllerTest extends TestCase
         $this->assertFalse($result->meta['success']);
         $this->assertStringContainsString('must return an array', $result->errors['message']);
     }
+
+    public function testDtoParameterIsHydratedFromRequest(): void
+    {
+        $prevGet  = $_GET;
+        $prevPost = $_POST;
+        try {
+            $_GET  = [];
+            $_POST = ['name' => 'Widget', 'price' => '499'];
+
+            $response   = new Response();
+            $controller = $this->buildController('create', 'v1', $response);
+            $result     = $controller->trigger();
+
+            $this->assertSame(200, $result->meta['code']);
+            $this->assertSame(['name' => 'Widget', 'price' => 499], $result->data);
+        } finally {
+            $_GET = $prevGet;
+            $_POST = $prevPost;
+        }
+    }
+
+    public function testDtoValidationFailuresSurfaceAs422(): void
+    {
+        $prevGet  = $_GET;
+        $prevPost = $_POST;
+        try {
+            $_GET  = [];
+            $_POST = ['name' => '', 'price' => '-1'];
+
+            $response   = new Response();
+            $controller = $this->buildController('create', 'v1', $response);
+            $result     = $controller->trigger();
+
+            $this->assertSame(422, $result->meta['code']);
+            $this->assertSame('Validation failed', $result->errors['message']);
+
+            $pd = $result->toProblemDetails();
+            $this->assertArrayHasKey('errors', $pd);
+            $fields = array_column($pd['errors'], 'field');
+            $this->assertContains('name', $fields);
+            $this->assertContains('price', $fields);
+        } finally {
+            $_GET = $prevGet;
+            $_POST = $prevPost;
+        }
+    }
 }
 
 /**
@@ -96,4 +142,20 @@ class TestController extends Controller
     {
         return 'not an array';
     }
+
+    public function create_v1(TestCreateProductDto $dto): array
+    {
+        return ['name' => $dto->name, 'price' => $dto->price];
+    }
+}
+
+final class TestCreateProductDto implements \Rxn\Framework\Http\Binding\RequestDto
+{
+    #[\Rxn\Framework\Http\Attribute\Required]
+    #[\Rxn\Framework\Http\Attribute\Length(min: 1)]
+    public string $name;
+
+    #[\Rxn\Framework\Http\Attribute\Required]
+    #[\Rxn\Framework\Http\Attribute\Min(0)]
+    public int $price;
 }

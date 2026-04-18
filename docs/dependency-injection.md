@@ -39,6 +39,30 @@ public function show_v1(Request $request, Map $map)
 This is equivalent to pulling each dependency out of the container
 by hand, without the ceremony.
 
+## Binding interfaces to implementations
+
+Autowiring can't instantiate an interface directly — there's no
+concrete class to reflect on. Tell the container which
+implementation to use with `bind()`:
+
+```php
+$container->bind(UserRepo::class, PostgresUserRepo::class);
+$container->bind(Clock::class,    fn () => new FrozenClock('2026-01-01'));
+```
+
+Two forms:
+
+- **Class-string binding:** `bind($abstract, $concreteClass)`. The
+  container still autowires the concrete's constructor, so its
+  deps resolve normally.
+- **Factory closure:** `bind($abstract, fn(Container $c) => ...)`.
+  The closure receives the container and returns a fully-built
+  instance — handy when construction depends on runtime state.
+
+Bindings are checked before autowiring, so any constructor that
+type-hints `UserRepo` now receives the bound concrete. Re-binding
+the same abstract overwrites the previous target.
+
 ## When to use the container
 
 - Do use it for framework classes (`Database`, `Map`, `Filecache`,

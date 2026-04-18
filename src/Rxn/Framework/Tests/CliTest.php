@@ -145,6 +145,61 @@ final class CliTest extends TestCase
         $this->assertStringContainsString('already exists', $second['stderr']);
     }
 
+    public function testOpenapiEmitsJsonToStdout(): void
+    {
+        // Populate a sandbox with one controller + one action, then
+        // point `openapi` at it via --root / --ns so we don't depend
+        // on whatever happens to live in app/Http/Controller.
+        $controllerDir = $this->sandbox . '/app/Http/Controller/v1';
+        mkdir($controllerDir, 0777, true);
+        file_put_contents(
+            $controllerDir . '/PingController.php',
+            "<?php declare(strict_types=1);\n"
+            . "namespace Sandbox\\Http\\Controller\\v1;\n"
+            . "class PingController { public function ping_v1(int \$id): array { return []; } }\n"
+        );
+
+        $result = $this->runCli([
+            'openapi',
+            '--ns=Sandbox',
+            '--root=' . $this->sandbox,
+            '--title=Sandbox API',
+            '--version=9.9.9',
+        ]);
+        $this->assertSame(0, $result['status'], $result['stderr']);
+
+        $spec = json_decode($result['stdout'], true);
+        $this->assertIsArray($spec);
+        $this->assertSame('Sandbox API', $spec['info']['title']);
+        $this->assertSame('9.9.9', $spec['info']['version']);
+        $this->assertArrayHasKey('/v1.1/ping/ping', $spec['paths']);
+    }
+
+    public function testOpenapiWritesToFileWithOutFlag(): void
+    {
+        mkdir($this->sandbox . '/app/Http/Controller/v1', 0777, true);
+        file_put_contents(
+            $this->sandbox . '/app/Http/Controller/v1/PingController.php',
+            "<?php declare(strict_types=1);\n"
+            . "namespace Sandbox\\Http\\Controller\\v1;\n"
+            . "class PingController { public function ping_v1(): array { return []; } }\n"
+        );
+
+        $outPath = $this->sandbox . '/openapi.json';
+        $result  = $this->runCli([
+            'openapi',
+            '--ns=Sandbox',
+            '--root=' . $this->sandbox,
+            '--out=' . $outPath,
+        ]);
+        $this->assertSame(0, $result['status'], $result['stderr']);
+        $this->assertFileExists($outPath);
+
+        $spec = json_decode((string)file_get_contents($outPath), true);
+        $this->assertIsArray($spec);
+        $this->assertArrayHasKey('/v1.1/ping/ping', $spec['paths']);
+    }
+
     public function testMakeRecordCreatesFile(): void
     {
         $result = $this->runCli(

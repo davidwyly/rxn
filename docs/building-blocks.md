@@ -53,6 +53,90 @@ A short-circuit from any ring skips every inner ring — the
 `Response` returned by that middleware travels straight back out
 through the layers that have already run their before-code.
 
+### Shipped middlewares
+
+Three small, dependency-free middlewares cover the most common
+defensive layers apps end up writing. Each one accepts injectable
+emit-callables so they're unit-testable without PHP's global
+`header()` / `http_response_code()` side effects.
+
+#### `Rxn\Framework\Http\Middleware\Cors`
+
+CORS policy + automatic preflight handling. Emits
+`Access-Control-Allow-Origin` / `-Methods` / `-Headers` / `-Max-Age`
+on every response, and short-circuits `OPTIONS` with a 204 before
+the request reaches the controller.
+
+```php
+use Rxn\Framework\Http\Middleware\Cors;
+
+$pipeline->add(new Cors(
+    allowOrigins: ['https://app.example.com'],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+    maxAge:       3600,
+));
+```
+
+Pass `['*']` to reflect any origin. `allowCredentials: true` flips
+the behaviour to echo the incoming `Origin` so browsers accept the
+response (they reject `*` + credentials).
+
+#### `Rxn\Framework\Http\Middleware\RequestId`
+
+Correlation id per request. Honours incoming `X-Request-ID` when it
+matches `/^[A-Za-z0-9._-]{8,128}$/`; otherwise mints a UUIDv4.
+Echoes the id back on the response and exposes it to downstream
+code via `RequestId::current()` — handy for tagging log lines.
+
+```php
+use Rxn\Framework\Http\Middleware\RequestId;
+
+$pipeline->add(new RequestId());
+// later, in a controller or logger:
+$log->info('order.created', ['request_id' => RequestId::current()]);
+```
+
+#### `Rxn\Framework\Http\Middleware\JsonBody`
+
+Decodes `application/json` request bodies on `POST` / `PUT` /
+`PATCH` into `$_POST`. Enforces a size cap (default 1 MiB) and maps
+the predictable failure modes to HTTP codes: `413` for an
+oversized body, `415` for a mismatched `Content-Type`, `400` for
+invalid JSON or a non-object / non-array top-level value.
+
+```php
+use Rxn\Framework\Http\Middleware\JsonBody;
+
+$pipeline->add(new JsonBody(maxBytes: 2 * 1024 * 1024));
+// controllers read decoded fields via the usual collector API:
+$name = $request->getCollector()->getParamFromPost('name');
+```
+
+Non-body methods (`GET`, `HEAD`, `DELETE`, `OPTIONS`) pass through
+untouched; requests without a `Content-Type` pass through as
+empty bodies.
+
+#### `Rxn\Framework\Http\Middleware\ETag`
+
+Conditional-GET support. After the downstream handler runs, hashes
+the response payload (the envelope's `data` only — per-request
+`meta.elapsed_ms` would otherwise invalidate every entry), emits
+the weak ETag, and short-circuits to `304 Not Modified` when the
+client's `If-None-Match` matches.
+
+```php
+use Rxn\Framework\Http\Middleware\ETag;
+
+$pipeline->add(new ETag());
+```
+
+Scoped to successful `GET` / `HEAD` responses; everything else
+(POST/PUT/DELETE, errors, null payloads) passes through untouched.
+The wildcard `If-None-Match: *` is honoured. Zero configuration —
+drop it in and GET-heavy endpoints stop retransmitting unchanged
+payloads.
+
 ## PSR-7 / PSR-15 bridge
 
 `Rxn\Framework\Http\PsrAdapter` and `Psr15Pipeline` let apps opt
@@ -463,6 +547,68 @@ $database->enableCache();
 Every read Query hits the filesystem cache first, keyed by
 `md5(type|sql|bindings)`. Writes (INSERT/UPDATE/DELETE/DDL) are
 never cached.
+
+## `Rxn\Framework\Testing\TestClient` + `TestResponse`
+
+In-process HTTP client for testing. Feeds a `Router` + a
+caller-supplied dispatcher and returns a `TestResponse` with
+fluent PHPUnit-integrated assertions — no web server, no curl, no
+process boundary.
+
+```php
+use Rxn\Framework\Testing\TestClient;
+
+$client = new TestClient($router, function (array $hit, Request $req) use ($container) {
+    [$class, $method] = $hit['handler'];
+    return $container->get($class)->{$method}(...array_values($hit['params']));
+});
+
+$client->get('/products/42')
+       ->assertOk()
+       ->assertJsonPath('data.id', 42)
+       ->assertJsonStructure(['data' => ['id', 'name'], 'meta' => ['success']]);
+
+$client->post('/products', ['name' => 'widget'], ['Content-Type' => 'application/json'])
+       ->assertCreated();
+```
+
+Verbs: `get`, `post`, `put`, `patch`, `delete`. Query strings on
+the path are parsed into `$_GET`; request bodies land in `$_POST`;
+headers land in `$_SERVER['HTTP_*']` — so middleware that sniffs
+the superglobals (Cors, RequestId, JsonBody, etc.) sees what it
+would see in production.
+
+Assertion helpers on `TestResponse`:
+
+| Method | Behaviour |
+|---|---|
+| `assertStatus(int)` / `assertOk()` / `assertCreated()` / etc | HTTP status checks |
+| `assertJsonPath(string, mixed)` | dotted-path equality (`data.user.id`) |
+| `assertJsonStructure(array)` | recursive shape check; numeric keys mean "every element" |
+| `response()` | escape hatch — raw `Response` for custom assertions |
+| `status()` / `data()` / `json()` | accessors on the underlying envelope |
+
+For tests that only exercise middleware, pass a trivial dispatcher
+that returns a canned `Response` — routing + pipeline wire up the
+same way either way.
+
+## `Rxn\Framework\Http\OpenApi\SwaggerUi`
+
+Interactive docs in one line. Pairs with the OpenAPI `Generator`
+— point the UI at wherever you serve the spec JSON and you're
+done.
+
+```php
+use Rxn\Framework\Http\OpenApi\{Generator, SwaggerUi};
+
+$router->get('/openapi.json', fn () =>
+    json_encode((new Generator(controllers: $controllers))->generate()));
+$router->get('/docs', fn () => SwaggerUi::html('/openapi.json'));
+```
+
+Pulls `swagger-ui-dist@5` from `unpkg` by default; pass
+`cdnBase: 'https://cdn.example.com/swagger/'` to self-host. Title
+and spec URL are HTML-escaped at render time.
 
 ## `Rxn\Framework\Data\Filecache`
 
