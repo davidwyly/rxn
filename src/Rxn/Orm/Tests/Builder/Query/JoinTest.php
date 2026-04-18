@@ -4,47 +4,65 @@ namespace Rxn\Orm\Tests\Builder\Query;
 
 use PHPUnit\Framework\TestCase;
 use Rxn\Orm\Builder\Query;
-use Rxn\Orm\Builder\Query\Where;
 
 final class JoinTest extends TestCase
 {
-    public function testJoin()
+    public function testJoinAccumulatesEveryEdgeIntoTheCommandTree(): void
     {
-        // The expectations below were written before aliases emitted an
-        // 'AS' modifier and before multiple ->join() calls accumulated,
-        // so they don't match the current builder output. The ORM
-        // query parser work is still in progress (see the last commit
-        // on this branch: "started work on the parser"); revisit this
-        // test once the expected snapshot format is finalized.
-        $this->markTestIncomplete(
-            'Expected snapshot does not reflect current builder output; pending parser rework.'
+        $query = (new Query())
+            ->select(['users.id' => 'user_id'])
+            ->from('users')
+            ->join('orders', 'orders.user_id', '=', 'users.id', 'o')
+            ->join('invoices', 'invoices.id', '=', 'orders.invoice_id', 'i')
+            ->where('users.first_name', '=', 'David', function (Query $where) {
+                $where->and('users.last_name', '=', 'Wyly');
+            })
+            ->where('users.first_name', '=', 'Lance', function (Query $where) {
+                $where->and('users.last_name', '=', 'Badger');
+            })
+            ->or('users.first_name2', '=', 'Joseph', function (Query $where) {
+                $where->and('users.last_name2', '=', 'Andrews', function (Query $inner) {
+                    $inner->or('users.last_name2', '=', 'Andrews, III');
+                });
+            });
+
+        $this->assertSame('`users`.`id` AS `user_id`', $query->commands['SELECT'][0]);
+        $this->assertSame('`users`', $query->commands['FROM'][0]);
+
+        $this->assertSame(
+            [
+                'orders'   => ['AS' => ['`o`'], 'ON' => ['`orders`.`user_id` = `users`.`id`']],
+                'invoices' => ['AS' => ['`i`'], 'ON' => ['`invoices`.`id` = `orders`.`invoice_id`']],
+            ],
+            $query->commands['INNER JOIN']
+        );
+
+        // Three top-level where entries: two grouped ANDs + one grouped OR.
+        $this->assertCount(3, $query->commands['WHERE']);
+        $this->assertSame('AND', $query->commands['WHERE'][0]['op']);
+        $this->assertSame('AND', $query->commands['WHERE'][1]['op']);
+        $this->assertSame('OR',  $query->commands['WHERE'][2]['op']);
+
+        $this->assertSame(
+            ['David', 'Wyly', 'Lance', 'Badger', 'Joseph', 'Andrews', 'Andrews, III'],
+            $query->bindings
         );
     }
 
-    public function testJoinParsed()
+    public function testJoinParsed(): void
     {
-        $query = new Query();
-        $query->select(['users.id' => 'user_id'])
-              ->from('users', 'u')
-              ->join('orders', 'orders.user_id', '=', 'users.id', 'o')
-              ->parseCommandAliases();
+        $query = (new Query())
+            ->select(['users.id' => 'user_id'])
+            ->from('users', 'u')
+            ->join('orders', 'orders.user_id', '=', 'users.id', 'o');
+        $query->parseCommandAliases();
 
-        $expected_table_aliases = [
-            'users'  => 'u',
-            'orders' => 'o',
-        ];
-        $this->assertEquals($expected_table_aliases, $query->table_aliases);
-
-        $this->assertEquals('`u`.`id` AS `user_id`', $query->commands['SELECT'][0]);
-
-        $this->assertEquals('`users` AS `u`', $query->commands['FROM'][0]);
-        $expected_join = [
-            'orders' => [
-                'AS' => ['`o`'],
-                'ON' => ['`o`.`user_id` = `u`.`id`'],
-            ],
-        ];
-
-        $this->assertEquals($expected_join, $query->commands['INNER JOIN']);
+        $this->assertSame(['users' => 'u', 'orders' => 'o'], $query->table_aliases);
+        $this->assertSame('`u`.`id` AS `user_id`', $query->commands['SELECT'][0]);
+        $this->assertSame('`users` AS `u`', $query->commands['FROM'][0]);
+        $this->assertSame(
+            ['orders' => ['AS' => ['`o`'], 'ON' => ['`o`.`user_id` = `u`.`id`']]],
+            $query->commands['INNER JOIN']
+        );
     }
 }

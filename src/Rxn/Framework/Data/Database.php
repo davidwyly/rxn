@@ -90,7 +90,7 @@ class Database
      */
     private $last_query;
 
-    public function __construct(string $source_name = null)
+    public function __construct(?string $source_name = null)
     {
         if (is_null($source_name)) {
             $source_name = self::DEFAULT_READ;
@@ -157,6 +157,23 @@ class Database
     }
 
     /**
+     * Execute a built Rxn\Orm\Builder\Query and return the result
+     * shape appropriate for its top-level command (fetchAll for
+     * SELECT, query result for anything else).
+     *
+     * @return array|mixed
+     * @throws \Rxn\Framework\Error\QueryException
+     */
+    public function run(\Rxn\Orm\Builder\Query $query)
+    {
+        [$sql, $bindings] = $query->toSql();
+        $type             = isset($query->commands['SELECT']) || isset($query->commands['SELECT DISTINCT'])
+            ? Query::TYPE_FETCH_ALL
+            : Query::TYPE_QUERY;
+        return $this->createQuery($type, $sql, $bindings)->run();
+    }
+
+    /**
      * @return mixed
      */
     public function getLastInsertId()
@@ -175,7 +192,7 @@ class Database
         return $this->last_query ? $this->last_query->getLastAffectedRows() : null;
     }
 
-    public function connect(\PDO $connection = null)
+    public function connect(?\PDO $connection = null)
     {
         if (is_null($connection)) {
             $connection = $this->createConnection();

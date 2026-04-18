@@ -4,146 +4,142 @@ namespace Rxn\Orm\Builder;
 
 use Rxn\Orm\Builder;
 
+/**
+ * Walks a Builder's command tree and produces a single-line SQL
+ * string. Bindings live on the Builder itself and are surfaced by
+ * Query::toSql(); this class is purely about shape.
+ */
 class QueryParser
 {
-    /**
-     * @var Builder
-     */
-    private $builder;
+    private Builder $builder;
 
     public function __construct(Builder $builder)
     {
         $this->builder = $builder;
     }
 
-    public function getSql()
+    public function getSql(): string
     {
-        $sql = '';
-        $sql .= $this->select();
-        $sql .= $this->from();
-        $sql .= $this->innerJoin();
-        $sql .= $this->leftJoin();
-        $sql .= $this->rightJoin();
-        $sql .= $this->where();
-        $sql .= $this->or();
-        return $sql;
+        $parts = array_filter([
+            $this->select(),
+            $this->from(),
+            $this->join('INNER JOIN'),
+            $this->join('LEFT JOIN'),
+            $this->join('RIGHT JOIN'),
+            $this->where(),
+            $this->groupBy(),
+            $this->having(),
+            $this->orderBy(),
+            $this->limit(),
+            $this->offset(),
+        ]);
+        return implode(' ', $parts);
     }
 
-    private function select()
+    private function commands(string $key): ?array
     {
-        if (!array_key_exists('SELECT', $this->builder->commands)) {
-            return '';
-        }
-
-        $select = $this->builder->commands['SELECT'];
-        if ($select == ['*']) {
-            return "SELECT * \r\n";
-        }
-        return "SELECT \r\n    " . implode(",\r\n    ", $select) . " \r\n";
+        return $this->builder->commands[$key] ?? null;
     }
 
-    private function from()
+    private function select(): string
     {
-        if (!array_key_exists('FROM', $this->builder->commands)) {
+        $cols = $this->commands('SELECT') ?? $this->commands('SELECT DISTINCT');
+        if ($cols === null) {
             return '';
         }
-
-        $from = $this->builder->commands['FROM'];
-        return "FROM " . implode(",\r\n    ", $from) . " \r\n";
+        $prefix = isset($this->builder->commands['SELECT DISTINCT']) ? 'SELECT DISTINCT' : 'SELECT';
+        if ($cols === ['*']) {
+            return "$prefix *";
+        }
+        return $prefix . ' ' . implode(', ', $cols);
     }
 
-    private function innerJoin()
+    private function from(): string
     {
-        if (!array_key_exists('INNER JOIN', $this->builder->commands)) {
-            return '';
-        }
-        return $this->join('INNER JOIN');
+        $from = $this->commands('FROM');
+        return $from === null ? '' : 'FROM ' . implode(', ', $from);
     }
 
-    private function leftJoin()
+    private function join(string $command): string
     {
-        if (!array_key_exists('LEFT JOIN', $this->builder->commands)) {
+        $joins = $this->commands($command);
+        if ($joins === null) {
             return '';
         }
-        return $this->join('LEFT JOIN');
+        $parts = [];
+        foreach ($joins as $table => $modifiers) {
+            $escaped = '`' . $table . '`';
+            if (!empty($modifiers['AS'])) {
+                $escaped .= ' AS ' . $modifiers['AS'][0];
+            }
+            $segment = $command . ' ' . $escaped;
+            if (!empty($modifiers['ON'])) {
+                $segment .= ' ON ' . implode(' AND ', $modifiers['ON']);
+            }
+            $parts[] = $segment;
+        }
+        return implode(' ', $parts);
     }
 
-    private function rightJoin()
+    private function where(): string
     {
-        if (!array_key_exists('RIGHT JOIN', $this->builder->commands)) {
+        $wheres = $this->commands('WHERE');
+        if ($wheres === null || $wheres === []) {
             return '';
         }
-        return $this->join('RIGHT JOIN');
+        return 'WHERE ' . $this->renderConditions($wheres);
     }
 
-    private function where() {
-        if (!array_key_exists('WHERE', $this->builder->commands)) {
-            return '';
-        }
-
-        $where = $this->builder->commands['WHERE'];
-
-        $sql = '';
-        $used_initial_where = false;
-        foreach ($where as $key => $value) {
-            if (is_numeric($key) && is_array($value)) {
-                // in a group
-                foreach ($value as $grouped_command => $commands) {
-                    switch ($grouped_command) {
-                        case 'WHERE':
-                            $grouped_command = ($used_initial_where) ? 'AND' : 'WHERE';
-                            $used_initial_where = true;
-                            $commands_imploded = implode(" \r\n    AND ",$commands);
-                            $sql .= "$grouped_command (\r\n    $commands_imploded \r\n)\r\n";
-                    }
-                }
+    /**
+     * @param array<int, array{op?: string, expr?: string, group?: array}> $conditions
+     */
+    private function renderConditions(array $conditions): string
+    {
+        $parts = [];
+        $first = true;
+        foreach ($conditions as $entry) {
+            // Back-compat: old code paths might still push a bare string.
+            if (is_string($entry)) {
+                $entry = ['op' => 'AND', 'expr' => $entry];
+            }
+            $prefix = $first ? '' : (($entry['op'] ?? 'AND') . ' ');
+            $first  = false;
+            if (isset($entry['group'])) {
+                $parts[] = $prefix . '(' . $this->renderConditions($entry['group']) . ')';
+            } else {
+                $parts[] = $prefix . ($entry['expr'] ?? '');
             }
         }
-        return $sql;
+        return implode(' ', $parts);
     }
 
-    private function or() {
-        if (!array_key_exists('WHERE', $this->builder->commands)) {
-            return '';
-        }
-
-        $where = $this->builder->commands['WHERE'];
-
-        $sql = '';
-        $used_initial_where = false;
-        foreach ($where as $key => $value) {
-            if (is_numeric($key) && is_array($value)) {
-                // in a group
-                foreach ($value as $grouped_command => $commands) {
-                    switch ($grouped_command) {
-                        case 'WHERE':
-                            $grouped_command = ($used_initial_where) ? 'AND' : 'WHERE';
-                            $used_initial_where = true;
-                            $commands_imploded = implode(" \r\n    AND ",$commands);
-                            $sql .= "$grouped_command (\r\n    $commands_imploded \r\n)\r\n";
-                    }
-                }
-            }
-        }
-        return $sql;
+    private function groupBy(): string
+    {
+        $cols = $this->commands('GROUP BY');
+        return $cols === null ? '' : 'GROUP BY ' . implode(', ', $cols);
     }
 
-    private function join($command) {
-        $inner_join = $this->builder->commands[$command];
-
-        $sql = '';
-        foreach ($inner_join as $table => $conditions) {
-            $sql .= "$command `$table` ";
-            foreach ($conditions as $condition => $expressions) {
-                $sql .= "$condition ";
-                foreach ($expressions as $expression) {
-                    $sql .= "$expression ";
-                }
-            }
-            $sql .= "\r\n";
-        }
-        return $sql;
+    private function having(): string
+    {
+        $cond = $this->commands('HAVING');
+        return $cond === null ? '' : 'HAVING ' . implode(' AND ', $cond);
     }
 
+    private function orderBy(): string
+    {
+        $cols = $this->commands('ORDER BY');
+        return $cols === null ? '' : 'ORDER BY ' . implode(', ', $cols);
+    }
 
+    private function limit(): string
+    {
+        $limit = $this->commands('LIMIT');
+        return $limit === null ? '' : 'LIMIT ' . (int)$limit[0];
+    }
+
+    private function offset(): string
+    {
+        $offset = $this->commands('OFFSET');
+        return $offset === null ? '' : 'OFFSET ' . (int)$offset[0];
+    }
 }

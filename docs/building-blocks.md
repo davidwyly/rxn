@@ -169,6 +169,45 @@ foreach ($chain->hasMany('users') as $link) {
 Links are immutable `Link` value objects derived from
 `information_schema` reflection.
 
+## `Rxn\Orm\Builder\Query`
+
+Fluent SELECT query builder for cases where `Record` scaffolding
+doesn't reach. `toSql()` materializes to `[$sql, $bindings]`;
+`Database::run($query)` executes the result in one call.
+
+```php
+$query = (new Query())
+    ->select(['u.id', 'u.email'])
+    ->from('users', 'u')
+    ->leftJoin('orders', 'o.user_id', '=', 'u.id', 'o')
+    ->where('u.active', '=', 1)
+    ->andWhereIn('u.role', ['admin', 'owner'])
+    ->orderBy('u.created_at', 'DESC')
+    ->limit(50)
+    ->offset(0);
+
+$rows = $database->run($query);
+```
+
+Grouped conditions use a closure argument that receives a fresh
+`Query`; its where-calls become a parenthesised sub-expression:
+
+```php
+$query->where('tenant_id', '=', 7)
+      ->andWhere('status', '=', 'active', function (Query $w) {
+          $w->orWhere('status', '=', 'trial');
+      });
+// ... WHERE `tenant_id` = ? AND (`status` = ? OR `status` = ?)
+```
+
+Supported methods: `select`, `from`, `join` / `innerJoin` / `leftJoin` /
+`rightJoin` / `joinCustom`, `where` / `andWhere` / `orWhere` /
+`whereIn` / `whereNotIn` / `whereIsNull` / `whereIsNotNull` (and
+`and*` / `or*` variants), `groupBy`, `having`, `orderBy`, `limit`,
+`offset`. Operators validated against the `WHERE_OPERATORS`
+whitelist (`=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, `IN`, `NOT IN`,
+`LIKE`, `NOT LIKE`, `BETWEEN`, `REGEXP`, `NOT REGEXP`).
+
 ## Query-result caching
 
 ```php
