@@ -80,16 +80,17 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
    - [ ] Support for third-party ORMs
 - [X] Speed and Performance
    - [X] PSR-4 autoloading
-   - [~] Caching mechanisms
-      - [ ] Native query caching *(the cache table wiring on
-            `Rxn\Framework\Data\Query` is incomplete — do not rely on it)*
+   - [X] Caching mechanisms
+      - [X] Native query caching *(file-backed; call
+            `Database::setCache($dir)` + `enableCache()`)*
       - [X] Object file caching (atomic writes via Filecache)
 - [ ] Authentication *(OAuth2 / OpenID / SAML all planned)*
 - [ ] Automated validation of API requests using API contracts
 - [X] Event logging *(append-only JSON-lines; see
       `Rxn\Framework\Utility\Logger`)*
 - [ ] Mailer *(stub; constructor throws LogicException)*
-- [ ] Scheduler
+- [X] Scheduler *(interval / predicate based; see
+      `Rxn\Framework\Utility\Scheduler`)*
 - [X] Database migrations *(file-based `*.sql` runner; see
       `Rxn\Framework\Data\Migration`)*
 - [ ] Optional, modular plug-ins

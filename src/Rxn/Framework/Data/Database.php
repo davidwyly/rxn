@@ -86,18 +86,15 @@ class Database
     private $using_cache = false;
 
     /**
-     * @var array
+     * @var string|null filesystem cache directory propagated to each
+     *                  Query when caching is on
      */
-    private $cache_table_settings = [
-        'table'            => null,
-        'sql_column'       => null,
-        'param_column'     => null,
-        'type_column'      => null,
-        'package_column'   => null,
-        'expires_column'   => null,
-        'timestamp_column' => null,
-        'elapsed_column'   => null,
-    ];
+    private $cache_directory;
+
+    /**
+     * @var int cache TTL, seconds
+     */
+    private $cache_ttl = 300;
 
     /**
      * @var Query|null
@@ -151,6 +148,9 @@ class Database
         $this->connect($this->connection);
         $query = new Query($this->connection, $type, $sql, $bindings);
         $query->setInTransaction($this->in_transaction);
+        if ($this->using_cache && $this->cache_directory !== null) {
+            $query->setCache($this->cache_directory, $this->cache_ttl);
+        }
         $this->last_query = $query;
         return $query;
     }
@@ -235,29 +235,20 @@ class Database
     }
 
     /**
-     * @param array $cache_table_settings
+     * Configure where Query results should be cached on disk.
      *
-     * @return null
      * @throws DatabaseException
      */
-    public function setCacheSettings(array $cache_table_settings)
+    public function setCache(string $directory, int $ttl_seconds = 300): void
     {
-        $required_keys = array_keys($this->cache_table_settings);
-        foreach ($required_keys as $required_key) {
-            if (!array_key_exists($required_key, $cache_table_settings)) {
-                throw new DatabaseException("Required key '$required_key' missing", 500);
-            }
+        if ($ttl_seconds < 1) {
+            throw new DatabaseException('Cache TTL must be a positive integer', 500);
         }
-        $this->cache_table_settings = $cache_table_settings;
-        return null;
-    }
-
-    /**
-     * @return array
-     */
-    public function getCacheTableSettings()
-    {
-        return (array)$this->cache_table_settings;
+        if (!is_dir($directory) && !mkdir($directory, 0770, true) && !is_dir($directory)) {
+            throw new DatabaseException("Cache directory unavailable: $directory", 500);
+        }
+        $this->cache_directory = rtrim($directory, '/');
+        $this->cache_ttl       = $ttl_seconds;
     }
 
     /**
@@ -403,11 +394,22 @@ class Database
     }
 
     /**
-     *
+     * Enable query-result caching. Must be preceded by a call to
+     * setCache() to define where results should be stored.
      */
-    public function enableCache()
+    public function enableCache(): void
     {
+        if ($this->cache_directory === null) {
+            throw new DatabaseException(
+                'enableCache() requires setCache() to be called first with a target directory',
+                500
+            );
+        }
         $this->using_cache = true;
     }
 
+    public function disableCache(): void
+    {
+        $this->using_cache = false;
+    }
 }

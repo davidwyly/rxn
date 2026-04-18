@@ -118,13 +118,10 @@ PHP lint every touched file with `php -l <path>` before committing.
 
 ## Known gaps (pick these up before inventing new ones)
 
-- **Query native caching** references `cache_table_settings` on the
-  wrong class. Feature is advertised but effectively broken.
 - **ORM relationship autowiring (`Rxn\Framework\Data\Map\Chain\Link`)**
   is still a throwing stub.
 - **Mailer** is intentionally a throwing stub; wire to a tiny PHP
   `mail()` wrapper or a single SMTP library if it becomes necessary.
-- **Scheduler** is not implemented.
 
 ## Building blocks you can compose
 
@@ -139,6 +136,11 @@ PHP lint every touched file with `php -l <path>` before committing.
 - **`Rxn\Framework\Http\Router\Session::token()` /
   `::validateToken()`** — CSRF sync tokens.
 - **`Rxn\Framework\Data\Migration`** — file-based `*.sql` runner.
+- **`Rxn\Framework\Utility\Scheduler`** — interval / predicate-based
+  task scheduler with JSON persistence; drive from cron or a worker.
+- **Query result caching** — call `$database->setCache($dir)` then
+  `$database->enableCache()` and every subsequent read Query hits the
+  filesystem cache first.
 
 When finishing any of these, prefer the smallest working version.
 Ship it, get tests green, move on.

@@ -99,6 +99,16 @@ class Query
     private $last_insert_id;
 
     /**
+     * @var string|null directory used for the filesystem query cache
+     */
+    private $cache_directory;
+
+    /**
+     * @var int cache TTL in seconds
+     */
+    private $cache_ttl = 300;
+
+    /**
      * @var int
      */
     private $last_affected_rows;
@@ -230,10 +240,11 @@ class Query
      */
     public function run()
     {
-        if ($this->caching
-            && $this->isLookup()
-        ) {
-            return $this->cacheLookup($this->type, $this->sql, $this->bindings);
+        if ($this->caching && $this->isLookup()) {
+            $hit = $this->cacheRead();
+            if ($hit !== null) {
+                return $hit;
+            }
         }
 
         // verify that statements which may cause an implicit commit are not used in transactions
@@ -288,21 +299,21 @@ class Query
             case "fetchAll":
                 $result = $executed_statement->fetchAll(\PDO::FETCH_ASSOC);
                 if ($this->caching) {
-                    $this->cacheResult($result, $time_elapsed);
+                    $this->cacheWrite($result);
                 }
                 $this->executed = true;
                 return $result;
             case "fetchArray":
                 $result = $executed_statement->fetchAll(\PDO::FETCH_COLUMN);
                 if ($this->caching) {
-                    $this->cacheResult($result, $time_elapsed);
+                    $this->cacheWrite($result);
                 }
                 $this->executed = true;
                 return $result;
             case "fetch":
                 $result = $executed_statement->fetch(\PDO::FETCH_ASSOC);
                 if ($this->caching) {
-                    $this->cacheResult($result, $time_elapsed);
+                    $this->cacheWrite($result);
                 }
                 $this->executed = true;
                 return $result;
@@ -452,128 +463,90 @@ class Query
     }
 
     /**
-     * @return bool
-     * @throws QueryException
+     * Enable or disable query-result caching on this Query. When
+     * enabled, read queries whose (sql, bindings) hash matches an
+     * on-disk cache file newer than the TTL return the cached
+     * result; read queries that miss populate the cache after
+     * running.
      */
-    public function clearCache()
+    public function setCache(?string $directory, int $ttl_seconds = 300): void
     {
-        $cache_table     = $this->cache_table_settings['table'];
-        $truncate_sql    = "TRUNCATE TABLE `$cache_table`;";
-        $truncate_query  = new Query($this->connection, 'query', $truncate_sql);
-        $truncate_result = $truncate_query->run();
-        if (!$truncate_result) {
-            return false;
+        if ($directory === null) {
+            $this->caching         = false;
+            $this->cache_directory = null;
+            return;
         }
-        return true;
+        if ($ttl_seconds < 1) {
+            throw new QueryException('Cache TTL must be a positive integer', 500);
+        }
+        if (!is_dir($directory) && !mkdir($directory, 0770, true) && !is_dir($directory)) {
+            throw new QueryException("Query cache directory unavailable: $directory", 500);
+        }
+        $this->caching         = true;
+        $this->cache_directory = rtrim($directory, '/');
+        $this->cache_ttl       = $ttl_seconds;
+    }
+
+    private function cacheKeyPath(): string
+    {
+        $hash = md5($this->type . '|' . $this->sql . '|' . serialize($this->bindings));
+        return $this->cache_directory . '/' . $hash . '.qcache';
     }
 
     /**
-     * @param string $type
-     * @param string $sql
-     * @param array  $bindings
-     *
-     * @return bool|mixed
-     * @throws QueryException
+     * @return mixed|null cached result, or null on miss / expired
      */
-    private function cacheLookup(string $type, string $sql, array $bindings)
+    private function cacheRead()
     {
-        // hash the raw SQL and values array
-        $sql_hash   = md5(serialize($sql));
-        $param_hash = md5(serialize($bindings));
-
-        $table          = $this->cache_table_settings['table'];
-        $sql_column     = $this->cache_table_settings['sql_column'];
-        $param_column   = $this->cache_table_settings['param_column'];
-        $type_column    = $this->cache_table_settings['type_column'];
-        $expires_column = $this->cache_table_settings['expires_column'];
-
-        $find_sql    = "
-            SELECT *
-            FROM `$table`
-            WHERE `$sql_column` LIKE :sql_hash
-                AND `$param_column` LIKE :param_hash
-                AND `$type_column` LIKE :type
-                AND `$expires_column` > NOW()
-        ";
-        $bind_params = [
-            'sql_hash'   => $sql_hash,
-            'param_hash' => $param_hash,
-            'type'       => $type,
-        ];
-        $cache_query = new Query($this->connection, 'fetch', $find_sql, $bind_params);
-        $find_result = $cache_query->run();
-
-        if ($find_result) {
-            return unserialize($find_result['package'], ['allowed_classes' => false]);
+        if ($this->cache_directory === null) {
+            return null;
         }
-        return false;
+        $path = $this->cacheKeyPath();
+        if (!is_file($path)) {
+            return null;
+        }
+        if ((time() - filemtime($path)) >= $this->cache_ttl) {
+            @unlink($path);
+            return null;
+        }
+        $raw = file_get_contents($path);
+        if ($raw === false) {
+            return null;
+        }
+        $decoded = unserialize($raw, ['allowed_classes' => false]);
+        return $decoded === false && $raw !== 'b:0;' ? null : $decoded;
+    }
+
+    private function cacheWrite($result): void
+    {
+        if ($this->cache_directory === null) {
+            return;
+        }
+        $path = $this->cacheKeyPath();
+        $tmp  = tempnam($this->cache_directory, 'qc_');
+        if ($tmp === false) {
+            return;
+        }
+        if (file_put_contents($tmp, serialize($result), LOCK_EX) === false) {
+            @unlink($tmp);
+            return;
+        }
+        if (!@rename($tmp, $path)) {
+            @unlink($tmp);
+        }
     }
 
     /**
-     * @param       $result
-     * @param float $time_elapsed
-     *
-     * @return bool
-     * @throws QueryException
+     * Remove every cached entry in the configured cache directory.
      */
-    private function cacheResult($result, float $time_elapsed): bool
+    public function clearCache(): void
     {
-        // sanitize timeout
-        if (!is_numeric($this->timeout)) {
-            throw new QueryException(__METHOD__ . ": cache timeout needs to be numeric", 500);
+        if ($this->cache_directory === null) {
+            return;
         }
-
-        $serialized_result = serialize($result);
-        $sql_hash          = md5(serialize($this->sql));
-        $param_hash        = md5(serialize($this->bindings));
-        $table             = $this->cache_table_settings['table'];
-        $timestamp_column  = $this->cache_table_settings['timestamp_column'];
-        $expires_column    = $this->cache_table_settings['expires_column'];
-        $sql_column        = $this->cache_table_settings['sql_column'];
-        $param_column      = $this->cache_table_settings['param_column'];
-        $type_column       = $this->cache_table_settings['type_column'];
-        $package_column    = $this->cache_table_settings['package_column'];
-        $elapsed_column    = $this->cache_table_settings['elapsed_column'];
-
-        $insert_sql  = /** @lang MySQL */
-            "
-            INSERT INTO `$table` (
-                `$expires_column`,
-                `$sql_column`,
-                `$param_column`,
-                `$type_column`,
-                `$package_column`,
-                `$elapsed_column`
-            )
-            VALUES (
-                NOW() + INTERVAL {$this->timeout} MINUTE,
-                :sql_hash,
-                :param_hash,
-                :type,
-                :serialized_result,
-                :queryTime
-            )
-            ON DUPLICATE KEY
-                UPDATE
-                    `$timestamp_column` = NOW(),
-                    `$package_column` = :serializedResultUpdate,
-                    `$expires_column` = NOW() + INTERVAL {$this->timeout} MINUTE
-        ";
-        $bind_params = [
-            "sql_hash"               => $sql_hash,
-            "param_hash"             => $param_hash,
-            "type"                   => $this->type,
-            "serialized_result"      => $serialized_result,
-            "serializedResultUpdate" => $serialized_result,
-            "queryTime"              => $time_elapsed,
-        ];
-
-        $insert_query  = new Query($this->connection, 'query', $insert_sql, $bind_params);
-        $insert_result = $insert_query->run();
-        if ($insert_result) {
-            return true;
+        foreach (glob($this->cache_directory . '/*.qcache') ?: [] as $file) {
+            @unlink($file);
         }
-        return false;
     }
 
     /**
