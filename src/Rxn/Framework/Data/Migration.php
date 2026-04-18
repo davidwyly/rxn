@@ -1,4 +1,5 @@
-<?php
+<?php declare(strict_types=1);
+
 /**
  * This file is part of the Rxn (Reaction) PHP API App
  *
@@ -12,9 +13,16 @@
 namespace Rxn\Framework\Data;
 
 /**
- * TODO
+ * Placeholder for the migration system listed in the README feature
+ * table. Not yet implemented; instantiating this class will fail
+ * loudly so callers do not silently operate on a no-op.
  */
 class Migration
 {
-
+    public function __construct()
+    {
+        throw new \LogicException(
+            __CLASS__ . ' is not yet implemented. See the project README for the current roadmap.'
+        );
+    }
 }

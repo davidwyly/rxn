@@ -9,7 +9,15 @@ class Container
     /**
      * @var array $instances
      */
-    public $instances;
+    public $instances = [];
+
+    /**
+     * Class names currently being resolved; used to detect cyclic
+     * dependencies while autowiring constructors.
+     *
+     * @var array<string, true>
+     */
+    private $resolving = [];
 
     /**
      * Container constructor.
@@ -36,7 +44,7 @@ class Container
         }
 
         // in the event that we're looking up the container class, return itself
-        if ($class_name == Container::class) {
+        if (ltrim($class_name, '\\') === ltrim(Container::class, '\\')) {
             return $this;
         }
 
@@ -47,8 +55,16 @@ class Container
             return $this->instances[$class_name];
         }
 
-        // generate instance and add it into memory
-        $instance = $this->generateInstance($class_name, $parameters);
+        if (isset($this->resolving[$class_name])) {
+            $chain = implode(' -> ', array_keys($this->resolving)) . ' -> ' . $class_name;
+            throw new ContainerException("Circular dependency detected while resolving: $chain");
+        }
+        $this->resolving[$class_name] = true;
+        try {
+            $instance = $this->generateInstance($class_name, $parameters);
+        } finally {
+            unset($this->resolving[$class_name]);
+        }
         $this->addInstance($class_name, $instance);
 
         return $instance;
@@ -91,18 +107,29 @@ class Container
                 continue;
             }
 
-            // if it doesn't match anything, pass null if possible
+            // if the parameter has a concrete class type, autowire it
+            $type = $constructor_parameter->getType();
+            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+                $create_parameters[$key] = $this->get($type->getName());
+                continue;
+            }
+
+            // optional scalar parameter: use its default
+            if ($constructor_parameter->isDefaultValueAvailable()) {
+                $create_parameters[$key] = $constructor_parameter->getDefaultValue();
+                continue;
+            }
+
+            // nullable scalar parameter with no default: pass null
             if ($constructor_parameter->allowsNull()) {
                 $create_parameters[$key] = null;
                 continue;
             }
 
-            // otherwise, use method injection instantiation
-            if ($constructor_parameter->getClass()) {
-                $class                   = $constructor_parameter->getClass()->name;
-                $create_parameters[$key] = $this->get($class);
-                continue;
-            }
+            throw new ContainerException(
+                "Cannot autowire parameter \${$constructor_parameter->getName()} of $class_name: "
+                . "no type hint, default value, or explicitly-passed value."
+            );
         }
 
         return $reflection->newInstanceArgs($create_parameters);
