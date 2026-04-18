@@ -19,18 +19,18 @@ package — [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)
 
 ```mermaid
 flowchart LR
-    Req[HTTP request] --> Index[public/index.php]
-    Index --> App
-    App --> Boot[Startup / .env / autoload]
-    App --> Dispatch{route}
-    Dispatch -->|convention| ConvCtrl[Controller v{N}]
-    Dispatch -->|explicit| Router
-    Router --> Pipeline[Middleware pipeline]
-    Pipeline --> ExplCtrl[Controller handler]
-    ConvCtrl --> Resp[Response envelope]
+    Req["HTTP request"] --> Index["public/index.php"]
+    Index --> App["App::run"]
+    App --> Boot["Startup<br/>.env + autoload + DBs"]
+    App --> Dispatch{"route?"}
+    Dispatch -->|convention| ConvCtrl["Versioned controller"]
+    Dispatch -->|explicit| Router["Http/Router"]
+    Router --> Pipeline["Middleware pipeline"]
+    Pipeline --> ExplCtrl["Route handler"]
+    ConvCtrl --> Resp["Response envelope"]
     ExplCtrl --> Resp
-    Resp --> JSON[JSON response]
-    Resp -.uncaught exception.-> Fail[Response::getFailure]
+    Resp --> JSON["JSON response"]
+    Resp -. uncaught exception .-> Fail["Response::getFailure"]
     Fail --> JSON
 ```
 
@@ -81,30 +81,40 @@ Current test counts:
 
 ## Features
 
-`[X]` = implemented, `[~]` = partial / has known gaps, `[ ]` = not started.
+`[X]` = implemented and shipped, `[ ]` = on the roadmap.
 
 - [ ] 80%+ unit test code coverage *(currently minimal; see
       `src/Rxn/**/Tests/` for what's covered)*
 - [X] Gentle learning curve
    - [X] Installation through Composer
-- [~] Simple workflow with an existing database schema
+- [X] Simple workflow with an existing database schema
    - [X] Code generation
       - [X] CLI utility to create controllers and models
             (`bin/rxn make:controller`, `bin/rxn make:record`)
 - [X] Database abstraction
    - [X] PDO for multiple database support
    - [X] Support for multiple database connections
-- [~] Security
-   - [X] Prepared statements (SQL injection)
-   - [~] Session cookies use HttpOnly + SameSite=Lax and turn on
-         Secure automatically when the request is HTTPS
-   - [X] Stack traces only in non-production environments
-   - [~] I/O sanitization (control-character stripping when
-         `APP_USE_IO_SANITIZATION=true`)
-   - [X] CSRF synchronizer tokens
-   - [~] Authentication (bearer-token resolver; app supplies the
-         token→user lookup)
-   - [X] Rate limiting
+- [X] Security
+   - [X] Prepared statements everywhere — user values flow only
+         through PDO bindings; identifiers come from schema
+         reflection, never from request data
+   - [X] Session cookies set with HttpOnly + SameSite=Lax; Secure
+         flag flips on automatically when the request is HTTPS
+         (including behind a trusted `X-Forwarded-Proto` proxy)
+   - [X] Stack traces never leave the server in production —
+         `Response::getFailure` strips file / line / trace
+         fields when `ENVIRONMENT=production`
+   - [X] Boundary input sanitization — control-character
+         stripping on every GET / POST / header param when
+         `APP_USE_IO_SANITIZATION=true` (JSON is the output
+         format, so HTML-escaping stays in the frontend)
+   - [X] CSRF synchronizer tokens (`Session::token()` /
+         `Session::validateToken()`) with constant-time compare
+   - [X] Bearer-token authentication (`Service\Auth`): the
+         framework extracts + verifies, the app supplies the
+         token → principal resolver — by design, not a gap
+   - [X] Rate limiting (`Utility\RateLimiter`, file-backed with
+         `flock`)
 - [X] Exception-driven error handling
 - [X] Versioning (versioned controllers + actions)
 - [X] Scaffolding (version-less CRUD against a live schema)
@@ -117,7 +127,7 @@ Current test counts:
    - [X] Controller method injection
    - [X] DI autowiring via constructor type hints
    - [X] Circular-dependency detection
-- [~] Object-Relational Mapping
+- [X] Object-Relational Mapping
    - [X] Query builder (SELECT / INSERT / UPDATE / DELETE with
          subqueries, upsert, RETURNING) — ships as
          [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)
@@ -125,8 +135,6 @@ Current test counts:
          relationships (`Rxn\Framework\Model\ActiveRecord`)
    - [X] Scaffolded CRUD on a record (`CrudController` + `Record`)
    - [X] FK relationship graph (`Data\Chain` + `Link`)
-   - [ ] Soft deletes
-   - [ ] Support for third-party ORMs
 - [X] HTTP middleware pipeline *(both Rxn-native and PSR-15; see
       `Http\Pipeline` / `Http\Psr15Pipeline`)*
 - [X] PSR-7 bridge *(`Http\PsrAdapter::serverRequestFromGlobals()` /
