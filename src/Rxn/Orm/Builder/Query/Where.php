@@ -34,7 +34,7 @@ class Where extends Query
         string $first_operand,
         string $operator,
         string $second_operand,
-        callable $callback = null,
+        ?callable $callback = null,
         string $type = 'where'
     ) {
         $this->validateType($type);
@@ -70,7 +70,7 @@ class Where extends Query
     public function setIn(
         string $operand,
         array $values,
-        callable $callback = null,
+        ?callable $callback = null,
         string $type = 'where',
         $not = false
     ) {
@@ -87,7 +87,7 @@ class Where extends Query
         }
     }
 
-    public function setNull(string $operand, callable $callback = null, string $type = 'where', $not = false)
+    public function setNull(string $operand, ?callable $callback = null, string $type = 'where', $not = false)
     {
         $this->validateType($type);
         $operand  = $this->cleanReference($operand);

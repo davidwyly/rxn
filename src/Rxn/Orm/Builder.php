@@ -22,6 +22,11 @@ abstract class Builder
     public $table_aliases = [];
 
     /**
+     * @var string|null
+     */
+    public $rawSql;
+
+    /**
      * @param string $reference
      *
      * @return string
