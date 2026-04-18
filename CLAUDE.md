@@ -119,6 +119,11 @@ PHP lint every touched file with `php -l <path>` before committing.
 
 ## Building blocks you can compose
 
+- **`Rxn\Framework\Utility\Validator`** — rule-based boundary
+  validator. `Validator::assert($payload, $rules)` throws on
+  failure; `check()` returns structured errors. Supports keyword
+  rules (`required`, `email`, `int`, ...), `name:arg` rules
+  (`min:18`, `in:a,b,c`, `regex:/.../`) and callables.
 - **`Rxn\Framework\Utility\Logger`** — append-only JSON-lines logger.
   `new Logger('/var/log/rxn/app.log'); $log->info('msg', [ctx])`.
 - **`Rxn\Framework\Utility\RateLimiter`** — fixed-window, file-backed.

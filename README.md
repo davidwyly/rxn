@@ -98,6 +98,8 @@ CI runs lint + phpunit against PHP 8.1, 8.2, 8.3, and 8.4
 - [X] Scheduler (interval / predicate based)
 - [X] Database migrations (`*.sql` runner)
 - [ ] Mailer *(out of scope; use symfony/mailer or phpmailer)*
+- [X] Request validation *(rule-based `Validator::assert`; see
+      `Rxn\Framework\Utility\Validator`)*
 - [ ] Automated API request validation from contracts
 - [ ] Optional, modular plug-ins
 

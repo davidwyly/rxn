@@ -60,6 +60,28 @@ Session::token();                   // lazy 32-byte hex
 Session::validateToken($submitted); // constant-time compare
 ```
 
+## `Rxn\Framework\Utility\Validator`
+
+Small rule-based input validator. Keyword rules, `name:arg` rules,
+or callables; no reflection, no magic.
+
+```php
+Validator::assert(
+    $request->getCollector()->getFromRequest(),
+    [
+        'email' => ['required', 'email'],
+        'age'   => ['required', 'int', 'min:18'],
+        'role'  => ['in:admin,member,guest'],
+        'slug'  => ['regex:/^[a-z0-9-]+$/'],
+    ]
+);
+```
+
+`check()` returns `['field' => ['message', ...]]` for callers that
+want to shape the error response themselves. `assert()` throws
+`\InvalidArgumentException` with a compact message and is the
+normal boundary check inside a controller.
+
 ## `Rxn\Framework\Utility\Logger`
 
 Append-only JSON-lines logger with PSR-3-style level helpers.
