@@ -10,12 +10,19 @@
   "config": {
     "preferred-install": "source"
   },
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/davidwyly/rxn-orm"
+    }
+  ],
   "require": {
     "php": "^8.1",
     "vlucas/phpdotenv": "^2.5 || ^3.0",
     "nyholm/psr7": "^1.8",
     "nyholm/psr7-server": "^1.1",
-    "psr/http-server-middleware": "^1.0"
+    "psr/http-server-middleware": "^1.0",
+    "davidwyly/rxn-orm": "^0.1"
   },
   "require-dev": {
     "phpunit/phpunit": "^10.5"

@@ -169,7 +169,15 @@ foreach ($chain->hasMany('users') as $link) {
 Links are immutable `Link` value objects derived from
 `information_schema` reflection.
 
-## `Rxn\Orm\Builder\Query`
+## ORM / query builder (`davidwyly/rxn-orm`)
+
+Shipped as a separate composer package — see
+[davidwyly/rxn-orm](https://github.com/davidwyly/rxn-orm) — and
+required transitively by Rxn. `Database::run($builder)` takes any
+`Rxn\Orm\Builder\Buildable` (`Query`, `Insert`, `Update`, `Delete`)
+and executes it.
+
+### `Rxn\Orm\Builder\Query`
 
 Fluent SELECT query builder for cases where `Record` scaffolding
 doesn't reach. `toSql()` materializes to `[$sql, $bindings]`;

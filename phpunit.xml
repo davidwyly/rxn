@@ -10,9 +10,6 @@
         <testsuite name="framework">
             <directory>src/Rxn/Framework/Tests</directory>
         </testsuite>
-        <testsuite name="orm">
-            <directory>src/Rxn/Orm/Tests</directory>
-        </testsuite>
     </testsuites>
     <source>
         <include>
@@ -20,7 +17,6 @@
         </include>
         <exclude>
             <directory>src/Rxn/Framework/Tests</directory>
-            <directory>src/Rxn/Orm/Tests</directory>
         </exclude>
     </source>
 </phpunit>

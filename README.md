@@ -1,6 +1,6 @@
 ![alt tag](http://i.imgur.com/nu63B1J.png?1)
 
-#### A small, opinionated JSON API framework for PHP.
+#### An opinionated JSON micro-framework for PHP.
 
 ##### Status: alpha. Targets PHP 8.1+ and ships a Docker stack on PHP 8.3-fpm.
 
@@ -10,8 +10,10 @@ JSON, and rolls up every uncaught exception into a JSON error
 envelope. Frontends — web, mobile, whatever — build against the
 versioned contracts and stay decoupled.
 
-The framework aims, in order, to be **fast**, **minimal**, and
-**easy to use**.
+The framework aims, in order, to be **fast**, **small**, and
+**easy to use**. The ORM / query builder lives in a separate
+package — [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)
+— pulled in automatically via Composer.
 
 ## Quickstart
 
