@@ -53,6 +53,70 @@ A short-circuit from any ring skips every inner ring — the
 `Response` returned by that middleware travels straight back out
 through the layers that have already run their before-code.
 
+### Shipped middlewares
+
+Three small, dependency-free middlewares cover the most common
+defensive layers apps end up writing. Each one accepts injectable
+emit-callables so they're unit-testable without PHP's global
+`header()` / `http_response_code()` side effects.
+
+#### `Rxn\Framework\Http\Middleware\Cors`
+
+CORS policy + automatic preflight handling. Emits
+`Access-Control-Allow-Origin` / `-Methods` / `-Headers` / `-Max-Age`
+on every response, and short-circuits `OPTIONS` with a 204 before
+the request reaches the controller.
+
+```php
+use Rxn\Framework\Http\Middleware\Cors;
+
+$pipeline->add(new Cors(
+    allowOrigins: ['https://app.example.com'],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+    maxAge:       3600,
+));
+```
+
+Pass `['*']` to reflect any origin. `allowCredentials: true` flips
+the behaviour to echo the incoming `Origin` so browsers accept the
+response (they reject `*` + credentials).
+
+#### `Rxn\Framework\Http\Middleware\RequestId`
+
+Correlation id per request. Honours incoming `X-Request-ID` when it
+matches `/^[A-Za-z0-9._-]{8,128}$/`; otherwise mints a UUIDv4.
+Echoes the id back on the response and exposes it to downstream
+code via `RequestId::current()` — handy for tagging log lines.
+
+```php
+use Rxn\Framework\Http\Middleware\RequestId;
+
+$pipeline->add(new RequestId());
+// later, in a controller or logger:
+$log->info('order.created', ['request_id' => RequestId::current()]);
+```
+
+#### `Rxn\Framework\Http\Middleware\JsonBody`
+
+Decodes `application/json` request bodies on `POST` / `PUT` /
+`PATCH` into `$_POST`. Enforces a size cap (default 1 MiB) and maps
+the predictable failure modes to HTTP codes: `413` for an
+oversized body, `415` for a mismatched `Content-Type`, `400` for
+invalid JSON or a non-object / non-array top-level value.
+
+```php
+use Rxn\Framework\Http\Middleware\JsonBody;
+
+$pipeline->add(new JsonBody(maxBytes: 2 * 1024 * 1024));
+// controllers read decoded fields via the usual collector API:
+$name = $request->getCollector()->getParamFromPost('name');
+```
+
+Non-body methods (`GET`, `HEAD`, `DELETE`, `OPTIONS`) pass through
+untouched; requests without a `Content-Type` pass through as
+empty bodies.
+
 ## PSR-7 / PSR-15 bridge
 
 `Rxn\Framework\Http\PsrAdapter` and `Psr15Pipeline` let apps opt

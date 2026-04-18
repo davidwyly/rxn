@@ -62,7 +62,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Current test counts:
 
-- **Rxn framework:** 121 tests / 274 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 141 tests / 312 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
@@ -137,6 +137,9 @@ Current test counts:
    - [X] FK relationship graph (`Data\Chain` + `Link`)
 - [X] HTTP middleware pipeline *(both Rxn-native and PSR-15; see
       `Http\Pipeline` / `Http\Psr15Pipeline`)*
+   - [X] Shipped middlewares: CORS w/ preflight, request-id
+         correlation, JSON-body decoding with size caps (see
+         `Http\Middleware\{Cors,RequestId,JsonBody}`)
 - [X] PSR-7 bridge *(`Http\PsrAdapter::serverRequestFromGlobals()` /
       `::emit()`; ecosystem middleware drops in via Psr15Pipeline)*
 - [X] Speed and performance
