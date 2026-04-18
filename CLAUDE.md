@@ -116,11 +116,6 @@ PHP lint every touched file with `php -l <path>` before committing.
   without a database.
 - Do not rely on network or filesystem state outside `sys_get_temp_dir()`.
 
-## Known gaps (pick these up before inventing new ones)
-
-- **Mailer** is intentionally a throwing stub; wire to a tiny PHP
-  `mail()` wrapper or a single SMTP library if it becomes necessary.
-
 ## Building blocks you can compose
 
 - **`Rxn\Framework\Utility\Logger`** — append-only JSON-lines logger.

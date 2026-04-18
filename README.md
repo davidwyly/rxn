@@ -90,7 +90,6 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 - [ ] Automated validation of API requests using API contracts
 - [X] Event logging *(append-only JSON-lines; see
       `Rxn\Framework\Utility\Logger`)*
-- [ ] Mailer *(stub; constructor throws LogicException)*
 - [X] Scheduler *(interval / predicate based; see
       `Rxn\Framework\Utility\Scheduler`)*
 - [X] Database migrations *(file-based `*.sql` runner; see
