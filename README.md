@@ -1,35 +1,56 @@
 ![alt tag](http://i.imgur.com/nu63B1J.png?1)
 
-#### A fast, simple, and powerful API framework for PHP. Responds to API requests with JSON, ensuring that your backend is completely separated from your frontend
+#### A small, opinionated JSON API framework for PHP.
 
-##### Please note: Rxn is currently under active development and is still considered *early* alpha
+##### Status: alpha. Targets PHP 8.1+ and ships a Docker stack on PHP 8.3-fpm.
 
-> **Project status:** this repository is a learning-oriented / hobby
-> framework. It targets PHP 8.1+, the Docker stack uses PHP 8.3-fpm,
-> and the ORM query builder is still a work in progress. Several
-> features listed below as `[X]` are partially implemented or have
-> known gaps — see the checklist for the actual state.
+Rxn (from "reaction") is built around a single opinion: **strict
+backend/frontend decoupling**. The backend is API-only, responds in
+JSON, and rolls up every uncaught exception into a JSON error
+envelope. Frontends — web, mobile, whatever — build against the
+versioned contracts and stay decoupled.
 
-Rxn (the abbreviation for 'reaction') is a framework designed to cut out the complexity and clutter of PHP-generated views -- offloading views to whatever frontend that suits your fancy.
+The framework aims, in order, to be **fast**, **minimal**, and
+**easy to use**.
 
-The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
+## Quickstart
 
-1. The **backend** should *only* be accessible via API
-2. The **backend** should *only* render responses as JSON
-3. The **frontend** should be responsible for interpreting JSON responses
-4. The **frontend** should be responsible for generating user views
-5. Through strict **backend / frontend decoupling**, amazing things can happen
-  *  Both the **backend** and **frontend** *can be developed separately* using versioned API contracts as reference
-  *  Both the **backend** and **frontend** *have less entangling complexity*, providing a simple and clean workflow
-  *  Either the **backend** or **frontend** *can be swapped out entirely* with a completely different solution, giving you greater flexibility further down the road
-  *  Parallel **frontend** development *becomes grossly simplified* (e.g., leveraging an internal app, external app, phone app, etc using the same **backend**).
+```bash
+composer install
+vendor/bin/phpunit          # run the test suite
+composer validate --strict  # sanity-check composer.json
+```
+
+Full Docker stack (PHP 8.3-fpm + nginx 1.27 + MySQL 8):
+
+```bash
+cp docker-compose.env.example .env
+# edit .env: set MYSQL_PASSWORD and MYSQL_ROOT_PASSWORD
+docker compose up --build
+```
+
+Set `INSTALL_XDEBUG=1` in `.env` to build the PHP image with Xdebug 3.
+
+CI runs lint + phpunit against PHP 8.1, 8.2, 8.3, and 8.4
+(`.github/workflows/ci.yml`).
+
+## Documentation
+
+| Topic | Where |
+|---|---|
+| Routing (convention + explicit patterns) | [`docs/routing.md`](docs/routing.md) |
+| Dependency injection | [`docs/dependency-injection.md`](docs/dependency-injection.md) |
+| Scaffolded CRUD | [`docs/scaffolding.md`](docs/scaffolding.md) |
+| Error handling | [`docs/error-handling.md`](docs/error-handling.md) |
+| Building blocks (Logger, RateLimiter, Scheduler, Auth, Pipeline, Router, Migration, Chain, query cache) | [`docs/building-blocks.md`](docs/building-blocks.md) |
+| Contribution / style guide | [`CLAUDE.md`](CLAUDE.md) |
 
 ## Features
 
 `[X]` = implemented, `[~]` = partial / has known gaps, `[ ]` = not started.
 
-- [ ] 80%+ unit test code coverage *(currently minimal; 4 ORM unit
-      tests plus one marked-incomplete JoinTest pending parser rework)*
+- [ ] 80%+ unit test code coverage *(currently minimal; see
+      `src/Rxn/**/Tests/` for what's covered)*
 - [X] Gentle learning curve
    - [X] Installation through Composer
 - [~] Simple workflow with an existing database schema
@@ -39,270 +60,45 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
    - [X] PDO for multiple database support
    - [X] Support for multiple database connections
 - [~] Security
-   - [X] Prepared statements *(aids against SQL injection attacks)*
+   - [X] Prepared statements (SQL injection)
    - [~] Session cookies use HttpOnly + SameSite=Lax and turn on
          Secure automatically when the request is HTTPS
-   - [X] Stack traces are only emitted in non-production environments
-   - [~] I/O sanitization *(control-character stripping on
-         incoming params when `APP_USE_IO_SANITIZATION=true`; output
-         is JSON so XSS escaping is the frontend's job)*
-   - [X] CSRF synchronizer tokens *(see `Session::token()` /
-         `Session::validateToken()`)*
-   - [~] Authentication *(minimal bearer-token resolver in
-         `Rxn\Framework\Service\Auth`; app supplies the token→user
-         lookup via `setResolver()`)*
-   - [X] Rate limiting *(fixed-window, file-backed; see
-         `Rxn\Framework\Utility\RateLimiter`)*
-- [X] Exception-driven error handling *(throw anywhere and Rxn renders
-      a JSON error envelope)*
-- [X] Versioning
-   - [X] Versioned Controllers
-   - [X] Versioned Actions
-- [X] Scaffolding
-   - [X] Version-less CRUD endpoints that reflect current backend records
+   - [X] Stack traces only in non-production environments
+   - [~] I/O sanitization (control-character stripping when
+         `APP_USE_IO_SANITIZATION=true`)
+   - [X] CSRF synchronizer tokens
+   - [~] Authentication (bearer-token resolver; app supplies the
+         token→user lookup)
+   - [X] Rate limiting
+- [X] Exception-driven error handling
+- [X] Versioning (versioned controllers + actions)
+- [X] Scaffolding (version-less CRUD against a live schema)
 - [X] URI Routing
-   - [X] Convention-based *(`/v{N}/{controller}/{action}/key/value/...`)*
-   - [X] Explicit pattern routing *(`Rxn\Framework\Http\Router`;
-         `$router->get('/products/{id}', ...)`)*
+   - [X] Convention-based (`/v{N}/{controller}/{action}/key/value/...`)
+   - [X] Explicit pattern routing (`Rxn\Framework\Http\Router`)
    - [X] Apache 2 (.htaccess)
-   - [X] NGINX (see docker/nginx)
+   - [X] NGINX (see `docker/nginx`)
 - [X] Dependency Injection container
    - [X] Controller method injection
-   - [X] DI autowiring via constructor type hints (PHP 8 reflection)
+   - [X] DI autowiring via constructor type hints
    - [X] Circular-dependency detection
-- [~] Object Relational Mapping (ORM)
-   - [~] Rxn-ORM
-      - [X] Scaffolded CRUD operations on a record
-      - [X] ORM autowiring *(foreign-key relationship graph;
-            `Rxn\Framework\Data\Chain::belongsTo()` /
-            `Chain::hasMany()` return `Link` edges built from
-            `information_schema` reflection)*
-      - [ ] Soft deletes
+- [~] Object-Relational Mapping
+   - [X] Scaffolded CRUD on a record
+   - [X] FK relationship graph (`Data\Chain` + `Link`)
+   - [ ] Soft deletes
    - [ ] Support for third-party ORMs
-- [X] Speed and Performance
+- [X] HTTP middleware pipeline
+- [X] Speed and performance
    - [X] PSR-4 autoloading
-   - [X] Caching mechanisms
-      - [X] Native query caching *(file-backed; call
-            `Database::setCache($dir)` + `enableCache()`)*
-      - [X] Object file caching (atomic writes via Filecache)
-- [ ] Authentication *(OAuth2 / OpenID / SAML all planned)*
-- [ ] Automated validation of API requests using API contracts
-- [X] Event logging *(append-only JSON-lines; see
-      `Rxn\Framework\Utility\Logger`)*
-- [X] Scheduler *(interval / predicate based; see
-      `Rxn\Framework\Utility\Scheduler`)*
-- [X] Database migrations *(file-based `*.sql` runner; see
-      `Rxn\Framework\Data\Migration`)*
+   - [X] File-backed query caching
+   - [X] Object file caching (atomic writes)
+- [X] Event logging (JSON-lines)
+- [X] Scheduler (interval / predicate based)
+- [X] Database migrations (`*.sql` runner)
+- [ ] Mailer *(out of scope; use symfony/mailer or phpmailer)*
+- [ ] Automated API request validation from contracts
 - [ ] Optional, modular plug-ins
-
-## Development
-
-Run the test suite:
-
-```
-composer install
-vendor/bin/phpunit
-```
-
-Continuous integration runs lint + phpunit against PHP 8.1, 8.2, 8.3,
-and 8.4 via `.github/workflows/ci.yml`.
-
-Local Docker stack (requires Docker Compose v2+):
-
-```
-cp docker-compose.env.example .env
-# edit .env to set MYSQL_PASSWORD and MYSQL_ROOT_PASSWORD
-docker compose up --build
-```
-
-Set `INSTALL_XDEBUG=1` in `.env` to build the PHP image with Xdebug 3
-enabled.
 
 ## License
 
-Rxn is released under the permissive and free [MIT](http://flightphp.com/license) license.
-
-## Hierarchical Namespacing and Autoloading
-
-Rxn uses a namespacing structure that explicitly matches the directory structure of the class files. While also convenient, it is mainly used to implement some pretty cool autoloading features.
-
-Say, for example, that you created a class named `\Organization\Product\Model\MyAwesomeModel`. Just put the file in a directory structure that follows the namespace convention (e.g., `{root}/organization/product/model/MyAwesomeModel.php`). When you need to call the class, just invoke the class by calling it directly. There's no need to put a `require` anywhere.
-
-**BEFORE (not using autoloading):**
-```php
-<?php
-
-require_once('/organization/product/model/MyAwesomeModel.php');
-
-use \Organization\Product\Model\MyAwesomeModel;
-
-$object = new MyAwesomeModel()
-// object gets created!
-```
-
-**AFTER (using autoloading):**
-```php
-<?php
-
-use \Organization\Product\Model\MyAwesomeModel;
-
-$object = new MyAwesomeModel()
-// object gets created!
-```
-
-The same pattern exists for Rxn's native classes. For example, the response class (`\Rxn\Framework\Http\Response`) is found in the `{root}/rxn/api/controller` directory. Autoloading is one of the many ways in which Rxn reduces overhead.
-
-The following file extensions are supported by the autoloading feature (you may also define custom extensions in `\Rxn\Framework\Config`):
-
-* .php
-* .class.php
-* .interface.php
-* .model.php
-* .controller.php
-
-
-## Error Handling
-Rxn lives, breathes, and eats exceptions. Consider the following code snippet:
-```php
-try {
-    $result = $databse->query($sql,$bindings);
-} catch (\PDOException $exception) {
-    throw new \Exception("Something went terribly wrong!",422);
-}
-```
-If you throw an `\Exception` anywhere in the application, Rxn will self-terminate, roll back any in-process database transactions, and then gracefully respond using JSON:
-
-```javascript
-{
-    "_rxn": {
-        "success": false,
-        "code": 422,
-        "result": "Unprocessable Entity",
-        "message": "Something went terribly wrong!",
-        //...
-    }
-}
-```
-
-## Routing Request Parameters
-
-An example API endpoint for your backend with Rxn might look like this:
-
-```
-https://yourapp.tld/v2.1/order/doSomething
-```
-
-Where:
-
-1. `v2.1` is the endpoint `version`
-2. `order` is the `controller`
-3. `doSomething` is the controller's `action` (a public method)
-
-Now if you wanted to add a GET key-value pair to the request where `id`=`1234`, in PHP you would normally do this:
-
-**BEFORE:**
-```
-https://yourapp.tld/v2.1/order/someAction?id=1234
-````
-In Rxn, you can simplify this by putting the key and value in the URL using the forward slash (`/`) as the separator, like so:
-
-**AFTER:**
-```
-https://yourapp.tld/v2.1/order/someAction/id/1234
-```
-An *odd* number of parameters after the `version`, `controller`, and `action` would result in an error.
-
-## Versioned Controllers & Actions
-By versioning your endpoint URLs (e.g., `v1.1`, `v2.4`, etc), you can rest easy knowing that you're not going to accidentally break your frontend whenever you alter backend endpoint behavior. Additionally, versioning also helps keep your documentation in order; frontend developers can just build to the documentation and everything will *just work*.
-
-So for an endpoint with version `v2.1`, the first number (`2`) is the *controller version*, and the second number (`1`) is the *action version*. The example below is how we would declare controller version `2` with action version `1`:
-
-```php
-namespace Organization\Product\Controller\v2;
-
-class Order extends \Rxn\Framework\Http\Controller
-{
-    public function doSomething_v1() {
-        //...
-    }
-}
-```
- This allows for maintainable, true-to-reality documentation that both frontend and backend developers can get behind.
-
-## Scaffolding
-
-Want to experiment and explore with your newfangled backend architecture? No problem, as long as you have a database schema, you have a suite of scaffolding APIs to toy with! Scaffolding endpoints are accessed using URIs that are similar to the following (note the `api` instead of the version number):
-```
-https://yourapp.tld/api/order/create
-https://yourapp.tld/api/order/read/id/{id}
-https://yourapp.tld/api/order/update/id/{id}
-https://yourapp.tld/api/order/delete/id/{id}
-https://yourapp.tld/api/order/search
-```
-Scaffolding APIs are version-less APIs, and are designed to allow frontend developers full access to the backend in the form of Create, Read, Update, and Delete (CRUD) operations and searches. Their main benefit is that you don't have to spend a ton of time manually crafting CRUD endpoints during the early phases of application development. (As it is these early phases of development when requirements are changing, and things are constantly in flux.)
-
-**Warning:** Because Scaffolding APIs are version-less, they inheret all the problems associated with version-less APIs. As soon as the backend is altered, these APIs are altered as well; this can potentially break an application in unexpected or hidden ways. For this reason, it is wise to transition versionless APIs to versioned APIs as the development process nears completion.
-
-## Dependency Injection (DI) Container Container
-While most people practice some form of dependency injection without even thinking about it, the fact is, manually instantiating and injecting classes with a lot of dependencies can be a pretty big hassle. The following examples should help demonstrate the benefit of automatic dependency injection via the container.
-
-**BEFORE (manual DI):**
-```php
-// instantiate the dependencies
-$config    = new Config();
-$database  = new Database($config);
-$registry  = new Registry($config,$database);
-$filecache = new Filecache($config);
-$map       = new Map($registry,$database,$filecache);
-
-// call the action method
-$this->doSomething_v1($registry,$database,$map);
-
-public function doSomething_v1(Registry $registry, Database $database, Map $map) {
-    $customer = new Customer($registry,$database,$map);
-    //...
-}
-```
-
-**AFTER (using the DI container):**
-```php
-// call the action method
-$this->doSomething_v1($app->container);
-
-public function doSomething_v1(Container $container) {
-    $customer = $container->get(Customer::class);
-    //...
-}
-```
-Hopefully you can see the benefits. With Rxn, there's no need to instantiate the prerequisites every time! Use the container to make your life easier.
-
-## Controller Method Injection
-Just typehint the class you need as a parameter, and *poof*, the DI container will guess all of the dependencies for you and automatically load and inject them. No messy requires. *You don't have to inject the dependencies manually!*
-
-**BEFORE (manual instantiation):**
-```php
-// require the dependencies
-require_once('/path/to/Config.php');
-require_once('/path/to/Collector.php');
-require_once('/path/to/Request.php');
-
-public function doSomething_v1() {
-    // instantiate the dependencies
-    $config = new Config();
-    $collector = new Collector($config);
-    $request = new Request($collector,$config);
-    
-    // grab the id from the request
-    $id = $request->collectFromGet('id');
-    //...
-}
-```
-**AFTER (automatic instantiation and injection):**
-```php
-public function doSomething_v1(Request $request) {
-    // grab the id from the request
-    $id = $request->collectFromGet('id');
-    //...
-}
-```
-See the difference?
+Rxn is released under the permissive [MIT](https://opensource.org/licenses/MIT) license.
