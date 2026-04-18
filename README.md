@@ -15,6 +15,28 @@ The framework aims, in order, to be **fast**, **small**, and
 package — [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)
 — pulled in automatically via Composer.
 
+## At a glance
+
+```mermaid
+flowchart LR
+    Req[HTTP request] --> Index[public/index.php]
+    Index --> App
+    App --> Boot[Startup / .env / autoload]
+    App --> Dispatch{route}
+    Dispatch -->|convention| ConvCtrl[Controller v{N}]
+    Dispatch -->|explicit| Router
+    Router --> Pipeline[Middleware pipeline]
+    Pipeline --> ExplCtrl[Controller handler]
+    ConvCtrl --> Resp[Response envelope]
+    ExplCtrl --> Resp
+    Resp --> JSON[JSON response]
+    Resp -.uncaught exception.-> Fail[Response::getFailure]
+    Fail --> JSON
+```
+
+See [`docs/index.md`](docs/index.md) for the full request sequence
+and per-subsystem deep dives.
+
 ## Quickstart
 
 ```bash
@@ -34,8 +56,15 @@ docker compose up --build
 
 Set `INSTALL_XDEBUG=1` in `.env` to build the PHP image with Xdebug 3.
 
-CI runs lint + phpunit against PHP 8.2, 8.3, and 8.4
+CI runs lint + phpunit against PHP 8.2, 8.3, and 8.4 plus an
+end-to-end HTTP smoke job against MySQL 8
 (`.github/workflows/ci.yml`).
+
+Current test counts:
+
+- **Rxn framework:** 121 tests / 274 assertions (`vendor/bin/phpunit`).
+- **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
+  (query builder): 68 tests / 132 assertions, run in that repo.
 
 ## Documentation
 
@@ -89,7 +118,12 @@ CI runs lint + phpunit against PHP 8.2, 8.3, and 8.4
    - [X] DI autowiring via constructor type hints
    - [X] Circular-dependency detection
 - [~] Object-Relational Mapping
-   - [X] Scaffolded CRUD on a record
+   - [X] Query builder (SELECT / INSERT / UPDATE / DELETE with
+         subqueries, upsert, RETURNING) — ships as
+         [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)
+   - [X] ActiveRecord hydration + hasMany / hasOne / belongsTo
+         relationships (`Rxn\Framework\Model\ActiveRecord`)
+   - [X] Scaffolded CRUD on a record (`CrudController` + `Record`)
    - [X] FK relationship graph (`Data\Chain` + `Link`)
    - [ ] Soft deletes
    - [ ] Support for third-party ORMs
