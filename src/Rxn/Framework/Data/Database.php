@@ -157,17 +157,18 @@ class Database
     }
 
     /**
-     * Execute a built Rxn\Orm\Builder\Query and return the result
-     * shape appropriate for its top-level command (fetchAll for
-     * SELECT, query result for anything else).
+     * Execute any Rxn\Orm\Builder\Buildable (Query / Insert /
+     * Update / Delete) and return the result shape appropriate for
+     * its top-level statement — fetchAll rows for a SELECT, raw
+     * execution result for INSERT / UPDATE / DELETE.
      *
      * @return array|mixed
      * @throws \Rxn\Framework\Error\QueryException
      */
-    public function run(\Rxn\Orm\Builder\Query $query)
+    public function run(\Rxn\Orm\Builder\Buildable $builder)
     {
-        [$sql, $bindings] = $query->toSql();
-        $type             = isset($query->commands['SELECT']) || isset($query->commands['SELECT DISTINCT'])
+        [$sql, $bindings] = $builder->toSql();
+        $type = $builder instanceof \Rxn\Orm\Builder\Query
             ? Query::TYPE_FETCH_ALL
             : Query::TYPE_QUERY;
         return $this->createQuery($type, $sql, $bindings)->run();

@@ -3,6 +3,7 @@
 namespace Rxn\Orm;
 
 use Rxn\Orm\Builder\QueryParser;
+use Rxn\Orm\Builder\Raw;
 
 abstract class Builder
 {
@@ -26,11 +27,6 @@ abstract class Builder
      */
     public $rawSql;
 
-    /**
-     * @param string $reference
-     *
-     * @return string
-     */
     /**
      * @param string|Raw $reference Raw instances pass through
      *                              verbatim; strings are filtered

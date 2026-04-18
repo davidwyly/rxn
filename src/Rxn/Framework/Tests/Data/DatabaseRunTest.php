@@ -82,4 +82,39 @@ final class DatabaseRunTest extends TestCase
             $this->database->run($query)
         );
     }
+
+    public function testRunExecutesInsertUpdateDelete(): void
+    {
+        $insert = (new \Rxn\Orm\Builder\Insert())
+            ->into('users')
+            ->row(['email' => 'e@example.com', 'role' => 'member', 'active' => 1])
+            ->row(['email' => 'f@example.com', 'role' => 'guest',  'active' => 0]);
+        $this->assertTrue($this->database->run($insert));
+
+        $rows = $this->pdo->query("SELECT email, role, active FROM users WHERE email LIKE '%@example.com' AND id > 4 ORDER BY id")->fetchAll(\PDO::FETCH_ASSOC);
+        $this->assertSame(
+            [
+                ['email' => 'e@example.com', 'role' => 'member', 'active' => 1],
+                ['email' => 'f@example.com', 'role' => 'guest',  'active' => 0],
+            ],
+            $rows
+        );
+
+        $update = (new \Rxn\Orm\Builder\Update())
+            ->table('users')
+            ->set(['role' => 'member', 'active' => 1])
+            ->where('role', '=', 'guest');
+        $this->assertTrue($this->database->run($update));
+
+        $count = (int)$this->pdo->query("SELECT COUNT(*) FROM users WHERE role = 'guest'")->fetchColumn();
+        $this->assertSame(0, $count);
+
+        $delete = (new \Rxn\Orm\Builder\Delete())
+            ->from('users')
+            ->where('email', '=', 'e@example.com');
+        $this->assertTrue($this->database->run($delete));
+
+        $remaining = (int)$this->pdo->query("SELECT COUNT(*) FROM users WHERE email = 'e@example.com'")->fetchColumn();
+        $this->assertSame(0, $remaining);
+    }
 }

@@ -208,6 +208,61 @@ Supported methods: `select`, `from`, `join` / `innerJoin` / `leftJoin` /
 whitelist (`=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, `IN`, `NOT IN`,
 `LIKE`, `NOT LIKE`, `BETWEEN`, `REGEXP`, `NOT REGEXP`).
 
+### Raw expressions
+
+`Rxn\Orm\Builder\Raw` is an opt-out marker for SQL fragments the
+builder should emit verbatim instead of identifier-escaping. Use it
+for aggregates, function calls, and literals:
+
+```php
+use Rxn\Orm\Builder\Raw;
+
+$q->select([Raw::of('COUNT(o.id) AS order_count'), 'u.id'])
+  ->from('users', 'u')
+  ->leftJoin('orders', 'o.user_id', '=', 'u.id', 'o')
+  ->groupBy(Raw::of('DATE(o.created_at)'))
+  ->orderBy(Raw::of('RAND()'));
+```
+
+Contents are not sanitised — don't interpolate user input into a
+`Raw`. Accepted in `select()` columns, `groupBy`, `orderBy`, and as
+values in `Insert::row()` / `Update::set()`.
+
+### Insert / Update / Delete
+
+Fluent mutation builders that share `Query`'s where-clause API via
+the `HasWhere` trait. Each implements `Buildable`; pass one to
+`Database::run()` to execute.
+
+```php
+// INSERT (single or multi-row; missing columns bind as null)
+$database->run(
+    (new \Rxn\Orm\Builder\Insert())
+        ->into('users')
+        ->row(['email' => 'a@example.com', 'role' => 'admin'])
+        ->row(['email' => 'b@example.com', 'role' => 'member'])
+);
+
+// UPDATE
+$database->run(
+    (new \Rxn\Orm\Builder\Update())
+        ->table('users')
+        ->set(['role' => 'admin', 'updated_at' => Raw::of('NOW()')])
+        ->where('id', '=', 42)
+);
+
+// DELETE (empty WHERE is blocked by default — opt in explicitly)
+$database->run(
+    (new \Rxn\Orm\Builder\Delete())
+        ->from('users')
+        ->where('deleted_at', '<', '2025-01-01')
+);
+```
+
+`Delete::allowEmptyWhere()` enables `DELETE FROM t` without a
+`WHERE` clause — it has to be called explicitly so a forgotten
+condition can't accidentally wipe the table.
+
 ## Query-result caching
 
 ```php

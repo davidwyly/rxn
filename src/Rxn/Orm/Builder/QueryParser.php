@@ -81,13 +81,22 @@ class QueryParser
         return implode(' ', $parts);
     }
 
-    private function where(): string
+    /**
+     * Exposed so Update / Delete can reuse the WHERE rendering
+     * without duplicating renderConditions.
+     */
+    public function whereSql(): string
     {
         $wheres = $this->commands('WHERE');
         if ($wheres === null || $wheres === []) {
             return '';
         }
         return 'WHERE ' . $this->renderConditions($wheres);
+    }
+
+    private function where(): string
+    {
+        return $this->whereSql();
     }
 
     /**

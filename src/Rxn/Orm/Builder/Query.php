@@ -13,7 +13,7 @@ use Rxn\Orm\Builder\Query\Join;
  * to materialize the final (string $sql, array $bindings) tuple,
  * or pass the Query to Database::run() to execute in one call.
  */
-class Query extends Builder
+class Query extends Builder implements Buildable
 {
     use HasWhere;
 

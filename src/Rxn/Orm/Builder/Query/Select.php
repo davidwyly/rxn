@@ -14,16 +14,22 @@ class Select extends Query
             return;
         }
 
-        // Raw entries pass through verbatim; the rest are routed to
-        // the associative or numerical path based on key shape.
-        $rawEntries  = [];
-        $remaining   = [];
+        // Raw entries in numerical position pass through verbatim.
+        // Split them off first, then reindex so the associative-vs-
+        // numerical detection below isn't fooled by the holes left
+        // behind.
+        $rawEntries = [];
+        $remaining  = [];
         foreach ($columns as $key => $value) {
             if ($value instanceof Raw && is_int($key)) {
                 $rawEntries[] = $value->sql;
                 continue;
             }
             $remaining[$key] = $value;
+        }
+        $wasNumerical = array_keys($remaining) === array_values(array_filter(array_keys($remaining), 'is_int'));
+        if ($wasNumerical) {
+            $remaining = array_values($remaining);
         }
 
         $command = $distinct ? 'SELECT DISTINCT' : 'SELECT';
