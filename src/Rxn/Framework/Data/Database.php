@@ -11,8 +11,6 @@
 
 namespace Rxn\Framework\Data;
 
-use \Rxn\Framework\BaseConfig;
-use \Rxn\Framework\BaseDatasource;
 use \Rxn\Framework\Error\DatabaseException;
 
 class Database

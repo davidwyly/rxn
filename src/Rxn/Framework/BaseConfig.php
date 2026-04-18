@@ -110,22 +110,6 @@ class BaseConfig extends Service
     public $timezone = 'America/Denver';
 
     /**
-     * Defines default services to run on startup
-     * Warning: Changing this can have unexpected results!
-     *
-     * @var array
-     */
-    private $services = [
-        'http'     => '\\Rxn\Framework\\Service\\Api',
-        'auth'    => '\\Rxn\Framework\\Service\\Auth',
-        'data'    => '\\Rxn\Framework\\Service\\Data',
-        'model'   => '\\Rxn\Framework\\Service\\Model',
-        'router'  => '\\Rxn\Framework\\Service\\Router',
-        'stats'   => '\\Rxn\Framework\\Service\\Stats',
-        'utility' => '\\Rxn\Framework\\Service\\Utility',
-    ];
-
-    /**
      * Sets the filecache directory that needs special read/write permissions
      *
      * @var string
@@ -145,15 +129,5 @@ class BaseConfig extends Service
     public function getPhpIniRequirements()
     {
         return $this->php_ini_requirements;
-    }
-
-    /**
-     * Getter for private $services array
-     *
-     * @return array
-     */
-    public function getServices()
-    {
-        return $this->services;
     }
 }
