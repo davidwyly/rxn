@@ -61,9 +61,10 @@ API gateways, Problem Details-aware client libraries, and error
 aggregators already understand the shape; Rxn just emits what the
 ecosystem expects. **OpenAPI 3 specs generate from reflection**
 (`bin/rxn openapi`), so the contract is always in sync with the
-code — hand the spec to any OpenAPI consumer (Swagger UI, Redocly,
-client generators). PSR-7 / PSR-15 bridge lets any ecosystem
-middleware drop in via `Psr15Pipeline`.
+code — hand the spec to any OpenAPI consumer (Redocly, client
+generators). Drop in `Http\OpenApi\SwaggerUi::html($specUrl)`
+from a route handler for instant interactive docs. PSR-7 / PSR-15
+bridge lets any ecosystem middleware drop in via `Psr15Pipeline`.
 
 ### Novelty
 
@@ -87,9 +88,16 @@ Opinionated pieces worth naming:
 Small enough to read end to end. Dependency-free, injectable-for-test
 middlewares for the common defensive layers: **CORS with preflight,
 request-id correlation, JSON-body decoding with size caps,
-conditional GET via weak ETags**. The ORM lives in a separate
-package ([`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm))
-so the framework itself stays narrow.
+conditional GET via weak ETags**. DI container supports
+**interface-to-implementation binding** (`$c->bind(UserRepo::class,
+PostgresUserRepo::class)`) and factory closures, so serious apps
+aren't stuck with autowire-only. An in-process **TestClient**
+(`Rxn\Framework\Testing\TestClient`) fires requests at your Router
++ middleware stack and returns a `TestResponse` with PHPUnit-
+integrated fluent assertions — no web server, no curl, no process
+boundary. The ORM lives in a separate package
+([`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)) so
+the framework itself stays narrow.
 
 ### Speed
 
@@ -127,7 +135,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Current test counts:
 
-- **Rxn framework:** 181 tests / 407 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 203 tests / 451 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
@@ -203,6 +211,9 @@ Current test counts:
 - [X] Dependency Injection container
    - [X] Controller method injection
    - [X] DI autowiring via constructor type hints
+   - [X] Interface → implementation binding
+         (`$container->bind($abstract, $concrete)`) and factory
+         closures (`$container->bind($abstract, fn ($c) => ...)`)
    - [X] Circular-dependency detection
 - [X] Object-Relational Mapping
    - [X] Query builder (SELECT / INSERT / UPDATE / DELETE with
@@ -232,6 +243,11 @@ Current test counts:
       `Rxn\Framework\Utility\Validator`)*
 - [X] OpenAPI 3 spec generation from reflected controllers
       (`bin/rxn openapi`; `Http\OpenApi\Generator` + `Discoverer`)
+   - [X] One-line interactive docs via
+         `Http\OpenApi\SwaggerUi::html($specUrl)`
+- [X] In-process HTTP test client + fluent response assertions
+      (`Testing\TestClient` + `TestResponse`) — no web server, no
+      curl, PHPUnit-integrated failures
 - [ ] Automated API request validation from contracts
 - [ ] Optional, modular plug-ins
 

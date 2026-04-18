@@ -20,11 +20,43 @@ class Container
     private $resolving = [];
 
     /**
+     * abstract => concrete class-string or factory closure.
+     * Lets apps map interfaces onto implementations without writing
+     * a factory for every binding.
+     *
+     * @var array<string, string|callable>
+     */
+    private array $bindings = [];
+
+    /**
      * Container constructor.
      */
     public function __construct()
     {
         //intentionally left blank
+    }
+
+    /**
+     * Bind an abstract type (usually an interface) to a concrete
+     * class name or factory closure. Subsequent `get($abstract)`
+     * calls resolve the bound target instead of trying to
+     * instantiate the abstract directly.
+     *
+     *   $container->bind(UserRepo::class, PostgresUserRepo::class);
+     *   $container->bind(Clock::class, fn($c) => new FrozenClock('2026-01-01'));
+     *
+     * Factory closures receive the container so they can pull
+     * their own deps. Re-binding overwrites. Bindings are applied
+     * before autowiring, so interface parameters on constructors
+     * resolve to the bound concrete transparently.
+     *
+     * @param class-string                         $abstract
+     * @param class-string|callable(Container): object $concrete
+     */
+    public function bind(string $abstract, string|callable $concrete): self
+    {
+        $this->bindings[$this->parseClassName($abstract)] = $concrete;
+        return $this;
     }
 
     /**
@@ -39,13 +71,29 @@ class Container
         // change every namespace to be absolute
         $class_name = $this->parseClassName($class_name);
 
-        if (!class_exists($class_name)) {
-            throw new ContainerException("$class_name is not a valid class name");
-        }
-
         // in the event that we're looking up the container class, return itself
         if (ltrim($class_name, '\\') === ltrim(Container::class, '\\')) {
             return $this;
+        }
+
+        // bound abstract → resolve the bound target instead.
+        if (isset($this->bindings[$class_name])) {
+            $target = $this->bindings[$class_name];
+            // Class-string binding wins over is_callable (which would
+            // fire for any class that implements __invoke).
+            if (is_string($target) && class_exists($target)) {
+                return $this->get($target, $parameters);
+            }
+            if (is_callable($target)) {
+                $instance = $target($this);
+                $this->addInstance($class_name, $instance);
+                return $instance;
+            }
+            throw new ContainerException("Binding for $class_name is neither a class name nor a callable");
+        }
+
+        if (!class_exists($class_name)) {
+            throw new ContainerException("$class_name is not a valid class name");
         }
 
         // if we already stored an instance of a statically-bound service class, return it

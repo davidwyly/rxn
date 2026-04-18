@@ -548,6 +548,68 @@ Every read Query hits the filesystem cache first, keyed by
 `md5(type|sql|bindings)`. Writes (INSERT/UPDATE/DELETE/DDL) are
 never cached.
 
+## `Rxn\Framework\Testing\TestClient` + `TestResponse`
+
+In-process HTTP client for testing. Feeds a `Router` + a
+caller-supplied dispatcher and returns a `TestResponse` with
+fluent PHPUnit-integrated assertions — no web server, no curl, no
+process boundary.
+
+```php
+use Rxn\Framework\Testing\TestClient;
+
+$client = new TestClient($router, function (array $hit, Request $req) use ($container) {
+    [$class, $method] = $hit['handler'];
+    return $container->get($class)->{$method}(...array_values($hit['params']));
+});
+
+$client->get('/products/42')
+       ->assertOk()
+       ->assertJsonPath('data.id', 42)
+       ->assertJsonStructure(['data' => ['id', 'name'], 'meta' => ['success']]);
+
+$client->post('/products', ['name' => 'widget'], ['Content-Type' => 'application/json'])
+       ->assertCreated();
+```
+
+Verbs: `get`, `post`, `put`, `patch`, `delete`. Query strings on
+the path are parsed into `$_GET`; request bodies land in `$_POST`;
+headers land in `$_SERVER['HTTP_*']` — so middleware that sniffs
+the superglobals (Cors, RequestId, JsonBody, etc.) sees what it
+would see in production.
+
+Assertion helpers on `TestResponse`:
+
+| Method | Behaviour |
+|---|---|
+| `assertStatus(int)` / `assertOk()` / `assertCreated()` / etc | HTTP status checks |
+| `assertJsonPath(string, mixed)` | dotted-path equality (`data.user.id`) |
+| `assertJsonStructure(array)` | recursive shape check; numeric keys mean "every element" |
+| `response()` | escape hatch — raw `Response` for custom assertions |
+| `status()` / `data()` / `json()` | accessors on the underlying envelope |
+
+For tests that only exercise middleware, pass a trivial dispatcher
+that returns a canned `Response` — routing + pipeline wire up the
+same way either way.
+
+## `Rxn\Framework\Http\OpenApi\SwaggerUi`
+
+Interactive docs in one line. Pairs with the OpenAPI `Generator`
+— point the UI at wherever you serve the spec JSON and you're
+done.
+
+```php
+use Rxn\Framework\Http\OpenApi\{Generator, SwaggerUi};
+
+$router->get('/openapi.json', fn () =>
+    json_encode((new Generator(controllers: $controllers))->generate()));
+$router->get('/docs', fn () => SwaggerUi::html('/openapi.json'));
+```
+
+Pulls `swagger-ui-dist@5` from `unpkg` by default; pass
+`cdnBase: 'https://cdn.example.com/swagger/'` to self-host. Title
+and spec URL are HTML-escaped at render time.
+
 ## `Rxn\Framework\Data\Filecache`
 
 Object caching with atomic writes. Useful for caching anything
