@@ -3,6 +3,11 @@
 namespace Rxn\Framework\Tests\Http;
 
 use PHPUnit\Framework\TestCase;
+use Rxn\Framework\Http\Middleware;
+use Rxn\Framework\Http\Request;
+use Rxn\Framework\Http\Response;
+use Rxn\Framework\Http\Route;
+use Rxn\Framework\Http\RouteGroup;
 use Rxn\Framework\Http\Router;
 
 final class RouterTest extends TestCase
@@ -17,6 +22,8 @@ final class RouterTest extends TestCase
         $this->assertSame('list', $hit['handler']);
         $this->assertSame([], $hit['params']);
         $this->assertSame('/products', $hit['pattern']);
+        $this->assertNull($hit['name']);
+        $this->assertSame([], $hit['middlewares']);
     }
 
     public function testSinglePlaceholderCapturesOneSegment(): void
@@ -62,8 +69,6 @@ final class RouterTest extends TestCase
     {
         $r = new Router();
         $r->get('/products/{id}', 'show');
-
-        // Two segments after /products should not match a single-placeholder route.
         $this->assertNull($r->match('GET', '/products/42/reviews'));
     }
 
@@ -73,9 +78,6 @@ final class RouterTest extends TestCase
         $r->get('/products/{id}', 'generic');
         $r->get('/products/new', 'newForm');
 
-        // Despite the more specific '/products/new' route, the first
-        // registered pattern is consulted first. Order routes
-        // specific-to-general when registering.
         $this->assertSame('generic', $r->match('GET', '/products/new')['handler']);
     }
 
@@ -84,16 +86,13 @@ final class RouterTest extends TestCase
         $r = new Router();
         $r->get('/products', 'list');
 
-        $hit = $r->match('GET', '/products?page=2&sort=name');
-        $this->assertNotNull($hit);
-        $this->assertSame('list', $hit['handler']);
+        $this->assertSame('list', $r->match('GET', '/products?page=2&sort=name')['handler']);
     }
 
     public function testTrailingSlashTolerated(): void
     {
         $r = new Router();
         $r->get('/products', 'list');
-
         $this->assertNotNull($r->match('GET', '/products/'));
     }
 
@@ -101,7 +100,6 @@ final class RouterTest extends TestCase
     {
         $r = new Router();
         $r->get('/', 'home');
-
         $this->assertSame('home', $r->match('GET', '/')['handler']);
     }
 
@@ -134,10 +132,10 @@ final class RouterTest extends TestCase
         $r->delete('/products/{id}', 'remove');
         $r->options('/products', 'options');
 
-        $this->assertSame('create', $r->match('POST', '/products')['handler']);
-        $this->assertSame('replace', $r->match('PUT', '/products/1')['handler']);
-        $this->assertSame('update', $r->match('PATCH', '/products/1')['handler']);
-        $this->assertSame('remove', $r->match('DELETE', '/products/1')['handler']);
+        $this->assertSame('create',  $r->match('POST',    '/products')['handler']);
+        $this->assertSame('replace', $r->match('PUT',     '/products/1')['handler']);
+        $this->assertSame('update',  $r->match('PATCH',   '/products/1')['handler']);
+        $this->assertSame('remove',  $r->match('DELETE',  '/products/1')['handler']);
         $this->assertSame('options', $r->match('OPTIONS', '/products')['handler']);
     }
 
@@ -158,13 +156,127 @@ final class RouterTest extends TestCase
         $this->assertSame($handler, $hit['handler']);
     }
 
-    public function testDotAndDashInStaticSegmentsAreNotRegexMetacharacters(): void
+    public function testDotAndDashInStaticSegmentsAreLiterals(): void
     {
         $r = new Router();
         $r->get('/v1.0/users-list', 'list');
 
         $this->assertNotNull($r->match('GET', '/v1.0/users-list'));
-        // The '.' in the pattern must be a literal dot, not regex '.'.
         $this->assertNull($r->match('GET', '/v1x0/users-list'));
+    }
+
+    // --- named routes ----------------------------------------------
+
+    public function testNamedRouteUrlSubstitutesParams(): void
+    {
+        $r = new Router();
+        $r->get('/products/{id}', 'show')->name('products.show');
+
+        $this->assertSame('/products/42', $r->url('products.show', ['id' => 42]));
+    }
+
+    public function testUrlRejectsUnknownName(): void
+    {
+        $r = new Router();
+        $r->get('/', 'home');
+        $this->expectException(\InvalidArgumentException::class);
+        $r->url('nope');
+    }
+
+    public function testUrlRejectsMissingPlaceholder(): void
+    {
+        $r = new Router();
+        $r->get('/products/{id}', 'show')->name('products.show');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $r->url('products.show');
+    }
+
+    public function testMatchReportsRouteName(): void
+    {
+        $r = new Router();
+        $r->get('/products/{id}', 'show')->name('products.show');
+
+        $this->assertSame('products.show', $r->match('GET', '/products/42')['name']);
+    }
+
+    // --- per-route middleware --------------------------------------
+
+    public function testMatchReportsRouteMiddleware(): void
+    {
+        $r   = new Router();
+        $mw1 = $this->passthrough();
+        $mw2 = $this->passthrough();
+        $r->get('/secret', 'handler')->middleware($mw1, $mw2);
+
+        $hit = $r->match('GET', '/secret');
+        $this->assertSame([$mw1, $mw2], $hit['middlewares']);
+    }
+
+    // --- groups ----------------------------------------------------
+
+    public function testGroupPrependsPrefix(): void
+    {
+        $r = new Router();
+        $r->group('/api/v1', function (RouteGroup $g) {
+            $g->get('/products', 'list')->name('products.list');
+        });
+
+        $this->assertSame('list', $r->match('GET', '/api/v1/products')['handler']);
+        $this->assertSame('/api/v1/products', $r->url('products.list'));
+    }
+
+    public function testGroupMiddlewareAttachesToEveryRoute(): void
+    {
+        $r    = new Router();
+        $auth = $this->passthrough();
+        $r->group('/api', function (RouteGroup $g) use ($auth) {
+            $g->middleware($auth);
+            $g->get('/me', 'me');
+            $g->post('/logout', 'logout');
+        });
+
+        $this->assertSame([$auth], $r->match('GET',  '/api/me')['middlewares']);
+        $this->assertSame([$auth], $r->match('POST', '/api/logout')['middlewares']);
+    }
+
+    public function testGroupsNest(): void
+    {
+        $r     = new Router();
+        $outer = $this->passthrough();
+        $inner = $this->passthrough();
+
+        $r->group('/api', function (RouteGroup $g) use ($outer, $inner) {
+            $g->middleware($outer);
+            $g->group('/admin', function (RouteGroup $g) use ($inner) {
+                $g->middleware($inner);
+                $g->post('/users', 'create');
+            });
+            $g->get('/me', 'me');
+        });
+
+        $admin = $r->match('POST', '/api/admin/users');
+        $this->assertNotNull($admin);
+        $this->assertSame([$outer, $inner], $admin['middlewares']);
+
+        $me = $r->match('GET', '/api/me');
+        $this->assertSame([$outer], $me['middlewares']);
+    }
+
+    public function testRouteHandleIsReturnedByAdd(): void
+    {
+        $r     = new Router();
+        $route = $r->get('/x', 'x');
+        $this->assertInstanceOf(Route::class, $route);
+    }
+
+    private function passthrough(): Middleware
+    {
+        return new class implements Middleware {
+            public function handle(Request $request, callable $next): Response
+            {
+                return $next($request);
+            }
+        };
     }
 }
