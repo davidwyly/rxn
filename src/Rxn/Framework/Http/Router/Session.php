@@ -36,7 +36,16 @@ class Session extends Service
         ini_set('session.gc_maxlifetime', $config->session_lifetime);
 
         // each client should remember their session id for EXACTLY this long
-        session_set_cookie_params($config->session_lifetime);
+        $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+        session_set_cookie_params([
+            'lifetime' => $config->session_lifetime,
+            'path'     => '/',
+            'domain'   => '',
+            'secure'   => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
 
         // start session
         session_start();
@@ -66,13 +75,7 @@ class Session extends Service
         $newExpires           = new \DateTime('now +40 minutes');
         $_SESSION['_expires'] = $newExpires;
 
-        if (version_compare(PHP_VERSION, '5.4.0', '>=')) {
-            ob_start(null, 0, PHP_OUTPUT_HANDLER_STDFLAGS ^ PHP_OUTPUT_HANDLER_REMOVABLE);
-            return;
-        }
-
-        ob_start(null, 0, false);
-        return;
+        ob_start(null, 0, PHP_OUTPUT_HANDLER_STDFLAGS ^ PHP_OUTPUT_HANDLER_REMOVABLE);
     }
 
     /**

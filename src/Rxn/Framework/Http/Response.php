@@ -161,10 +161,14 @@ class Response
         $this->errors = [
             'type'    => self::getResponseCodeResult($exception->getCode()),
             'message' => $exception->getMessage(),
-            'file'    => $exception->getFile(),
-            'line'    => $exception->getLine(),
-            'trace'   => self::getErrorTrace($exception),
         ];
+        // Only expose file / line / stack trace outside production,
+        // so error payloads never leak server internals to end users.
+        if (getenv('ENVIRONMENT') !== 'production') {
+            $this->errors['file']  = $exception->getFile();
+            $this->errors['line']  = $exception->getLine();
+            $this->errors['trace'] = self::getErrorTrace($exception);
+        }
         $this->meta   = [
             'success'    => false,
             'code'       => $exception->getCode(),
