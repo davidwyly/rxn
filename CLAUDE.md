@@ -94,6 +94,7 @@ Avoid:
 composer install            # install dev deps
 vendor/bin/phpunit          # run the test suite
 composer validate --strict  # sanity-check composer.json
+bin/rxn help                # list CLI subcommands
 ```
 
 For the full stack:
