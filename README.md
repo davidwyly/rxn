@@ -8,6 +8,12 @@
 
 ##### Please note: Rxn is currently under active development and is still considered *early* alpha
 
+> **Project status:** this repository is a learning-oriented / hobby
+> framework. It targets PHP 8.1+, the Docker stack uses PHP 8.3-fpm,
+> and the ORM query builder is still a work in progress. Several
+> features listed below as `[X]` are partially implemented or have
+> known gaps — see the checklist for the actual state.
+
 Rxn (the abbreviation for 'reaction') is a framework designed to cut out the complexity and clutter of PHP-generated views -- offloading views to whatever frontend that suits your fancy.
 
 The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
@@ -22,58 +28,86 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
   *  Either the **backend** or **frontend** *can be swapped out entirely* with a completely different solution, giving you greater flexibility further down the road
   *  Parallel **frontend** development *becomes grossly simplified* (e.g., leveraging an internal app, external app, phone app, etc using the same **backend**).
 
-## Features In Alpha
+## Features
 
-Including planned features for beta (unchecked):
-- [X] 3.5+ GPA code climate
-- [ ] 80%+ unit test code coverage
-- [X] Gentle learning curve *(you don't have to be a guru to get up and running)*
+`[X]` = implemented, `[~]` = partial / has known gaps, `[ ]` = not started.
+
+- [ ] 80%+ unit test code coverage *(currently minimal; 4 ORM unit
+      tests plus one marked-incomplete JoinTest pending parser rework)*
+- [X] Gentle learning curve
    - [X] Installation through Composer
-- [X] Simple workflow with an existing database schema
+- [~] Simple workflow with an existing database schema
    - [ ] Code generation
-      - [ ] Command Line Interface (CLI) utility to create controllers and models
+      - [ ] CLI utility to create controllers and models
 - [X] Database abstraction
    - [X] PDO for multiple database support
    - [X] Support for multiple database connections
-- [X] Security
+- [~] Security
    - [X] Prepared statements *(aids against SQL injection attacks)*
-   - [ ] I/O sanitization  *(aids against XSS attacks)*
-   - [ ] Session synchronizer tokens *(aids against CSRF attacks)* 
-   - [ ] SSL/TLS support *(aids against man-in-the-middle attacks)*
-- [X] Robust error handling *(throw an exception anywhere and Rxn handles the rest)*
-- [X] Debugging utilities
-- [X] Versioning *(saving you API maintenance hassles down the road)*
+   - [~] Session cookies use HttpOnly + SameSite=Lax and turn on
+         Secure automatically when the request is HTTPS
+   - [X] Stack traces are only emitted in non-production environments
+   - [ ] I/O sanitization for XSS
+   - [ ] CSRF synchronizer tokens
+   - [ ] Authentication / authorization framework
+   - [ ] Rate limiting
+- [X] Exception-driven error handling *(throw anywhere and Rxn renders
+      a JSON error envelope)*
+- [X] Versioning
    - [X] Versioned Controllers
    - [X] Versioned Actions
-- [X] Scaffolding *(fast application prototyping)*
+- [X] Scaffolding
    - [X] Version-less CRUD endpoints that reflect current backend records
 - [X] URI Routing
-   - [X] using Apache2
-   - [X] using NGINX
-- [X] Dependency Injection (DI) container container
+   - [X] Apache 2 (.htaccess)
+   - [X] NGINX (see docker/nginx)
+- [X] Dependency Injection container
    - [X] Controller method injection
-   - [X] DI autowiring *(constructor parameters automatically injected using type-hinting)*
-- [X] Object Relational Mapping (ORM)
-   - [X] Rxn-ORM
-      - [X] CRUD operations on any database record or relation table
-      - [X] ORM autowiring *(relationships automatically derived from database structure and foreign keys)*
+   - [X] DI autowiring via constructor type hints (PHP 8 reflection)
+   - [X] Circular-dependency detection
+- [~] Object Relational Mapping (ORM)
+   - [~] Rxn-ORM
+      - [X] Scaffolded CRUD operations on a record
+      - [ ] ORM autowiring *(foreign-key relationship discovery is
+            stubbed — see `Rxn\Framework\Data\Map\Chain\Link`)*
       - [ ] Soft deletes
    - [ ] Support for third-party ORMs
 - [X] Speed and Performance
-   - [X] PSR-4 Autoloading *(small footprint)*
-   - [X] Caching mechanisms
-       - [X] Native query caching *(with expiration)*
-       - [X] Object file caching *(blazing fast instantiation)*
-- [ ] Authentication  
-   - [ ] Support for third-party libraries
-     - [ ] OAUTH2
-     - [ ] OpenId
-     - [ ] SAML 
-- [ ] Automated validation of API requests using existing (or generated) API contracts
+   - [X] PSR-4 autoloading
+   - [~] Caching mechanisms
+      - [ ] Native query caching *(the cache table wiring on
+            `Rxn\Framework\Data\Query` is incomplete — do not rely on it)*
+      - [X] Object file caching (atomic writes via Filecache)
+- [ ] Authentication *(OAuth2 / OpenID / SAML all planned)*
+- [ ] Automated validation of API requests using API contracts
 - [ ] Event logging
-- [ ] Mailer
+- [ ] Mailer *(stub; constructor throws LogicException)*
 - [ ] Scheduler
-- [ ] Optional, modular plug-ins for loose coupling and greater flexibility
+- [ ] Database migrations *(stub; constructor throws LogicException)*
+- [ ] Optional, modular plug-ins
+
+## Development
+
+Run the test suite:
+
+```
+composer install
+vendor/bin/phpunit
+```
+
+Continuous integration runs lint + phpunit against PHP 8.1, 8.2, 8.3,
+and 8.4 via `.github/workflows/ci.yml`.
+
+Local Docker stack (requires Docker Compose v2+):
+
+```
+cp docker-compose.env.example .env
+# edit .env to set MYSQL_PASSWORD and MYSQL_ROOT_PASSWORD
+docker compose up --build
+```
+
+Set `INSTALL_XDEBUG=1` in `.env` to build the PHP image with Xdebug 3
+enabled.
 
 ## License
 
