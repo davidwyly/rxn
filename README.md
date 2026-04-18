@@ -27,11 +27,11 @@ flowchart TB
     Dispatch -->|explicit| Router["Http/Router"]
     Router --> Pipeline["Middleware pipeline"]
     Pipeline --> ExplCtrl["Route handler"]
-    ConvCtrl --> Resp["Response envelope"]
+    ConvCtrl --> Resp["Response"]
     ExplCtrl --> Resp
-    Resp --> JSON["JSON response"]
+    Resp -->|success| OK["application/json<br/>{data, meta}"]
     Resp -. uncaught exception .-> Fail["Response::getFailure"]
-    Fail --> JSON
+    Fail --> PD["application/problem+json<br/>RFC 7807"]
 ```
 
 See [`docs/index.md`](docs/index.md) for the full request sequence

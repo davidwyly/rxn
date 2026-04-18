@@ -1,9 +1,10 @@
 # Contributing to Rxn
 
-Rxn is a small JSON API framework. The goal is **fast, minimal, easy to
-use** — in that order. Every change should make the framework smaller
-or clearer, or add the smallest thing that makes a real-world app
-easier to build.
+Rxn is a small JSON API framework. Five motives drive every
+decision — **novelty, simplicity, interoperability, speed, strict
+JSON** — in that rough order of weight. Every change should make the
+framework smaller or clearer, or add the smallest thing that makes
+a real-world app easier to build.
 
 ## Operating principles
 
@@ -16,8 +17,12 @@ easier to build.
    file when possible. If it grows past ~150 lines, reconsider the
    design before adding more.
 3. **No new runtime dependencies without a clear reason.** The current
-   runtime has exactly one: `vlucas/phpdotenv`. Resist adding more.
-   Prefer standard PHP, PDO, and what is already in `src/Rxn`.
+   runtime deps are narrow and earned their place: `vlucas/phpdotenv`
+   (`.env` loader), `nyholm/psr7` + `nyholm/psr7-server` + `psr/http-server-middleware`
+   (the PSR-7/PSR-15 bridge is opt-in but these are cheap), and
+   `davidwyly/rxn-orm` (the extracted query builder). Resist
+   adding more. Prefer standard PHP, PDO, and what is already in
+   `src/Rxn`.
 4. **Fail loud, fast, and specific.** Throw a typed exception from
    `Rxn\Framework\Error` with a descriptive message. Never swallow
    errors or return `false` for an exceptional condition.
