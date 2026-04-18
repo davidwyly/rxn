@@ -146,25 +146,32 @@ abstract class Record extends Model
 
     public function update($record_id, array $key_values)
     {
-        $keys        = array_keys($key_values);
-        $expressions = [];
-        foreach ($keys as $key) {
-            $expressions[] = "$key=:$key";
+        // Reject attempts to mutate the primary key through an update;
+        // the WHERE clause below already binds its own column value.
+        if (array_key_exists($this->primary_key, $key_values)) {
+            throw new \Exception(
+                "'$this->primary_key' cannot be updated through this request as it is the primary key",
+                400
+            );
         }
 
+        $expressions = [];
+        foreach (array_keys($key_values) as $key) {
+            $expressions[] = "`$key`=:$key";
+        }
         $expression_list = implode(",", $expressions);
 
-        // append primary key onto the key value pairs for manual binding
-        $key_values = $key_values + ['id' => $record_id];
+        // Use a binding name that cannot collide with any column in
+        // $key_values (column names cannot contain the __pk__ pattern).
+        $pk_binding              = '__pk__';
+        $key_values[$pk_binding] = $record_id;
 
-        // generate SQL
         $update_sql = "
-            UPDATE {$this->table} 
-            SET $expression_list 
-            WHERE {$this->primary_key}=:id
+            UPDATE {$this->table}
+            SET $expression_list
+            WHERE {$this->primary_key}=:$pk_binding
         ";
 
-        // update record
         $result = $this->database->query($update_sql, $key_values);
         if (!$result) {
             throw new \Exception("Failed to update record '$record_id' on database '{$this->database->getName()}'",
