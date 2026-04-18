@@ -3,65 +3,73 @@
 namespace Rxn\Orm\Builder\Query;
 
 use Rxn\Orm\Builder\Query;
+use Rxn\Orm\Builder\Raw;
 
 class Select extends Query
 {
-    /**
-     * @param array $columns
-     * @param bool  $distinct
-     */
-    public function set(array $columns = ['*'], $distinct = false)
+    public function set(array $columns = ['*'], bool $distinct = false): void
     {
-        if ($columns === ['*']
-            || empty($columns)
-        ) {
+        if ($columns === ['*'] || $columns === []) {
             $this->selectAll($distinct);
-        } elseif ($this->isAssociative($columns)) {
-            $this->selectAssociative($columns, $distinct);
-        } else {
-            $this->selectNumerical($columns, $distinct);
+            return;
         }
-    }
 
-    /**
-     * @param bool $distinct
-     */
-    public function selectAll($distinct = false)
-    {
-        $command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
-        $this->addCommand($command, "*");
-    }
-
-    /**
-     * @param array $columns
-     * @param bool  $distinct
-     */
-    public function selectAssociative(array $columns, $distinct = false)
-    {
-        $command = ($distinct) ? 'SELECT DISTINCT' : 'SELECT';
-        foreach ($columns as $reference => $alias) {
-            $reference = $this->cleanReference($reference);
-            if (empty($alias)) {
-                $value = $reference;
-            } else {
-                $alias = $this->cleanReference($alias);
-                $value = "$reference AS $alias";
+        // Raw entries pass through verbatim; the rest are routed to
+        // the associative or numerical path based on key shape.
+        $rawEntries  = [];
+        $remaining   = [];
+        foreach ($columns as $key => $value) {
+            if ($value instanceof Raw && is_int($key)) {
+                $rawEntries[] = $value->sql;
+                continue;
             }
-            $this->addCommand($command, $value);
+            $remaining[$key] = $value;
+        }
+
+        $command = $distinct ? 'SELECT DISTINCT' : 'SELECT';
+        foreach ($rawEntries as $raw) {
+            $this->addCommand($command, $raw);
+        }
+
+        if ($remaining === []) {
+            return;
+        }
+        if ($this->isAssociative($remaining)) {
+            $this->selectAssociative($remaining, $distinct);
+        } else {
+            $this->selectNumerical($remaining, $distinct);
         }
     }
 
-    /**
-     * Converts a numerical array into an associative array
-     *
-     * @param array $numerical_columns
-     * @param bool  $distinct
-     */
-    public function selectNumerical(array $numerical_columns, $distinct = false)
+    public function selectAll(bool $distinct = false): void
+    {
+        $command = $distinct ? 'SELECT DISTINCT' : 'SELECT';
+        $this->addCommand($command, '*');
+    }
+
+    public function selectAssociative(array $columns, bool $distinct = false): void
+    {
+        $command = $distinct ? 'SELECT DISTINCT' : 'SELECT';
+        foreach ($columns as $reference => $alias) {
+            $reference = $this->cleanReference((string)$reference);
+            if ($alias === null || $alias === '') {
+                $this->addCommand($command, $reference);
+                continue;
+            }
+            $aliasSql = $alias instanceof Raw ? $alias->sql : $this->cleanReference((string)$alias);
+            $this->addCommand($command, "$reference AS $aliasSql");
+        }
+    }
+
+    public function selectNumerical(array $numerical_columns, bool $distinct = false): void
     {
         $associative_columns = [];
         foreach ($numerical_columns as $key => $numerical_column) {
-            $numerical_column = trim($numerical_column);
+            if ($numerical_column instanceof Raw) {
+                // Already emitted by Select::set via the raw pass.
+                continue;
+            }
+            $numerical_column = trim((string)$numerical_column);
             $clauses          = preg_split('#(\s*\,\s*)+#', $numerical_column);
             if (count($clauses) > 1) {
                 $clauses = array_reverse($clauses);
@@ -72,19 +80,25 @@ class Select extends Query
             }
         }
         foreach ($numerical_columns as $key => $numerical_column) {
-            $splits_in_clause = preg_split('#\s+[aA][sS]\s+#', $numerical_column);
-            if (count($splits_in_clause) == 2) {
+            if ($numerical_column instanceof Raw) {
+                continue;
+            }
+            $splits_in_clause = preg_split('#\s+[aA][sS]\s+#', (string)$numerical_column);
+            if (count($splits_in_clause) === 2) {
                 unset($numerical_columns[$key]);
-                $reference                       = array_shift($splits_in_clause);
-                $alias                           = array_shift($splits_in_clause);
+                $reference = array_shift($splits_in_clause);
+                $alias     = array_shift($splits_in_clause);
                 $associative_columns[$reference] = $alias;
             }
         }
-        if (!empty($numerical_columns)) {
-            foreach ($numerical_columns as $column) {
-                $associative_columns[$column] = null;
+        foreach ($numerical_columns as $column) {
+            if ($column instanceof Raw) {
+                continue;
             }
+            $associative_columns[$column] = null;
         }
-        $this->selectAssociative($associative_columns, $distinct);
+        if ($associative_columns !== []) {
+            $this->selectAssociative($associative_columns, $distinct);
+        }
     }
 }

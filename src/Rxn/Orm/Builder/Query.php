@@ -11,16 +11,11 @@ use Rxn\Orm\Builder\Query\Join;
  * Fluent SELECT query builder. Accumulates commands into
  * $this->commands and bindings into $this->bindings; call toSql()
  * to materialize the final (string $sql, array $bindings) tuple,
- * or pass the Query to Database::run() / Database::fetchAll() via
- * ->toSql().
+ * or pass the Query to Database::run() to execute in one call.
  */
 class Query extends Builder
 {
-    public const WHERE_OPERATORS = [
-        '=', '!=', '<>', '<', '<=', '>', '>=',
-        'IN', 'NOT IN', 'LIKE', 'NOT LIKE',
-        'BETWEEN', 'REGEXP', 'NOT REGEXP',
-    ];
+    use HasWhere;
 
     public function select(array $columns = ['*'], bool $distinct = false): Query
     {
@@ -85,81 +80,9 @@ class Query extends Builder
     }
 
     /**
-     * Append a condition.
-     *
-     * If $callback is provided, it receives a fresh Query whose
-     * where* calls are captured as a grouped sub-expression
-     * wrapped in parentheses.
-     *
-     * @param mixed $value
+     * @param string|Raw ...$fields
      */
-    public function where(string $field, string $operator, $value, ?callable $callback = null, string $type = 'and'): Query
-    {
-        $this->assertWhereOperator($operator);
-        if ($callback !== null) {
-            $this->addGroup($type, $field, $operator, $value, $callback);
-            return $this;
-        }
-        $expr = $this->buildCondition($field, $operator, $value);
-        $this->commands['WHERE'][] = ['op' => $this->normalizeOp($type), 'expr' => $expr];
-        return $this;
-    }
-
-    public function andWhere(string $field, string $operator, $value, ?callable $callback = null): Query
-    {
-        return $this->where($field, $operator, $value, $callback, 'and');
-    }
-
-    public function and(string $field, string $operator, $value, ?callable $callback = null): Query
-    {
-        return $this->andWhere($field, $operator, $value, $callback);
-    }
-
-    public function orWhere(string $field, string $operator, $value, ?callable $callback = null): Query
-    {
-        return $this->where($field, $operator, $value, $callback, 'or');
-    }
-
-    public function or(string $field, string $operator, $value, ?callable $callback = null): Query
-    {
-        return $this->orWhere($field, $operator, $value, $callback);
-    }
-
-    public function whereIn(string $field, array $values, string $type = 'and'): Query
-    {
-        return $this->where($field, 'IN', $values, null, $type);
-    }
-
-    public function whereNotIn(string $field, array $values, string $type = 'and'): Query
-    {
-        return $this->where($field, 'NOT IN', $values, null, $type);
-    }
-
-    public function andWhereIn(string $field, array $values): Query { return $this->whereIn($field, $values, 'and'); }
-    public function andWhereNotIn(string $field, array $values): Query { return $this->whereNotIn($field, $values, 'and'); }
-    public function orWhereIn(string $field, array $values): Query { return $this->whereIn($field, $values, 'or'); }
-    public function orWhereNotIn(string $field, array $values): Query { return $this->whereNotIn($field, $values, 'or'); }
-
-    public function whereIsNull(string $field, string $type = 'and'): Query
-    {
-        $expr = $this->cleanReference($field) . ' IS NULL';
-        $this->commands['WHERE'][] = ['op' => $this->normalizeOp($type), 'expr' => $expr];
-        return $this;
-    }
-
-    public function whereIsNotNull(string $field, string $type = 'and'): Query
-    {
-        $expr = $this->cleanReference($field) . ' IS NOT NULL';
-        $this->commands['WHERE'][] = ['op' => $this->normalizeOp($type), 'expr' => $expr];
-        return $this;
-    }
-
-    public function andWhereIsNull(string $field): Query { return $this->whereIsNull($field, 'and'); }
-    public function andWhereIsNotNull(string $field): Query { return $this->whereIsNotNull($field, 'and'); }
-    public function orWhereIsNull(string $field): Query { return $this->whereIsNull($field, 'or'); }
-    public function orWhereIsNotNull(string $field): Query { return $this->whereIsNotNull($field, 'or'); }
-
-    public function groupBy(string ...$fields): Query
+    public function groupBy(...$fields): Query
     {
         foreach ($fields as $field) {
             $this->commands['GROUP BY'][] = $this->cleanReference($field);
@@ -173,7 +96,10 @@ class Query extends Builder
         return $this;
     }
 
-    public function orderBy(string $field, string $direction = 'ASC'): Query
+    /**
+     * @param string|Raw $field
+     */
+    public function orderBy($field, string $direction = 'ASC'): Query
     {
         $direction = strtoupper($direction);
         if ($direction !== 'ASC' && $direction !== 'DESC') {
@@ -211,66 +137,5 @@ class Query extends Builder
     {
         $parser = new QueryParser($this);
         return [$parser->getSql(), array_values($this->bindings)];
-    }
-
-    // -- helpers ----------------------------------------------------
-
-    private function assertWhereOperator(string $operator): void
-    {
-        if (!in_array(strtoupper($operator), array_map('strtoupper', self::WHERE_OPERATORS), true)) {
-            throw new \InvalidArgumentException("Unsupported WHERE operator '$operator'");
-        }
-    }
-
-    private function normalizeOp(string $type): string
-    {
-        return strtolower($type) === 'or' ? 'OR' : 'AND';
-    }
-
-    /**
-     * @param mixed $value
-     */
-    private function buildCondition(string $field, string $operator, $value): string
-    {
-        $operator = strtoupper($operator);
-        $field    = $this->cleanReference($field);
-        if ($operator === 'IN' || $operator === 'NOT IN') {
-            if (!is_array($value) || $value === []) {
-                throw new \InvalidArgumentException("$operator requires a non-empty array");
-            }
-            $placeholders = [];
-            foreach ($value as $v) {
-                $placeholders[] = '?';
-                $this->bindings[] = $v;
-            }
-            return $field . ' ' . $operator . ' (' . implode(', ', $placeholders) . ')';
-        }
-        if ($operator === 'BETWEEN') {
-            if (!is_array($value) || count($value) !== 2) {
-                throw new \InvalidArgumentException('BETWEEN requires [low, high]');
-            }
-            $this->bindings[] = $value[0];
-            $this->bindings[] = $value[1];
-            return $field . ' BETWEEN ? AND ?';
-        }
-        $this->bindings[] = $value;
-        return $field . ' ' . $operator . ' ?';
-    }
-
-    /**
-     * @param mixed $value
-     */
-    private function addGroup(string $type, string $field, string $operator, $value, callable $callback): void
-    {
-        $sub = new Query();
-        $sub->where($field, $operator, $value);
-        $callback($sub);
-        $this->commands['WHERE'][] = [
-            'op'    => $this->normalizeOp($type),
-            'group' => $sub->commands['WHERE'] ?? [],
-        ];
-        foreach ($sub->bindings as $b) {
-            $this->bindings[] = $b;
-        }
     }
 }

@@ -31,9 +31,17 @@ abstract class Builder
      *
      * @return string
      */
-    protected function cleanReference(string $reference): string
+    /**
+     * @param string|Raw $reference Raw instances pass through
+     *                              verbatim; strings are filtered
+     *                              and backtick-escaped.
+     */
+    protected function cleanReference($reference): string
     {
-        $filtered_reference = $this->filterReference($reference);
+        if ($reference instanceof Raw) {
+            return $reference->sql;
+        }
+        $filtered_reference = $this->filterReference((string)$reference);
         return $this->escapeReference($filtered_reference);
     }
 
