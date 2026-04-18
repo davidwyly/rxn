@@ -23,16 +23,11 @@ class Join extends Builder
     public $alias;
 
     /**
-     * @var
+     * @var array
      */
-    public $modifiers;
+    public $modifiers = [];
 
-    /**
-     * @var
-     */
-    public $bindings;
-
-    public function set(string $table, callable $callable, string $alias = null, string $type = 'inner') {
+    public function set(string $table, callable $callable, ?string $alias = null, string $type = 'inner') {
         if (!array_key_exists($type, self::JOIN_COMMANDS)) {
             throw new \Exception("");
         }
@@ -50,7 +45,7 @@ class Join extends Builder
     public function as(string $alias) {
         $this->alias = $alias;
         $clean_alias = $this->cleanReference($alias);
-        if (!in_array($clean_alias, (array)$this->modifiers['AS'])) {
+        if (!in_array($clean_alias, (array)($this->modifiers['AS'] ?? []))) {
             $this->modifiers['AS'][]           = $clean_alias;
             $this->table_aliases[$this->table] = $alias;
         }
