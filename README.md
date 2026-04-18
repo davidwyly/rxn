@@ -18,7 +18,7 @@ package — [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)
 ## At a glance
 
 ```mermaid
-flowchart LR
+flowchart TB
     Req["HTTP request"] --> Index["public/index.php"]
     Index --> App["App::run"]
     App --> Boot["Startup<br/>.env + autoload + DBs"]
