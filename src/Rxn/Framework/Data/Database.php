@@ -85,6 +85,11 @@ class Database
      */
     private $using_cache = false;
 
+    /**
+     * @var Query|null
+     */
+    private $last_query;
+
     public function __construct(string $source_name = null)
     {
         if (is_null($source_name)) {
@@ -132,7 +137,39 @@ class Database
         $this->connect($this->connection);
         $query = new Query($this->connection, $type, $sql, $bindings);
         $query->setInTransaction($this->in_transaction);
+        $this->last_query = $query;
         return $query;
+    }
+
+    /**
+     * Run a non-SELECT statement (INSERT/UPDATE/DELETE/DDL) and return
+     * the raw execution result.
+     *
+     * @return array|mixed
+     * @throws \Rxn\Framework\Error\QueryException
+     */
+    public function query(string $sql, array $bindings = [])
+    {
+        return $this->createQuery(Query::TYPE_QUERY, $sql, $bindings)->run();
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getLastInsertId()
+    {
+        if ($this->last_query !== null) {
+            return $this->last_query->getLastInsertId();
+        }
+        return $this->connection ? $this->connection->lastInsertId() : null;
+    }
+
+    /**
+     * @return int|null
+     */
+    public function getLastAffectedRows()
+    {
+        return $this->last_query ? $this->last_query->getLastAffectedRows() : null;
     }
 
     public function connect(\PDO $connection = null)

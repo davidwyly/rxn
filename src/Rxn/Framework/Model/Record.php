@@ -165,7 +165,7 @@ abstract class Record extends Model
         ";
 
         // update record
-        $result = $this->database->createQuery('query', $update_sql, $key_values);
+        $result = $this->database->query($update_sql, $key_values);
         if (!$result) {
             throw new \Exception("Failed to update record '$record_id' on database '{$this->database->getName()}'",
                 500);

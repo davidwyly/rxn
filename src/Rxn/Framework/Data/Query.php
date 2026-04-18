@@ -426,6 +426,11 @@ class Query
         return $this->last_insert_id;
     }
 
+    public function getLastAffectedRows()
+    {
+        return $this->last_affected_rows;
+    }
+
     /**
      * @param        $host
      * @param        $name
