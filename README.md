@@ -62,7 +62,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Current test counts:
 
-- **Rxn framework:** 141 tests / 312 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 155 tests / 349 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
@@ -152,6 +152,8 @@ Current test counts:
 - [ ] Mailer *(out of scope; use symfony/mailer or phpmailer)*
 - [X] Request validation *(rule-based `Validator::assert`; see
       `Rxn\Framework\Utility\Validator`)*
+- [X] OpenAPI 3 spec generation from reflected controllers
+      (`bin/rxn openapi`; `Http\OpenApi\Generator` + `Discoverer`)
 - [ ] Automated API request validation from contracts
 - [ ] Optional, modular plug-ins
 

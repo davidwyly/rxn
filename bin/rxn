@@ -10,6 +10,7 @@ namespace Rxn\Framework;
  *   bin/rxn migrate:status
  *   bin/rxn make:controller <NsPrefix> <Name> <Version>
  *   bin/rxn make:record     <NsPrefix> <Name> <table_name>
+ *   bin/rxn openapi         [--out=path.json] [--title=t] [--version=v] [--ns=App]
  *
  * Environment knobs:
  *   APP_MIGRATION_DIR     default: <project>/app/migrations
@@ -18,6 +19,8 @@ namespace Rxn\Framework;
  *                         (default: project root). Exists so tests and
  *                         sandboxes can redirect the output away from
  *                         the real app/ tree.
+ *   APP_NAMESPACE         app PSR-4 prefix (used by `openapi` discovery
+ *                         when --ns isn't passed)
  */
 
 $projectRoot = dirname(__DIR__);
@@ -35,7 +38,9 @@ function rxn_load_env(string $projectRoot): void
         fwrite(STDERR, "No .env found in $configDir — some commands will fail.\n");
         return;
     }
-    (new \Dotenv\Dotenv($configDir))->load();
+    // phpdotenv v3 API — new \Dotenv\Dotenv(string) broke at the
+    // major-version bump.
+    \Dotenv\Dotenv::create($configDir)->load();
 }
 
 function rxn_make_database(string $projectRoot): Data\Database
@@ -69,6 +74,32 @@ function rxn_write_file(string $path, string $contents): void
     echo "Created $path\n";
 }
 
+/**
+ * Parse `--key=value` / `--flag` style arguments into a map. Unknown
+ * positional args pass through to $remaining. Minimal on purpose —
+ * if a command needs more, it can handle its own argv itself.
+ *
+ * @param string[] $argv
+ * @return array<string, string|true>
+ */
+function rxn_parse_flags(array $argv): array
+{
+    $out = [];
+    foreach ($argv as $a) {
+        if (!str_starts_with($a, '--')) {
+            continue;
+        }
+        $a = substr($a, 2);
+        if (str_contains($a, '=')) {
+            [$k, $v] = explode('=', $a, 2);
+            $out[$k] = $v;
+        } else {
+            $out[$a] = true;
+        }
+    }
+    return $out;
+}
+
 function rxn_help(): void
 {
     echo <<<'HELP'
@@ -79,6 +110,9 @@ Commands:
   migrate:status                            list applied + pending migrations
   make:controller <NsPrefix> <Name> <V>     scaffold a versioned controller
   make:record <NsPrefix> <Name> <table>     scaffold a record model
+  openapi [--out=PATH] [--title=T] [--version=V] [--ns=NS] [--root=DIR]
+                                            emit an OpenAPI 3 spec from
+                                            discovered controllers
 
 Environment:
   APP_MIGRATION_DIR     default: <project>/app/migrations
@@ -163,6 +197,40 @@ try {
                     . "    protected \$table = '$table';\n"
                     . "}\n";
             rxn_write_file($path, $body);
+            exit(0);
+
+        case 'openapi':
+            $opts = rxn_parse_flags($argv);
+            rxn_load_env($projectRoot);
+            $ns = $opts['ns'] ?? (getenv('APP_NAMESPACE') ?: null);
+            if (!is_string($ns) || $ns === '') {
+                fwrite(STDERR, "openapi: need an app namespace — pass --ns=Name or set APP_NAMESPACE\n");
+                exit(2);
+            }
+            $scanRoot = isset($opts['root']) && is_string($opts['root'])
+                ? $opts['root']
+                : $projectRoot;
+            $discoverer = new Http\OpenApi\Discoverer($scanRoot, $ns, requireFiles: true);
+            $generator  = new Http\OpenApi\Generator(
+                info: [
+                    'title'   => $opts['title']   ?? 'Rxn API',
+                    'version' => $opts['version'] ?? '0.1.0',
+                ],
+                controllers: $discoverer->all(),
+            );
+            $json = json_encode($generator->generate(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '';
+            if (isset($opts['out'])) {
+                $outPath = $opts['out'];
+                $dir     = dirname($outPath);
+                if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+                    fwrite(STDERR, "Could not create $dir\n");
+                    exit(4);
+                }
+                file_put_contents($outPath, $json);
+                echo "Wrote OpenAPI spec to $outPath\n";
+            } else {
+                echo $json . "\n";
+            }
             exit(0);
 
         case 'help':
