@@ -89,7 +89,10 @@ CI runs lint + phpunit against PHP 8.1, 8.2, 8.3, and 8.4
    - [X] FK relationship graph (`Data\Chain` + `Link`)
    - [ ] Soft deletes
    - [ ] Support for third-party ORMs
-- [X] HTTP middleware pipeline
+- [X] HTTP middleware pipeline *(both Rxn-native and PSR-15; see
+      `Http\Pipeline` / `Http\Psr15Pipeline`)*
+- [X] PSR-7 bridge *(`Http\PsrAdapter::serverRequestFromGlobals()` /
+      `::emit()`; ecosystem middleware drops in via Psr15Pipeline)*
 - [X] Speed and performance
    - [X] PSR-4 autoloading
    - [X] File-backed query caching

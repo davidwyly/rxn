@@ -28,6 +28,30 @@ public function handle(Request $request, callable $next): Response;
 Return a `Response` without calling `$next` to short-circuit the
 rest of the pipeline (e.g. rate-limit 429, auth 401).
 
+## PSR-7 / PSR-15 bridge
+
+`Rxn\Framework\Http\PsrAdapter` and `Psr15Pipeline` let apps opt
+into the PSR middleware ecosystem without giving up the rest of
+Rxn.
+
+```php
+use Rxn\Framework\Http\PsrAdapter;
+use Rxn\Framework\Http\Psr15Pipeline;
+
+$request = PsrAdapter::serverRequestFromGlobals();
+
+$pipeline = (new Psr15Pipeline())
+    ->add(new SomePsr15Middleware())       // any psr/http-server-middleware
+    ->add(new AnotherPsr15Middleware());
+
+$response = $pipeline->run($request, $controllerHandler);
+PsrAdapter::emit($response);
+```
+
+`PsrAdapter::factory()` returns Nyholm's PSR-17 factory (which
+implements every PSR-17 interface) in case you need to build
+requests or responses by hand.
+
 ## `Rxn\Framework\Http\Router`
 
 Explicit pattern routing; see [`routing.md`](routing.md).

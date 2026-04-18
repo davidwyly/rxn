@@ -150,6 +150,16 @@ PHP lint every touched file with `php -l <path>` before committing.
   `->handle($request, $terminal)` where `$terminal` is the controller
   dispatcher. Middleware may short-circuit by returning a Response
   without calling `$next`.
+- **PSR-7 / PSR-15 bridge (`Rxn\Framework\Http\PsrAdapter` +
+  `Psr15Pipeline`)** — `PsrAdapter::serverRequestFromGlobals()`
+  builds a PSR-7 `ServerRequest` from PHP's globals (via
+  nyholm/psr7-server); `PsrAdapter::emit()` streams a PSR-7
+  `Response` back to the SAPI. `Psr15Pipeline` runs a chain of
+  `Psr\Http\Server\MiddlewareInterface` around a
+  `RequestHandlerInterface`, so any ecosystem middleware (CORS,
+  OAuth, sessions, tracing, ...) drops in unchanged. Use the
+  Rxn-native `Pipeline` for Rxn-shaped middleware, or this one for
+  PSR-15 interop.
 - **Explicit router (`Rxn\Framework\Http\Router`)** — method + path
   pattern matching with `{name}` placeholders, alongside the
   convention-based URL scheme. `$router->get('/products/{id}', ...);
