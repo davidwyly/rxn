@@ -1,0 +1,30 @@
+{
+    "name": "davidwyly/rxn-orm",
+    "description": "Fluent SQL query builder (SELECT / INSERT / UPDATE / DELETE) with subqueries, upsert, and RETURNING. Extracted from the Rxn framework; usable standalone on any PDO connection.",
+    "license": "MIT",
+    "keywords": ["sql", "query-builder", "orm", "pdo", "rxn"],
+    "authors": [
+        { "name": "David Wyly", "email": "david.wyly@gmail.com" }
+    ],
+    "require": {
+        "php": "^8.1",
+        "ext-pdo": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Rxn\\Orm\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Rxn\\Orm\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "minimum-stability": "stable"
+}
