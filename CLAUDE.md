@@ -1,0 +1,134 @@
+# Rxn — Guidance for Claude Code
+
+Rxn is a small JSON API framework. The goal is **fast, minimal, easy to
+use** — in that order. Every change should make the framework smaller
+or clearer, or add the smallest thing that makes a real-world app
+easier to build.
+
+## Operating principles
+
+1. **Minimalism beats flexibility.** Default to the simplest
+   implementation that solves the concrete problem in front of you.
+   Three similar lines are better than a premature abstraction. Do
+   not add factories, strategies, configuration, or interfaces for a
+   single implementation.
+2. **One file, one idea.** A new feature should live in one small
+   file when possible. If it grows past ~150 lines, reconsider the
+   design before adding more.
+3. **No new runtime dependencies without a clear reason.** The current
+   runtime has exactly one: `vlucas/phpdotenv`. Resist adding more.
+   Prefer standard PHP, PDO, and what is already in `src/Rxn`.
+4. **Fail loud, fast, and specific.** Throw a typed exception from
+   `Rxn\Framework\Error` with a descriptive message. Never swallow
+   errors or return `false` for an exceptional condition.
+5. **Boundaries are the only place to validate.** Validate input at
+   the Collector / Controller / Service boundary. Trust internal code
+   and framework invariants once data is past that line.
+6. **Bind, never concatenate.** All user values flow into SQL through
+   PDO bindings. Table and column names come from schema reflection,
+   never from request data.
+7. **Keep the request path fast.** Do not add work to every request
+   (logging, hashing, reflection) unless the cost is negligible.
+   Cache reflection results when they are used on the hot path.
+8. **If it isn't covered by a test, it doesn't count as done.** Add a
+   small phpunit test for every non-trivial behavior you change or
+   introduce.
+
+## Before you add a feature
+
+Ask, in order:
+- Can the caller do this in app code? If yes, do not add it to the framework.
+- Is there already a class that does almost this? Extend it rather
+  than adding a sibling.
+- Can this be a plain function or a 30-line class? Prefer that.
+- Does the README advertise a feature that is still a stub? Prefer
+  finishing that over adding something new.
+
+Avoid:
+- New abstraction layers ("manager", "factory", "registry",
+  "provider") when one concrete class would do.
+- Configuration knobs without a real caller that needs them.
+- Helpers that wrap one stdlib call.
+- Refactoring for taste alone; keep diffs focused on the task.
+
+## Project layout
+
+- `public/index.php` — single entrypoint; creates `App` and runs it.
+- `app/` — sample application (sample controllers, models, env).
+- `src/Rxn/Framework/` — the framework itself.
+  - `Startup.php` — defines constants, registers autoloader, loads
+    `.env`, instantiates databases.
+  - `App.php` — request/response orchestration.
+  - `Container.php` — PSR-4-style DI with autowiring + cycle
+    detection. Read this before adding any "service" plumbing.
+  - `Http/` — request pipeline, session, response rendering.
+  - `Data/` — PDO-based DB layer, query cache, filecache, migrations.
+  - `Model/` — `Record` base class that underpins scaffolded CRUD.
+  - `Error/` — one exception type per subsystem.
+- `src/Rxn/Orm/` — query builder used for non-scaffolded queries
+  (still evolving; the parser work is in progress).
+- `docker/` — local development stack. PHP 8.3-fpm, nginx 1.27,
+  mysql 8.0. Xdebug is opt-in via `INSTALL_XDEBUG=1`.
+- `.github/workflows/ci.yml` — lint + phpunit matrix (PHP 8.1–8.4).
+
+## Key conventions
+
+- **Namespaces track the filesystem.** `Rxn\Framework\Foo\Bar` lives
+  at `src/Rxn/Framework/Foo/Bar.php`.
+- **Framework exceptions extend `Rxn\Framework\Error\AppException`.**
+  Pick the closest subsystem type (`DatabaseException`,
+  `QueryException`, `RequestException`, …) or add a new subclass
+  before reaching for `\Exception`.
+- **Services are singletons via the container.** Classes that extend
+  `Rxn\Framework\Service` are cached in the container on first
+  `get()`. Don't cache them elsewhere.
+- **Env keys are required at boot.** New env flags go into
+  `app/Config/bootstrap.php` (`REQUIRED_ENV_KEYS`, plus type lists).
+  If a flag has no consumer, don't add it.
+- **Secrets come from `.env`.** Never hardcode credentials in
+  source, fixtures, or `docker-compose.yml`.
+
+## Running things
+
+```
+composer install            # install dev deps
+vendor/bin/phpunit          # run the test suite
+composer validate --strict  # sanity-check composer.json
+```
+
+For the full stack:
+
+```
+cp docker-compose.env.example .env
+# edit .env: set MYSQL_PASSWORD and MYSQL_ROOT_PASSWORD
+docker compose up --build
+```
+
+PHP lint every touched file with `php -l <path>` before committing.
+
+## Testing checklist
+
+- Add or update a test under `src/Rxn/Orm/Tests/` or a new sibling
+  `Tests/` directory for non-ORM code. Register new suites in
+  `phpunit.xml`.
+- Prefer pure unit tests over integration. The Container, Query
+  builder, Collector, and Response layers can all be exercised
+  without a database.
+- Do not rely on network or filesystem state outside `sys_get_temp_dir()`.
+
+## Known gaps (pick these up before inventing new ones)
+
+- **Query native caching** references `cache_table_settings` on the
+  wrong class. Feature is advertised but effectively broken.
+- **ORM relationship autowiring (`Rxn\Framework\Data\Map\Chain\Link`)**
+  is still a throwing stub.
+- **Authentication** is not implemented. No OAuth/JWT/session-backed
+  user system yet.
+- **Rate limiting** is not implemented.
+- **Event logging** is not implemented.
+- **Mailer** is intentionally a throwing stub; wire to a tiny PHP
+  mail() wrapper or a single SMTP library if it becomes necessary.
+- **Scheduler** is not implemented.
+
+When finishing any of these, prefer the smallest working version.
+Ship it, get tests green, move on.

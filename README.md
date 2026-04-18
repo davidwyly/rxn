@@ -50,7 +50,8 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
    - [~] I/O sanitization *(control-character stripping on
          incoming params when `APP_USE_IO_SANITIZATION=true`; output
          is JSON so XSS escaping is the frontend's job)*
-   - [ ] CSRF synchronizer tokens
+   - [X] CSRF synchronizer tokens *(see `Session::token()` /
+         `Session::validateToken()`)*
    - [ ] Authentication / authorization framework
    - [ ] Rate limiting
 - [X] Exception-driven error handling *(throw anywhere and Rxn renders
@@ -85,7 +86,8 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 - [ ] Event logging
 - [ ] Mailer *(stub; constructor throws LogicException)*
 - [ ] Scheduler
-- [ ] Database migrations *(stub; constructor throws LogicException)*
+- [X] Database migrations *(file-based `*.sql` runner; see
+      `Rxn\Framework\Data\Migration`)*
 - [ ] Optional, modular plug-ins
 
 ## Development
