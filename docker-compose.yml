@@ -1,4 +1,5 @@
-version: '2'
+# Local development stack. Copy docker-compose.env.example to .env
+# before `docker compose up` so MySQL credentials are not hard-coded.
 services:
   nginx:
     build:
@@ -10,18 +11,21 @@ services:
       - ./docker/nginx/conf.d/:/etc/nginx/conf.d
     ports:
       - "8080:80"
-    links:
+    depends_on:
       - php
 
   php:
     build:
       context: ./docker/php
+      args:
+        INSTALL_XDEBUG: "${INSTALL_XDEBUG:-0}"
     volumes:
       - ./:/var/www/rxn
     environment:
-      XDEBUG_CONFIG: "remote_host=host.docker.internal"
-    links:
-      - mysql
+      PHP_IDE_CONFIG: "serverName=rxn"
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   mysql:
     build:
@@ -29,7 +33,17 @@ services:
     ports:
       - "3306:3306"
     environment:
-      - MYSQL_DATABASE=rxn_app
-      - MYSQL_USER=app_user
-      - MYSQL_PASSWORD=password
-      - MYSQL_ROOT_PASSWORD=docker
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-rxn_app}"
+      MYSQL_USER: "${MYSQL_USER:-app_user}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set in .env}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set in .env}"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:

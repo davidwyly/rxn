@@ -365,8 +365,11 @@ class Query
     private function bindAssociative(\PDOStatement $statement, array $bindings)
     {
         foreach ($bindings as $key => $value) {
+            if (!is_scalar($value) && !is_null($value)) {
+                throw new QueryException("Can only bind types: string, null, int, float, bool", 500);
+            }
             try {
-                $statement->bindValue(trim($key), trim($value));
+                $statement->bindValue(trim((string)$key), $value);
             } catch (\PDOException $exception) {
                 $error = $exception->getMessage();
                 throw new QueryException("PDO Exception ($error)", 500, $exception);
@@ -385,16 +388,12 @@ class Query
     private function bindIndexed(\PDOStatement $statement, array $bindings)
     {
         foreach ($bindings as $key => $value) {
-            if (!is_string($value)
-                && !is_null($value)
-                && !is_int($value)
-                && !is_float($value)
-            ) {
-                throw new QueryException("Can only bind types: string, null, int, float", 500);
+            if (!is_scalar($value) && !is_null($value)) {
+                throw new QueryException("Can only bind types: string, null, int, float, bool", 500);
             }
             $next_key = $key + 1;
             try {
-                $statement->bindValue($next_key, trim($value));
+                $statement->bindValue($next_key, $value);
             } catch (\PDOException $exception) {
                 $error = $exception->getMessage();
                 throw new QueryException("PDO Exception ($error)", 500, $exception);
