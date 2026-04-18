@@ -1,4 +1,4 @@
-# Rxn — Guidance for Claude Code
+# Contributing to Rxn
 
 Rxn is a small JSON API framework. The goal is **fast, minimal, easy to
 use** — in that order. Every change should make the framework smaller

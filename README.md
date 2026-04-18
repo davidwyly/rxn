@@ -46,7 +46,7 @@ CI runs lint + phpunit against PHP 8.1, 8.2, 8.3, and 8.4
 | Building blocks (Logger, RateLimiter, Scheduler, Auth, Pipeline, Router, Validator, Migration, Chain, query cache, PSR-7 bridge) | [`docs/building-blocks.md`](docs/building-blocks.md) |
 | CLI (`bin/rxn`) | [`docs/cli.md`](docs/cli.md) |
 | Benchmarks (`bin/bench`) | [`docs/benchmarks.md`](docs/benchmarks.md) |
-| Contribution / style guide | [`CLAUDE.md`](CLAUDE.md) |
+| Contribution / style guide | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 
 ## Features
 

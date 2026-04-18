@@ -17,4 +17,4 @@ These pages go into more depth than the top-level README quickstart.
 
 The full list of features and their implementation status lives in
 the top-level [README](../README.md). Framework-level conventions
-and contribution guidance live in [CLAUDE.md](../CLAUDE.md).
+and contribution guidance live in [CONTRIBUTING.md](../CONTRIBUTING.md).
