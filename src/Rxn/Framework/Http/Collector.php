@@ -30,6 +30,49 @@ class Collector extends Service
         $this->get    = $this->getRequestUrlParams();
         $this->post   = $this->getRequestDataParams();
         $this->header = $this->getRequestHeaderParams();
+
+        if (self::ioSanitizationEnabled()) {
+            $this->get    = $this->sanitize($this->get);
+            $this->post   = $this->sanitize($this->post);
+            $this->header = $this->sanitize($this->header);
+        }
+    }
+
+    /**
+     * Honour the APP_USE_IO_SANITIZATION flag declared in
+     * app/Config/bootstrap.php. The value is validated as a boolean
+     * ('true'/'false') during Startup, so a strict string compare is
+     * sufficient here.
+     */
+    private static function ioSanitizationEnabled(): bool
+    {
+        $flag = getenv('APP_USE_IO_SANITIZATION');
+        return $flag === 'true' || $flag === '1';
+    }
+
+    /**
+     * Strip C0 control characters (except tab / newline / carriage
+     * return) from every string in a request-parameter payload.
+     * Non-string scalars are passed through untouched. This is a
+     * minimal guard against control-character injection; it is not a
+     * substitute for context-specific escaping at the output site.
+     *
+     * @param mixed $value
+     * @return mixed
+     */
+    private function sanitize($value)
+    {
+        if (is_array($value)) {
+            $out = [];
+            foreach ($value as $k => $v) {
+                $out[$k] = $this->sanitize($v);
+            }
+            return $out;
+        }
+        if (is_string($value)) {
+            return preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $value);
+        }
+        return $value;
     }
 
     /**

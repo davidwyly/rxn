@@ -47,7 +47,9 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
    - [~] Session cookies use HttpOnly + SameSite=Lax and turn on
          Secure automatically when the request is HTTPS
    - [X] Stack traces are only emitted in non-production environments
-   - [ ] I/O sanitization for XSS
+   - [~] I/O sanitization *(control-character stripping on
+         incoming params when `APP_USE_IO_SANITIZATION=true`; output
+         is JSON so XSS escaping is the frontend's job)*
    - [ ] CSRF synchronizer tokens
    - [ ] Authentication / authorization framework
    - [ ] Rate limiting
