@@ -32,8 +32,8 @@ class Config extends BaseConfig
 
     public function __construct()
     {
-        parent::__construct();
-
+        // BaseConfig has no constructor since the slim-down, so
+        // there's nothing to delegate to via parent::__construct().
         $namespace = getenv('APP_NAMESPACE');
         $this->product_namespace = is_string($namespace) ? rtrim($namespace, '\\') : '';
 

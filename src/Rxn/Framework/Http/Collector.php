@@ -8,6 +8,11 @@ use \Rxn\Framework\Service;
 class Collector extends Service
 {
     /**
+     * @var Config
+     */
+    private $config;
+
+    /**
      * @var array|null
      */
     private $get;
@@ -22,11 +27,9 @@ class Collector extends Service
      */
     private $header;
 
-    /**
-     * Collector constructor.
-     */
-    public function __construct()
+    public function __construct(Config $config)
     {
+        $this->config = $config;
         $this->get    = $this->getRequestUrlParams();
         $this->post   = $this->getRequestDataParams();
         $this->header = $this->getRequestHeaderParams();
