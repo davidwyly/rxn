@@ -16,6 +16,11 @@ class Startup
      */
     private $autoloader;
 
+    /**
+     * @var array<string, Data\Database>
+     */
+    private $databases = [];
+
     private $time_elapsed;
 
     public function __construct()
@@ -32,9 +37,9 @@ class Startup
     private function defineConstants()
     {
         define(__NAMESPACE__ . '\\START', microtime(true));
-        define(__NAMESPACE__ . '\\ROOT', __DIR__ . '/../src');
+        define(__NAMESPACE__ . '\\ROOT', realpath(__DIR__ . '/../../../') . '/');
         define(__NAMESPACE__ . '\\APP_ROOT', constant(__NAMESPACE__ . '\\ROOT') . 'app/');
-        define(__NAMESPACE__ . '\\CONFIG_ROOT', constant(__NAMESPACE__ . '\\ROOT') . 'app/Config/');
+        define(__NAMESPACE__ . '\\CONFIG_ROOT', constant(__NAMESPACE__ . '\\APP_ROOT') . 'Config/');
     }
 
     private function setAutoloader()

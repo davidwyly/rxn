@@ -141,7 +141,7 @@ class Response
 
         $this->data = self::getResponseCodeResult($this->code);
         $this->meta = [
-            'success'    => false,
+            'success'    => true,
             'code'       => self::DEFAULT_SUCCESS_CODE,
             'elapsed_ms' => App::getElapsedMs(),
         ];
