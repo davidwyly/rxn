@@ -12,6 +12,7 @@ These pages go into more depth than the top-level README quickstart.
 | [Scaffolding](scaffolding.md) | Auto-CRUD endpoints against a live schema |
 | [Error handling](error-handling.md) | Exceptions + JSON envelope |
 | [Building blocks](building-blocks.md) | Logger, RateLimiter, Scheduler, Auth, Pipeline, Migration, Chain |
+| [CLI](cli.md) | `bin/rxn` — migrations and scaffolding |
 
 The full list of features and their implementation status lives in
 the top-level [README](../README.md). Framework-level conventions

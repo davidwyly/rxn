@@ -19,6 +19,7 @@ The framework aims, in order, to be **fast**, **minimal**, and
 composer install
 vendor/bin/phpunit          # run the test suite
 composer validate --strict  # sanity-check composer.json
+bin/rxn help                # list CLI subcommands
 ```
 
 Full Docker stack (PHP 8.3-fpm + nginx 1.27 + MySQL 8):
@@ -54,8 +55,9 @@ CI runs lint + phpunit against PHP 8.1, 8.2, 8.3, and 8.4
 - [X] Gentle learning curve
    - [X] Installation through Composer
 - [~] Simple workflow with an existing database schema
-   - [ ] Code generation
-      - [ ] CLI utility to create controllers and models
+   - [X] Code generation
+      - [X] CLI utility to create controllers and models
+            (`bin/rxn make:controller`, `bin/rxn make:record`)
 - [X] Database abstraction
    - [X] PDO for multiple database support
    - [X] Support for multiple database connections
