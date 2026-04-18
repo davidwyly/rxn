@@ -95,6 +95,7 @@ composer install            # install dev deps
 vendor/bin/phpunit          # run the test suite
 composer validate --strict  # sanity-check composer.json
 bin/rxn help                # list CLI subcommands
+bin/bench                   # microbenchmark the building blocks
 ```
 
 For the full stack:

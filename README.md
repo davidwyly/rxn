@@ -43,7 +43,9 @@ CI runs lint + phpunit against PHP 8.1, 8.2, 8.3, and 8.4
 | Dependency injection | [`docs/dependency-injection.md`](docs/dependency-injection.md) |
 | Scaffolded CRUD | [`docs/scaffolding.md`](docs/scaffolding.md) |
 | Error handling | [`docs/error-handling.md`](docs/error-handling.md) |
-| Building blocks (Logger, RateLimiter, Scheduler, Auth, Pipeline, Router, Migration, Chain, query cache) | [`docs/building-blocks.md`](docs/building-blocks.md) |
+| Building blocks (Logger, RateLimiter, Scheduler, Auth, Pipeline, Router, Validator, Migration, Chain, query cache, PSR-7 bridge) | [`docs/building-blocks.md`](docs/building-blocks.md) |
+| CLI (`bin/rxn`) | [`docs/cli.md`](docs/cli.md) |
+| Benchmarks (`bin/bench`) | [`docs/benchmarks.md`](docs/benchmarks.md) |
 | Contribution / style guide | [`CLAUDE.md`](CLAUDE.md) |
 
 ## Features
