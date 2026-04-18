@@ -74,8 +74,10 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 - [~] Object Relational Mapping (ORM)
    - [~] Rxn-ORM
       - [X] Scaffolded CRUD operations on a record
-      - [ ] ORM autowiring *(foreign-key relationship discovery is
-            stubbed — see `Rxn\Framework\Data\Map\Chain\Link`)*
+      - [X] ORM autowiring *(foreign-key relationship graph;
+            `Rxn\Framework\Data\Chain::belongsTo()` /
+            `Chain::hasMany()` return `Link` edges built from
+            `information_schema` reflection)*
       - [ ] Soft deletes
    - [ ] Support for third-party ORMs
 - [X] Speed and Performance
