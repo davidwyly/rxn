@@ -2,7 +2,6 @@
 
 namespace Rxn\Framework;
 
-use Davidwyly\Reflect\ReflectObject;
 use \Rxn\Framework\Http\Request;
 use \Rxn\Framework\Data\Database;
 use \Rxn\Framework\Service\Registry;
@@ -51,7 +50,6 @@ class App
     public function __construct()
     {
         $this->container = new Container();
-        $callable_methods = ReflectObject::getCallableMethods($this->container);
         $this->initialize();
     }
 

@@ -1,7 +1,3 @@
-<a href="https://codeclimate.com/github/davidwyly/rxn"><img src="https://codeclimate.com/github/davidwyly/rxn/badges/gpa.svg" /></a>
-<a href="https://codeclimate.com/github/davidwyly/rxn/coverage"><img src="https://codeclimate.com/github/davidwyly/rxn/badges/coverage.svg" /></a>
-<a href="https://codeclimate.com/github/davidwyly/rxn"><img src="https://codeclimate.com/github/davidwyly/rxn/badges/issue_count.svg" /></a>
-
 ![alt tag](http://i.imgur.com/nu63B1J.png?1)
 
 #### A fast, simple, and powerful API framework for PHP. Responds to API requests with JSON, ensuring that your backend is completely separated from your frontend
@@ -248,7 +244,7 @@ Scaffolding APIs are version-less APIs, and are designed to allow frontend devel
 **Warning:** Because Scaffolding APIs are version-less, they inheret all the problems associated with version-less APIs. As soon as the backend is altered, these APIs are altered as well; this can potentially break an application in unexpected or hidden ways. For this reason, it is wise to transition versionless APIs to versioned APIs as the development process nears completion.
 
 ## Dependency Injection (DI) Container Container
-While most people practice some form of dependency injection without even thinking about it, the fact is, manually instantiating and injecting classes with a lot of dependencies can be a pretty big hassle. The following examples should help demonstrate the benefit of automatic dependency injection via the container container.
+While most people practice some form of dependency injection without even thinking about it, the fact is, manually instantiating and injecting classes with a lot of dependencies can be a pretty big hassle. The following examples should help demonstrate the benefit of automatic dependency injection via the container.
 
 **BEFORE (manual DI):**
 ```php
@@ -268,7 +264,7 @@ public function doSomething_v1(Registry $registry, Database $database, Map $map)
 }
 ```
 
-**AFTER (using the DI container container):**
+**AFTER (using the DI container):**
 ```php
 // call the action method
 $this->doSomething_v1($app->container);
@@ -278,10 +274,10 @@ public function doSomething_v1(Container $container) {
     //...
 }
 ```
-Hopefully you can see the benefits. With Rxn, there's no need to instantiate the prerequisites every time! Use the container container to make your life easier.
+Hopefully you can see the benefits. With Rxn, there's no need to instantiate the prerequisites every time! Use the container to make your life easier.
 
 ## Controller Method Injection
-Just typehint the class you need as a parameter, and *poof*, the DI container container will guess all of the dependencies for you and automatically load and inject them. No messy requires. *You don't have to inject the dependencies manually!*
+Just typehint the class you need as a parameter, and *poof*, the DI container will guess all of the dependencies for you and automatically load and inject them. No messy requires. *You don't have to inject the dependencies manually!*
 
 **BEFORE (manual instantiation):**
 ```php
