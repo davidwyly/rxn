@@ -121,7 +121,7 @@ class Response
      *
      * @param Request $request
      */
-    public function __construct(Request $request = null)
+    public function __construct(?Request $request = null)
     {
         if (!is_null($request)) {
             $this->request = $request;
