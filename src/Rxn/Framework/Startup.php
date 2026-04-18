@@ -49,7 +49,10 @@ class Startup
 
     private function setEnv()
     {
-        $this->env = new Dotenv(constant(__NAMESPACE__ . '\\CONFIG_ROOT'));
+        // Use Dotenv::create (v3 static factory); works identically
+        // whether phpdotenv is installed as ^3 or ^4. v5 renamed the
+        // entry point to Dotenv::createUnsafeImmutable/Mutable.
+        $this->env = Dotenv::create(constant(__NAMESPACE__ . '\\CONFIG_ROOT'));
         $this->env->load();
         $this->env->required(constant('Rxn\Framework\REQUIRED_ENV_KEYS'));
         foreach (constant('Rxn\Framework\BOOLEAN_ENV_KEYS') as $boolean_env_key) {
