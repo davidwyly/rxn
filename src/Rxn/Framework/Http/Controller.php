@@ -101,13 +101,12 @@ class Controller
     {
         $this->triggered = true;
 
-        // trigger the action method on the controller
         try {
             $action_time_start = microtime(true);
             $action_response   = $this->getActionResponse();
             $this->calculateActionTimeElapsed($action_time_start);
             $this->validateActionResponse($action_response);
-            return $this->response->getSuccess() + $action_response;
+            return $this->response->getSuccess($action_response);
         } catch (\Exception $exception) {
             return $this->response->getFailure($exception);
         }
@@ -134,11 +133,11 @@ class Controller
      */
     protected function getMethodClassesToInject(\ReflectionMethod $reflection_method)
     {
-        $parameters        = $reflection_method->getParameters();
         $classes_to_inject = [];
-        foreach ($parameters as $parameter) {
-            if ($parameter->getClass()) {
-                $classes_to_inject[] = $parameter->getClass()->name;
+        foreach ($reflection_method->getParameters() as $parameter) {
+            $type = $parameter->getType();
+            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+                $classes_to_inject[] = $type->getName();
             }
         }
         return $classes_to_inject;

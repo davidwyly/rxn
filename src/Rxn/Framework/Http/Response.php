@@ -24,7 +24,8 @@ class Response
     protected $failure_response;
 
     /**
-     * @var bool
+     * @var mixed payload returned by the controller action; serialized
+     *             as-is in the JSON envelope.
      */
     public $data;
 
@@ -133,13 +134,19 @@ class Response
     }
 
     /**
-     * @return Response
+     * Mark this Response as a successful one and store the payload
+     * returned by the controller action.
+     *
+     * @param mixed $data payload to emit under the top-level "data"
+     *                    key (typically an array produced by the
+     *                    action method)
      */
-    public function getSuccess(): Response
+    public function getSuccess($data = null): Response
     {
         $this->setRendered(true);
 
-        $this->data = self::getResponseCodeResult($this->code);
+        $this->data = $data ?? self::getResponseCodeResult(self::DEFAULT_SUCCESS_CODE);
+        $this->code = self::DEFAULT_SUCCESS_CODE;
         $this->meta = [
             'success'    => true,
             'code'       => self::DEFAULT_SUCCESS_CODE,
@@ -158,8 +165,10 @@ class Response
     {
         $this->setRendered(true);
 
+        $code         = self::getErrorCode($exception);
+        $this->code   = (int)$code;
         $this->errors = [
-            'type'    => self::getResponseCodeResult($exception->getCode()),
+            'type'    => self::getResponseCodeResult($code),
             'message' => $exception->getMessage(),
         ];
         // Only expose file / line / stack trace outside production,
@@ -169,9 +178,9 @@ class Response
             $this->errors['line']  = $exception->getLine();
             $this->errors['trace'] = self::getErrorTrace($exception);
         }
-        $this->meta   = [
+        $this->meta = [
             'success'    => false,
-            'code'       => $exception->getCode(),
+            'code'       => $code,
             'elapsed_ms' => App::getElapsedMs(),
         ];
 
