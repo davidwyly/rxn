@@ -1,6 +1,6 @@
 # Rxn documentation
 
-Rxn is a small JSON API framework for PHP 8.1+. The goal, in order,
+Rxn is a small JSON API framework for PHP 8.2+. The goal, in order,
 is **fast**, **minimal**, and **easy to use**.
 
 These pages go into more depth than the top-level README quickstart.

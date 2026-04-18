@@ -2,7 +2,7 @@
 
 #### An opinionated JSON micro-framework for PHP.
 
-##### Status: alpha. Targets PHP 8.1+ and ships a Docker stack on PHP 8.3-fpm.
+##### Status: alpha. Targets PHP 8.2+ and ships a Docker stack on PHP 8.3-fpm.
 
 Rxn (from "reaction") is built around a single opinion: **strict
 backend/frontend decoupling**. The backend is API-only, responds in
@@ -34,7 +34,7 @@ docker compose up --build
 
 Set `INSTALL_XDEBUG=1` in `.env` to build the PHP image with Xdebug 3.
 
-CI runs lint + phpunit against PHP 8.1, 8.2, 8.3, and 8.4
+CI runs lint + phpunit against PHP 8.2, 8.3, and 8.4
 (`.github/workflows/ci.yml`).
 
 ## Documentation

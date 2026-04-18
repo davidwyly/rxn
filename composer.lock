@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e32e78bde47cdac684955c4d12d9bee9",
+    "content-hash": "8b73166c2017dcf58dafbc5dd5890be2",
     "packages": [
         {
             "name": "davidwyly/rxn-orm",
