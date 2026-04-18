@@ -325,4 +325,45 @@ class Response
         $r->meta     = ['success' => true, 'code' => 304];
         return $r;
     }
+
+    /**
+     * True when this response represents a rendered failure — i.e.
+     * `getFailure()` has populated `$this->errors`.
+     */
+    public function isError(): bool
+    {
+        return !empty($this->errors);
+    }
+
+    /**
+     * Render the error envelope as an RFC 7807 Problem Details
+     * document. Only meaningful on a rendered failure; callers
+     * should gate on `isError()` first. `$instance` is the optional
+     * URI for the specific occurrence (typically `REQUEST_URI`).
+     *
+     * The Rxn debug fields (`file`, `line`, `trace`) come along as
+     * `x-rxn-*` extension members when present, so dev-mode Problem
+     * Details stays as informative as the native envelope.
+     *
+     * @return array<string, mixed>
+     */
+    public function toProblemDetails(?string $instance = null): array
+    {
+        $status = (int)($this->code ?? 500);
+        $out = [
+            'type'   => 'about:blank',
+            'title'  => (string)($this->errors['type'] ?? self::getResponseCodeResult($status)),
+            'status' => $status,
+            'detail' => (string)($this->errors['message'] ?? ''),
+        ];
+        if ($instance !== null && $instance !== '') {
+            $out['instance'] = $instance;
+        }
+        foreach (['file', 'line', 'trace'] as $k) {
+            if (isset($this->errors[$k])) {
+                $out['x-rxn-' . $k] = $this->errors[$k];
+            }
+        }
+        return $out;
+    }
 }

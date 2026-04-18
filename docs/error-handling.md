@@ -51,3 +51,31 @@ JSON envelope when `ENVIRONMENT` is not `production`. In production
 the payload contains only `type`, `message`, and `code`.
 
 Set `ENVIRONMENT=production` in `.env` when shipping.
+
+## RFC 7807 Problem Details (opt-in)
+
+Clients that set `Accept: application/problem+json` get the error
+response in the standard RFC 7807 shape instead of the Rxn
+envelope — `Content-Type: application/problem+json`, body:
+
+```json
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Widget 42 does not exist",
+  "instance": "/api/v1/widgets/42"
+}
+```
+
+`type` defaults to `about:blank`; `title` comes from the standard
+HTTP status text; `status` mirrors the response code; `detail` is
+the exception message; `instance` is the request URI. Dev-mode
+debug fields (file / line / trace) carry across as `x-rxn-*`
+extension members.
+
+Success responses always stay on the native `{data, meta}` envelope
+— 7807 is errors-only by design, so content negotiation applies to
+the failure path only. Existing clients that send
+`Accept: application/json` (or no Accept header) see the Rxn
+envelope as before.

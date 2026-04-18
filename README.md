@@ -42,6 +42,16 @@ and per-subsystem deep dives.
 Things Rxn ships that peer micro-frameworks typically leave to the
 app author:
 
+- **JSON-only by design**, no other output path. Slim / Lumen /
+  Mezzio / API Platform all support JSON as the happy path but
+  still let controllers return HTML, XML, streams — which means
+  every one of them carries a content-negotiation layer, and every
+  app on top has to remember that a surprising exception can leak
+  an HTML stack trace. Rxn removes the choice: every exit point —
+  including uncaught exceptions — is a JSON envelope rendered by
+  `Response::getFailure`. That single opinion eliminates a whole
+  class of "it worked locally" production surprises and makes the
+  backend/frontend contract unambiguous.
 - **Attribute routing + middleware** co-located with the controller
   method — `#[Route('GET', '/products/{id:int}')]` and
   `#[Middleware(Auth::class)]` are the route table. No separate
@@ -57,6 +67,9 @@ app author:
   unchanged payloads. No controller changes.
 - **CORS, request-id correlation, JSON-body decoding with size
   caps** as dependency-free, injectable-for-test middlewares.
+- **Opt-in RFC 7807 Problem Details** on the error path — clients
+  that send `Accept: application/problem+json` get the standard
+  shape automatically; everyone else still sees the Rxn envelope.
 - **Production-safe error envelopes** — stack traces never ship
   outside dev, boundary input sanitisation is one env flag, session
   cookies auto-flip to `Secure` behind an HTTPS proxy.
@@ -90,7 +103,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Current test counts:
 
-- **Rxn framework:** 176 tests / 391 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 181 tests / 407 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
@@ -144,6 +157,9 @@ Current test counts:
    - [X] Rate limiting (`Utility\RateLimiter`, file-backed with
          `flock`)
 - [X] Exception-driven error handling
+   - [X] RFC 7807 Problem Details (`application/problem+json`) as
+         an opt-in alternate error shape — automatic when the client
+         sends `Accept: application/problem+json`
 - [X] Versioning (versioned controllers + actions)
 - [X] Scaffolding (version-less CRUD against a live schema)
 - [X] URI Routing

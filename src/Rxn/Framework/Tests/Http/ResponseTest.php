@@ -87,4 +87,62 @@ final class ResponseTest extends TestCase
         // errors/failure_response/request weren't set on the success path.
         $this->assertArrayNotHasKey('errors', $stripped);
     }
+
+    public function testIsErrorDistinguishesSuccessFromFailure(): void
+    {
+        $success = (new Response())->getSuccess(['x' => 1]);
+        $failure = (new Response())->getFailure(new \Exception('nope', 404));
+
+        $this->assertFalse($success->isError());
+        $this->assertTrue($failure->isError());
+    }
+
+    public function testToProblemDetailsEmitsRfc7807Shape(): void
+    {
+        putenv('ENVIRONMENT=production'); // strip dev fields for a clean shape
+        try {
+            $response = (new Response())->getFailure(new \Exception('row not found', 404));
+            $pd = $response->toProblemDetails('/users/42');
+
+            $this->assertSame('about:blank', $pd['type']);
+            $this->assertSame('Not Found', $pd['title']);
+            $this->assertSame(404, $pd['status']);
+            $this->assertSame('row not found', $pd['detail']);
+            $this->assertSame('/users/42', $pd['instance']);
+        } finally {
+            putenv('ENVIRONMENT');
+        }
+    }
+
+    public function testToProblemDetailsIncludesDebugFieldsOutsideProduction(): void
+    {
+        putenv('ENVIRONMENT=development');
+        try {
+            $response = (new Response())->getFailure(new \Exception('row not found', 404));
+            $pd = $response->toProblemDetails();
+
+            $this->assertArrayHasKey('x-rxn-file', $pd);
+            $this->assertArrayHasKey('x-rxn-line', $pd);
+            $this->assertArrayHasKey('x-rxn-trace', $pd);
+            $this->assertArrayNotHasKey('instance', $pd);
+        } finally {
+            putenv('ENVIRONMENT');
+        }
+    }
+
+    public function testNotModifiedIsHeadersOnly(): void
+    {
+        $r = Response::notModified();
+        $this->assertSame(304, $r->getCode());
+        $this->assertTrue($r->isRendered());
+        $this->assertNull($r->data);
+    }
+
+    public function testToJsonRoundTripsEnvelope(): void
+    {
+        $response = (new Response())->getSuccess(['id' => 7]);
+        $decoded  = json_decode($response->toJson(), true);
+        $this->assertSame(['id' => 7], $decoded['data']);
+        $this->assertTrue($decoded['meta']['success']);
+    }
 }

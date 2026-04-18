@@ -109,8 +109,33 @@ class App
         if ($code === 304 || $code === 204) {
             return;
         }
+        // Opt-in RFC 7807 Problem Details for error responses: when
+        // the client signals Accept: application/problem+json we emit
+        // the standard shape instead of the Rxn error envelope.
+        // Success responses always stay on the native envelope; 7807
+        // is errors-only by design.
+        if ($response->isError() && self::acceptsProblemDetails()) {
+            header('content-type: application/problem+json');
+            echo json_encode(
+                $response->toProblemDetails($_SERVER['REQUEST_URI'] ?? null),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+            );
+            return;
+        }
         header('content-type: application/json');
         echo $response->toJson();
+    }
+
+    /**
+     * Loose Accept-header match: true when the client included
+     * `application/problem+json` anywhere in the value. Sidesteps
+     * full q-value negotiation because Problem Details is an
+     * opt-in alternate shape, not a fallback.
+     */
+    private static function acceptsProblemDetails(): bool
+    {
+        $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+        return is_string($accept) && stripos($accept, 'application/problem+json') !== false;
     }
 
     public static function getElapsedMs(): string
