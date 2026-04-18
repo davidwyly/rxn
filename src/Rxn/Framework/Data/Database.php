@@ -86,6 +86,20 @@ class Database
     private $using_cache = false;
 
     /**
+     * @var array
+     */
+    private $cache_table_settings = [
+        'table'            => null,
+        'sql_column'       => null,
+        'param_column'     => null,
+        'type_column'      => null,
+        'package_column'   => null,
+        'expires_column'   => null,
+        'timestamp_column' => null,
+        'elapsed_column'   => null,
+    ];
+
+    /**
      * @var Query|null
      */
     private $last_query;

@@ -118,7 +118,7 @@ class CrudController extends Controller implements Crud
     private function triggerInit()
     {
         if (method_exists($this, 'init')) {
-
+            $this->init();
         }
     }
 }

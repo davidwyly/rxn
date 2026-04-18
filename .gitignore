@@ -50,3 +50,10 @@ Thumbs.db
 # IDE generated files
 .idea/
 
+# Local env files
+/.env
+/app/Config/.env
+
+# PHPUnit cache
+/.phpunit.cache/
+/.phpunit.result.cache
