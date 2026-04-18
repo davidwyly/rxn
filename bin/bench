@@ -1,0 +1,153 @@
+#!/usr/bin/env php
+<?php declare(strict_types=1);
+
+namespace Rxn\Framework\Bench;
+
+/**
+ * Microbenchmarks for the framework's building blocks. Not a
+ * full-stack HTTP benchmark — App::run()'s startup flow has
+ * open bugs that make end-to-end numbers meaningless today.
+ *
+ * Each case is run for ~250ms with a ~50ms warmup. Output is a
+ * table of ops/sec and ns/op so apples-to-apples comparisons
+ * against other minimalist frameworks can happen at the primitive
+ * level.
+ *
+ *   php bin/bench              # run everything
+ *   php bin/bench router       # filter by substring
+ */
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use Rxn\Framework\Container;
+use Rxn\Framework\Http\Middleware;
+use Rxn\Framework\Http\Pipeline;
+use Rxn\Framework\Http\PsrAdapter;
+use Rxn\Framework\Http\Request;
+use Rxn\Framework\Http\Response;
+use Rxn\Framework\Http\Router;
+use Rxn\Framework\Utility\Validator;
+
+$filter = $argv[1] ?? null;
+
+$cases = [];
+
+// Router: registered matches
+$router = new Router();
+$router->get('/', 'home');
+$router->get('/products', 'list');
+$router->get('/products/{id}', 'show');
+$router->get('/users/{uid}/orders/{oid}', 'userOrder');
+$router->post('/products', 'create');
+
+$cases['router.match.static'] = function () use ($router) {
+    return $router->match('GET', '/products');
+};
+$cases['router.match.single_param'] = function () use ($router) {
+    return $router->match('GET', '/products/42');
+};
+$cases['router.match.multi_param'] = function () use ($router) {
+    return $router->match('GET', '/users/7/orders/42');
+};
+$cases['router.match.miss'] = function () use ($router) {
+    return $router->match('GET', '/no/such/route');
+};
+
+// Pipeline: 3-layer pass-through
+$noop = new class implements Middleware {
+    public function handle(Request $request, callable $next): Response
+    {
+        return $next($request);
+    }
+};
+$pipeline = (new Pipeline())->add($noop)->add($noop)->add($noop);
+$request  = (new \ReflectionClass(Request::class))->newInstanceWithoutConstructor();
+$response = (new \ReflectionClass(Response::class))->newInstanceWithoutConstructor();
+$terminal = static fn () => $response;
+
+$cases['pipeline.3layer'] = function () use ($pipeline, $request, $terminal) {
+    return $pipeline->handle($request, $terminal);
+};
+
+// Validator: realistic payload + rule set
+$payload = [
+    'email' => 'u@example.com',
+    'age'   => 42,
+    'role'  => 'member',
+    'slug'  => 'abc-123',
+];
+$rules = [
+    'email' => ['required', 'email'],
+    'age'   => ['required', 'int', 'min:18', 'max:120'],
+    'role'  => ['in:admin,member,guest'],
+    'slug'  => ['regex:/^[a-z0-9-]+$/'],
+];
+$cases['validator.check.clean'] = function () use ($payload, $rules) {
+    return Validator::check($payload, $rules);
+};
+
+// Container: autowire a simple chain A -> B -> C
+class BenchC {}
+class BenchB { public function __construct(public BenchC $c) {} }
+class BenchA { public function __construct(public BenchB $b) {} }
+
+$cases['container.get.depth_3'] = function () {
+    $c = new Container();
+    return $c->get(BenchA::class);
+};
+
+// PSR-7: build a ServerRequest from a fixed set of globals
+$originalServer = $_SERVER;
+$_SERVER = array_merge($_SERVER, [
+    'REQUEST_METHOD'  => 'GET',
+    'REQUEST_URI'     => '/products/42',
+    'QUERY_STRING'    => '',
+    'HTTP_HOST'       => 'example.test',
+    'SERVER_PROTOCOL' => 'HTTP/1.1',
+]);
+$cases['psr7.from_globals'] = function () {
+    return PsrAdapter::serverRequestFromGlobals();
+};
+// leave $_SERVER modified for the run; restore at end.
+
+function run_case(callable $fn, float $warmup_s = 0.05, float $run_s = 0.25): array
+{
+    // warmup
+    $warmEnd = microtime(true) + $warmup_s;
+    while (microtime(true) < $warmEnd) {
+        $fn();
+    }
+    // timed run
+    $iterations = 0;
+    $start      = microtime(true);
+    $deadline   = $start + $run_s;
+    while (microtime(true) < $deadline) {
+        $fn();
+        $iterations++;
+    }
+    $elapsed = microtime(true) - $start;
+    return [
+        'iter'    => $iterations,
+        'elapsed' => $elapsed,
+        'ops_s'   => $iterations / $elapsed,
+        'ns_op'   => ($elapsed * 1e9) / max(1, $iterations),
+    ];
+}
+
+printf("%-30s %14s %14s\n", 'case', 'ops/sec', 'ns/op');
+printf("%-30s %14s %14s\n", str_repeat('-', 30), str_repeat('-', 14), str_repeat('-', 14));
+
+foreach ($cases as $name => $fn) {
+    if ($filter !== null && !str_contains($name, $filter)) {
+        continue;
+    }
+    $r = run_case($fn);
+    printf(
+        "%-30s %14s %14s\n",
+        $name,
+        number_format($r['ops_s'], 0),
+        number_format($r['ns_op'], 0)
+    );
+}
+
+$_SERVER = $originalServer;

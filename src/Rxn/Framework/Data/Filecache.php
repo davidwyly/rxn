@@ -45,11 +45,11 @@ class Filecache
      */
     private function setDirectory()
     {
-        $directory = __DIR__ . "Filecache.php/" . $this->config->fileCacheDirectory;
+        $directory = __DIR__ . "/" . $this->config->fileCacheDirectory;
         if (!file_exists($directory)) {
             throw new \Exception("Cache $directory doesn't exist; it may need to be created", 500);
         }
-        $this->directory = realpath(__DIR__ . "Filecache.php/" . $this->config->fileCacheDirectory);
+        $this->directory = realpath(__DIR__ . "/" . $this->config->fileCacheDirectory);
     }
 
     /**
@@ -99,14 +99,24 @@ class Filecache
         if (!is_writable($this->directory)) {
             throw new \Exception("$directory must be writable to cache; check owner and permissions", 500);
         }
-        if (!file_exists($directory)) {
-            mkdir($directory, 0777);
+        if (!file_exists($directory) && !mkdir($directory, 0770, true) && !is_dir($directory)) {
+            throw new \Exception("Failed to create cache directory '$directory'", 500);
         }
-        if (file_exists($filePath)) {
-            throw new \Exception("Trying to cache a file that is already cached; use 'isClassCached()' method first",
-                500);
+        // Write to a temp file in the same directory, then atomically
+        // rename into place so readers never see a half-written file
+        // and concurrent writers cannot corrupt each other.
+        $tempPath = tempnam($directory, 'fc_');
+        if ($tempPath === false) {
+            throw new \Exception("Failed to allocate temp file in '$directory'", 500);
         }
-        file_put_contents($filePath, $serializedObject);
+        if (file_put_contents($tempPath, $serializedObject, LOCK_EX) === false) {
+            @unlink($tempPath);
+            throw new \Exception("Failed to write cache temp file '$tempPath'", 500);
+        }
+        if (!rename($tempPath, $filePath)) {
+            @unlink($tempPath);
+            throw new \Exception("Failed to move cache file into place at '$filePath'", 500);
+        }
         return true;
     }
 

@@ -2,249 +2,147 @@
 
 namespace Rxn\Framework;
 
-use Davidwyly\Reflect\ReflectObject;
 use \Rxn\Framework\Http\Request;
-use \Rxn\Framework\Data\Database;
-use \Rxn\Framework\Service\Registry;
 use \Rxn\Framework\Http\Response;
+use \Rxn\Framework\Service\Api;
 use \Rxn\Framework\Error\AppException;
 
+/**
+ * Application entrypoint. Constructor boots the environment
+ * (Startup registers constants, loads .env, wires databases);
+ * run() resolves the request, dispatches to the matching controller
+ * action via the container, and renders the JSON envelope.
+ *
+ * Apps that want an explicit router or PSR-15 middleware pipeline
+ * instead can bypass run() and drive the primitives in
+ * Rxn\Framework\Http\Router / Pipeline / PsrAdapter directly — the
+ * container, Request, Controller, and Response classes work either
+ * way.
+ */
 class App
 {
-    const SERVICES = [
-        'Api',
-        'Auth',
-        'Data',
-        'Model',
-        'Registry',
-        'Router',
-        'Stats',
-        'Utility',
-    ];
-
-    /**
-     * @var Service\Stats $stats
-     */
-    public $stats;
-
-    /**
-     * @var Service[]
-     */
-    public $services;
-
-    /**
-     * @var Container
-     */
+    /** @var Container */
     private $container;
 
-    /**
-     * @var \Exception[]
-     */
+    /** @var Api */
+    public $api;
+
+    /** @var Service\Stats|null */
+    public $stats;
+
+    /** @var \Exception[] */
     private static $environment_errors = [];
 
-    /**
-     * Application.class constructor.
-     *
-     * @throws AppException
-     * @throws Error\ContainerException
-     */
     public function __construct()
     {
         $this->container = new Container();
-        $callable_methods = ReflectObject::getCallableMethods($this->container);
-        $this->initialize();
-    }
+        $this->container->get(Startup::class);
+        $this->container->get(Service\Registry::class);
+        $this->api = $this->container->get(Api::class);
 
-    private function initialize()
-    {
-
-        $this->loadServices();
-        $this->finalize(START);
-    }
-
-    private function loadService($service_class) {
-        /** @var Service $service */
-        $service = $this->container->get($service_class);
-        $service->getShortName();
-        $this->services[$service_class] = $service;
-    }
-
-    private function loadServices()
-    {
-        $this->loadService(Startup::class);
-        $this->loadService(Registry::class);
-        $env_disabled_services = $this->getEnvDisabledServices();
-        foreach (self::SERVICES as $service) {
-            if (in_array($service, $env_disabled_services)) {
-                continue;
-            }
-            try {
-                $service_class = __NAMESPACE__ . '\\Service\\' . $service;
-                $this->loadService($service_class);
-            } catch (\Exception $exception) {
-                self::appendEnvironmentError($exception);
-            }
+        try {
+            $this->stats = $this->container->get(Service\Stats::class);
+            $this->stats->stop(START);
+        } catch (\Exception $e) {
+            self::appendEnvironmentError($e);
         }
     }
 
-    private function getEnvDisabledServices()
+    public function container(): Container
     {
-        return explode(',', getenv('APP_DISABLE_SERVICES'));
-    }
-
-    private function finalize($time_start)
-    {
-        $this->stats = $this->container->get(Service\Stats::class);
-        $this->stats->stop($time_start);
-        return true;
+        return $this->container;
     }
 
     /**
-     * Runs the application
+     * Resolve the request, dispatch to the controller, render the
+     * JSON envelope.
      */
-    public function run()
+    public function run(): void
     {
         try {
-            if (empty($this->api->controller)) {
-                throw new AppException("No controller has been associated with the application");
-            }
-            $response_to_render = $this->getSuccessResponse();
+            $response = $this->dispatch();
         } catch (\Exception $exception) {
-            $response_to_render = $this->getFailureResponse($exception);
+            $response = $this->renderFailure($exception);
         }
-        self::render($response_to_render);
+        self::render($response);
     }
 
-    /**
-     * @return Response
-     * @throws Error\ContainerException
-     */
-    private function getSuccessResponse()
+    private function dispatch(): Response
     {
-        $this->api->request = $this->container->get(Request::class);
+        $request = $this->container->get(Request::class);
+        $this->api->request = $request;
 
-        // find the correct controller to use; this is determined from the request
-        $controller_ref        = $this->api->findController($this->api->request);
+        if (!$request->isValidated()) {
+            return $this->renderFailure($request->getException());
+        }
+
+        $controller_ref        = $this->api->findController($request);
         $this->api->controller = $this->container->get($controller_ref);
 
-        // trigger the controller to build a response
-        $response_to_render = $this->api->controller->trigger($this->container);
-
-        return $response_to_render;
+        return $this->api->controller->trigger();
     }
 
-    /**
-     * @param \Exception $exception
-     *
-     * @return Response
-     * @throws Error\ContainerException
-     *
-     */
-    private function getFailureResponse(\Exception $exception)
+    private function renderFailure(\Exception $exception): Response
     {
-        // instantiate request model using the DI container container
         $response = $this->container->get(Response::class);
-
-        // build a response
-        if (!$response->isRendered()) {
-            return $response_to_render = $response->getFailure($exception);
+        if ($response->isRendered()) {
+            $existing = $response->getFailureResponse();
+            if ($existing instanceof Response) {
+                return $existing;
+            }
         }
-
-        // sometimes, the request itself will not validate, so grab that response
-        return $response_to_render = $response->getFailureResponse();
+        return $response->getFailure($exception);
     }
 
     /**
-     * @param Response $response
-     *
      * @throws AppException
      */
-    private static function render(Response $response)
+    private static function render(Response $response): void
     {
-        // error out if output buffer has crap in it
         if (ob_get_contents()) {
             throw new AppException("Output buffer already has content; cannot render");
         }
 
-        $response_code = $response->getCode();
-        $json          = json_encode((object)$response->stripEmptyParams(), JSON_PRETTY_PRINT);
+        $code = $response->getCode() ?: Response::DEFAULT_SUCCESS_CODE;
+        $json = json_encode(
+            (object)$response->stripEmptyParams(),
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+        );
 
-        // remove null bytes, which can be a gotcha upon decoding
+        // Null bytes can trip JSON decoders on the other end.
         $json = str_replace('\\u0000', '', $json);
 
-        // error out if JSON is invalid
-        if (!self::isJson($json)) {
-            throw new AppException("Output JSON is invalid");
-        }
-
-        // render as JSON
         header('content-type: application/json');
-        http_response_code($response_code);
+        http_response_code((int)$code);
         echo $json;
     }
 
-    /**
-     * @return mixed
-     */
-    public static function getElapsedMs()
+    public static function getElapsedMs(): string
     {
-        $now       = microtime(true);
-        $elapsedMs = round(($now - START) * 1000, 3);
-        return (string)$elapsedMs . " ms";
+        $start = defined(__NAMESPACE__ . '\\START') ? constant(__NAMESPACE__ . '\\START') : microtime(true);
+        return (string)round((microtime(true) - $start) * 1000, 3) . ' ms';
+    }
+
+    public static function hasEnvironmentErrors(): bool
+    {
+        return !empty(self::$environment_errors);
     }
 
     /**
-     * @param $json
-     *
-     * @return bool
-     */
-    private static function isJson($json)
-    {
-        json_decode($json);
-        return (json_last_error() === JSON_ERROR_NONE);
-    }
-
-    /**
-     * @return bool
-     */
-    public static function hasEnvironmentErrors()
-    {
-        if (!empty(self::$environment_errors)) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Renders environment errors
-     *
-     * @param \Exception|null $exception
-     *
      * @throws AppException
      */
-    public static function renderEnvironmentErrors(\Exception $exception = null)
+    public static function renderEnvironmentErrors(?\Exception $exception = null): void
     {
-        if (!is_null($exception)) {
+        if ($exception !== null) {
             self::appendEnvironmentError($exception);
         }
-        try {
-            throw new AppException("Environment errors on startup");
-        } catch (AppException $exception) {
-            $response = new Response(null);
-            $response->getFailure($exception);
-        }
+        $response = new Response(null);
+        $response->getFailure(new AppException('Environment errors on startup'));
         $response->meta['startup_errors'] = self::$environment_errors;
         self::render($response);
     }
 
-    /**
-     * @param \Exception $exception
-     *
-     * @internal param $errorFile
-     * @internal param $errorLine
-     * @internal param $errorMessage
-     */
-    public static function appendEnvironmentError(\Exception $exception)
+    public static function appendEnvironmentError(\Exception $exception): void
     {
         self::$environment_errors[] = [
             'file'    => $exception->getFile(),

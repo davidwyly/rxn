@@ -86,7 +86,7 @@ class Request
             $this->action_version     = $this->parseActionVersion();
             $this->url                = (array)$this->getSanitizedUrl();
         } catch (\Exception $exception) {
-            $this->validated = true;
+            $this->validated = false;
             $this->exception = $exception;
         }
     }
@@ -262,9 +262,11 @@ class Request
         if (empty($controller_name)) {
             return null;
         }
-        $processed_name = $this->stringToUpperCamel($controller_name, "_");
-        $controller_ref = $this->config->product_namespace . "\\Controller\\$controller_version\\$processed_name";
-        return $controller_ref;
+        $processed_name = $this->stringToUpperCamel($controller_name, '_');
+        // Matches the layout produced by `bin/rxn make:controller`:
+        // {product_namespace}\Http\Controller\v{N}\{Name}Controller
+        return $this->config->product_namespace
+            . "\\Http\\Controller\\$controller_version\\{$processed_name}Controller";
     }
 
     /**

@@ -18,16 +18,31 @@ use \Rxn\Framework\Service\Registry;
 class Table extends Service
 {
     /**
+     * Unqualified table name. Public because callers (Map, Chain,
+     * Record) read it as a value.
+     *
+     * @var string
+     */
+    public $name;
+
+    /**
      * @var Registry
      */
     private $registry;
     private $database;
     private $table_name;
     private $table_info;
-    private $column_info           = [];
-    private $primary_keys          = [];
-    private $field_references      = [];
-    private $create_reference_maps = false;
+    private $column_info      = [];
+    private $primary_keys     = [];
+
+    /**
+     * Columns that reference another table, keyed by the local
+     * column name. Each entry is
+     *   ['schema' => string, 'table' => string, 'column' => string].
+     *
+     * @var array<string, array{schema: string, table: string, column: string}>
+     */
+    private $field_references = [];
 
     /**
      * Table constructor.
@@ -44,6 +59,7 @@ class Table extends Service
         $this->registry   = $registry;
         $this->database   = $database;
         $this->table_name = $table_name;
+        $this->name       = $table_name;
 
         $this->validateTableExists();
         $this->initialize();
@@ -75,36 +91,34 @@ class Table extends Service
      */
     private function generateTableMap(): bool
     {
-        $this->table_info   = $this->getTableInfo();
-        $this->column_info  = $this->getColumns();
-        $this->primary_keys = $this->assignPrimaryKeys();
-        if ($this->create_reference_maps) {
-            $this->createReferenceMaps();
-        }
+        $this->table_info       = $this->getTableInfo();
+        $this->column_info      = $this->getColumns();
+        $this->primary_keys     = $this->assignPrimaryKeys();
+        $this->field_references = $this->discoverFieldReferences($this->column_info);
         return true;
     }
 
     /**
-     * @return void
+     * @param array $columns column_info as produced by getColumns()
+     * @return array<string, array{schema: string, table: string, column: string}>
      */
-    private function createReferenceMaps(): void
+    private function discoverFieldReferences(array $columns): array
     {
-        if (is_array($this->column_info)) {
-            foreach ($this->column_info as $key => $value) {
-                if (isset($value['referenced_table_schema'])
-                    && isset($value['referenced_table_name'])
-                ) {
-                    $reference_database = $value['referenced_table_schema'];
-                    $reference_table    = $value['referenced_table_name'];
-                    if ($reference_table) {
-                        $this->field_references[$key] = [
-                            'schema' => $reference_database,
-                            'table'  => $reference_table,
-                        ];
-                    }
-                }
+        $references = [];
+        foreach ($columns as $column_name => $meta) {
+            $schema = $meta['referenced_table_schema'] ?? null;
+            $table  = $meta['referenced_table_name']   ?? null;
+            $column = $meta['referenced_column_name']  ?? null;
+            if ($schema === null || $table === null || $table === '') {
+                continue;
             }
+            $references[$column_name] = [
+                'schema' => (string)$schema,
+                'table'  => (string)$table,
+                'column' => (string)$column,
+            ];
         }
+        return $references;
     }
 
     /**
@@ -281,5 +295,15 @@ class Table extends Service
     public function getPrimaryKeys(): array
     {
         return $this->primary_keys;
+    }
+
+    /**
+     * Columns that carry a foreign key, keyed by local column name.
+     *
+     * @return array<string, array{schema: string, table: string, column: string}>
+     */
+    public function getFieldReferences(): array
+    {
+        return $this->field_references;
     }
 }

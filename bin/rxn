@@ -1,0 +1,182 @@
+#!/usr/bin/env php
+<?php declare(strict_types=1);
+
+namespace Rxn\Framework;
+
+/**
+ * Rxn CLI entrypoint.
+ *
+ *   bin/rxn migrate
+ *   bin/rxn migrate:status
+ *   bin/rxn make:controller <NsPrefix> <Name> <Version>
+ *   bin/rxn make:record     <NsPrefix> <Name> <table_name>
+ *
+ * Environment knobs:
+ *   APP_MIGRATION_DIR     default: <project>/app/migrations
+ *   APP_CLI_DATABASE      which DATABASE_<NAME>_* to use, default: write
+ *   RXN_CLI_OUTPUT_ROOT   where make:* writes generated files
+ *                         (default: project root). Exists so tests and
+ *                         sandboxes can redirect the output away from
+ *                         the real app/ tree.
+ */
+
+$projectRoot = dirname(__DIR__);
+require_once $projectRoot . '/vendor/autoload.php';
+
+$envOutputRoot = getenv('RXN_CLI_OUTPUT_ROOT');
+$outputRoot    = is_string($envOutputRoot) && $envOutputRoot !== ''
+    ? $envOutputRoot
+    : $projectRoot;
+
+function rxn_load_env(string $projectRoot): void
+{
+    $configDir = $projectRoot . '/app/Config';
+    if (!is_file($configDir . '/.env')) {
+        fwrite(STDERR, "No .env found in $configDir — some commands will fail.\n");
+        return;
+    }
+    (new \Dotenv\Dotenv($configDir))->load();
+}
+
+function rxn_make_database(string $projectRoot): Data\Database
+{
+    rxn_load_env($projectRoot);
+    $source = getenv('APP_CLI_DATABASE') ?: Data\Database::DEFAULT_WRITE;
+    return new Data\Database($source);
+}
+
+function rxn_migration_dir(string $projectRoot): string
+{
+    $env = getenv('APP_MIGRATION_DIR');
+    if (is_string($env) && $env !== '') {
+        return $env;
+    }
+    return $projectRoot . '/app/migrations';
+}
+
+function rxn_write_file(string $path, string $contents): void
+{
+    if (file_exists($path)) {
+        fwrite(STDERR, "$path already exists — refusing to overwrite\n");
+        exit(3);
+    }
+    $dir = dirname($path);
+    if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+        fwrite(STDERR, "Could not create $dir\n");
+        exit(4);
+    }
+    file_put_contents($path, $contents);
+    echo "Created $path\n";
+}
+
+function rxn_help(): void
+{
+    echo <<<'HELP'
+Usage: bin/rxn <command> [args]
+
+Commands:
+  migrate                                   apply pending migrations
+  migrate:status                            list applied + pending migrations
+  make:controller <NsPrefix> <Name> <V>     scaffold a versioned controller
+  make:record <NsPrefix> <Name> <table>     scaffold a record model
+
+Environment:
+  APP_MIGRATION_DIR     default: <project>/app/migrations
+  APP_CLI_DATABASE      which DATABASE_<NAME>_* to use, default: write
+  RXN_CLI_OUTPUT_ROOT   redirect make:* output (default: project root)
+
+HELP;
+}
+
+$argv = $_SERVER['argv'] ?? [];
+array_shift($argv); // strip script name
+$command = array_shift($argv) ?? 'help';
+
+try {
+    switch ($command) {
+        case 'migrate':
+            $database  = rxn_make_database($projectRoot);
+            $migration = new Data\Migration($database, rxn_migration_dir($projectRoot));
+            $ran       = $migration->run();
+            if ($ran === []) {
+                echo "Nothing to apply.\n";
+            } else {
+                echo 'Applied ' . count($ran) . " migration(s):\n";
+                foreach ($ran as $file) {
+                    echo "  $file\n";
+                }
+            }
+            exit(0);
+
+        case 'migrate:status':
+            $database  = rxn_make_database($projectRoot);
+            $migration = new Data\Migration($database, rxn_migration_dir($projectRoot));
+            $applied   = $migration->applied();
+            $available = $migration->available();
+            $pending   = array_values(array_diff($available, $applied));
+            echo 'Applied (' . count($applied) . "):\n";
+            foreach ($applied as $f) {
+                echo "  [X] $f\n";
+            }
+            echo 'Pending (' . count($pending) . "):\n";
+            foreach ($pending as $f) {
+                echo "  [ ] $f\n";
+            }
+            exit(0);
+
+        case 'make:controller':
+            $nsPrefix = $argv[0] ?? null;
+            $name     = $argv[1] ?? null;
+            $version  = $argv[2] ?? null;
+            if ($nsPrefix === null || $name === null || $version === null) {
+                fwrite(STDERR, "Usage: bin/rxn make:controller <NsPrefix> <Name> <Version>\n");
+                exit(2);
+            }
+            if (!ctype_digit((string)$version)) {
+                fwrite(STDERR, "Version must be an integer.\n");
+                exit(2);
+            }
+            $fullNs = trim($nsPrefix, '\\') . '\\Http\\Controller\\v' . $version;
+            $path   = $outputRoot . '/app/Http/Controller/v' . $version . '/' . $name . 'Controller.php';
+            $body   = "<?php declare(strict_types=1);\n\nnamespace $fullNs;\n\n"
+                    . "class {$name}Controller extends \\Rxn\\Framework\\Http\\Controller\n{\n"
+                    . "    public function show_v1()\n"
+                    . "    {\n"
+                    . "        return ['ok' => true];\n"
+                    . "    }\n"
+                    . "}\n";
+            rxn_write_file($path, $body);
+            exit(0);
+
+        case 'make:record':
+            $nsPrefix = $argv[0] ?? null;
+            $name     = $argv[1] ?? null;
+            $table    = $argv[2] ?? null;
+            if ($nsPrefix === null || $name === null || $table === null) {
+                fwrite(STDERR, "Usage: bin/rxn make:record <NsPrefix> <Name> <table_name>\n");
+                exit(2);
+            }
+            $fullNs = trim($nsPrefix, '\\') . '\\Model\\v1';
+            $path   = $outputRoot . '/app/Model/v1/' . $name . '.php';
+            $body   = "<?php declare(strict_types=1);\n\nnamespace $fullNs;\n\n"
+                    . "class $name extends \\Rxn\\Framework\\Model\\Record\n{\n"
+                    . "    protected \$table = '$table';\n"
+                    . "}\n";
+            rxn_write_file($path, $body);
+            exit(0);
+
+        case 'help':
+        case '--help':
+        case '-h':
+            rxn_help();
+            exit(0);
+
+        default:
+            fwrite(STDERR, "Unknown command '$command'.\n\n");
+            rxn_help();
+            exit(1);
+    }
+} catch (\Throwable $exception) {
+    fwrite(STDERR, 'Error: ' . $exception->getMessage() . "\n");
+    exit(1);
+}

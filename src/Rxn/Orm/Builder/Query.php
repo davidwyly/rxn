@@ -30,7 +30,7 @@ class Query extends Builder
      *
      * @return Query
      */
-    public function from(string $table, string $alias = null): Query
+    public function from(string $table, ?string $alias = null): Query
     {
         $from = new From();
         $from->set($table, $alias);
@@ -48,7 +48,7 @@ class Query extends Builder
      * @return Query
      * @throws \Exception
      */
-    public function joinCustom(string $table, callable $callable, string $alias = null, string $type = 'inner'): Query
+    public function joinCustom(string $table, callable $callable, ?string $alias = null, string $type = 'inner'): Query
     {
         $join = new Join();
         $join->set($table, $callable, $alias, $type);
@@ -74,7 +74,7 @@ class Query extends Builder
         string $first_operand,
         string $operator,
         $second_operand,
-        string $alias = null
+        ?string $alias = null
     ): Query {
         return $this->innerJoin($table, $first_operand, $operator, $second_operand, $alias);
     }
@@ -94,7 +94,7 @@ class Query extends Builder
         string $first_operand,
         string $operator,
         $second_operand,
-        string $alias = null
+        ?string $alias = null
     ): Query {
         return $this->joinCustom($table,
             function (Join $join) use ($first_operand, $operator, $second_operand, $alias) {
@@ -181,7 +181,7 @@ class Query extends Builder
      *
      * @return Query
      */
-    public function whereId($id, string $id_key = 'id', callable $callback = null, string $type = 'where'): Query
+    public function whereId($id, string $id_key = 'id', ?callable $callback = null, string $type = 'where'): Query
     {
         return $this->where($id_key, '=', $id, $callback, $type);
     }
@@ -190,7 +190,7 @@ class Query extends Builder
         string $first_operand,
         string $operator,
         string $second_operand,
-        callable $callback = null,
+        ?callable $callback = null,
         string $type = 'where'
     ): Query {
         $where = new Where();
@@ -217,7 +217,7 @@ class Query extends Builder
     public function whereIn(
         string $operand,
         array $values,
-        callable $callback = null,
+        ?callable $callback = null,
         string $type = 'where',
         $not = false
     ) {
@@ -237,7 +237,7 @@ class Query extends Builder
      * @return Query
      * @throws \Exception
      */
-    public function whereNotIn(string $operand, array $values, callable $callback = null, string $type = 'where')
+    public function whereNotIn(string $operand, array $values, ?callable $callback = null, string $type = 'where')
     {
         return $this->whereIn($operand, $values, $callback, $type, true);
     }
@@ -250,7 +250,7 @@ class Query extends Builder
      *
      * @return $this
      */
-    public function whereIsNull(string $operand, callable $callback = null, $type = 'where', $not = false)
+    public function whereIsNull(string $operand, ?callable $callback = null, $type = 'where', $not = false)
     {
         $where = new Where();
         $where->setNull($operand, $callback, $type, $not);
@@ -266,7 +266,7 @@ class Query extends Builder
      *
      * @return Query
      */
-    public function whereIsNotNull(string $operand, callable $callback = null, $type = 'where')
+    public function whereIsNotNull(string $operand, ?callable $callback = null, $type = 'where')
     {
         return $this->whereIsNull($operand, $callback, $type, true);
     }
@@ -283,7 +283,7 @@ class Query extends Builder
         string $first_operand,
         string $operator,
         string $second_operand,
-        callable $callback = null
+        ?callable $callback = null
     ): Query {
         return $this->andWhere($first_operand, $operator, $second_operand, $callback);
     }
@@ -300,7 +300,7 @@ class Query extends Builder
         string $first_operand,
         string $operator,
         string $second_operand,
-        callable $callback = null
+        ?callable $callback = null
     ): Query {
         return $this->where($first_operand, $operator, $second_operand, $callback, 'and');
     }
@@ -312,7 +312,7 @@ class Query extends Builder
      *
      * @return Query
      */
-    public function andWhereIn(string $operand, $values, callable $callback = null)
+    public function andWhereIn(string $operand, $values, ?callable $callback = null)
     {
         return $this->whereIn($operand, $values, $callback, 'and');
     }
@@ -325,7 +325,7 @@ class Query extends Builder
      * @return Query
      * @throws \Exception
      */
-    public function andWhereNotIn(string $operand, $values, callable $callback = null)
+    public function andWhereNotIn(string $operand, $values, ?callable $callback = null)
     {
         return $this->whereNotIn($operand, $values, $callback, 'and');
     }
@@ -336,7 +336,7 @@ class Query extends Builder
      *
      * @return Query
      */
-    public function andWhereIsNull(string $operand, callable $callback = null)
+    public function andWhereIsNull(string $operand, ?callable $callback = null)
     {
         return $this->whereIsNull($operand, $callback, 'and');
     }
@@ -347,7 +347,7 @@ class Query extends Builder
      *
      * @return Query
      */
-    public function andWhereIsNotNull(string $operand, callable $callback = null)
+    public function andWhereIsNotNull(string $operand, ?callable $callback = null)
     {
         return $this->whereIsNotNull($operand, $callback, 'and');
     }
@@ -360,7 +360,7 @@ class Query extends Builder
      *
      * @return Query
      */
-    public function or (string $first_operand, string $operator, $second_operand, callable $callback = null): Query
+    public function or (string $first_operand, string $operator, $second_operand, ?callable $callback = null): Query
     {
         return $this->orWhere($first_operand, $operator, $second_operand, $callback);
     }
@@ -373,7 +373,7 @@ class Query extends Builder
      *
      * @return Query
      */
-    public function orWhere(string $first_operand, string $operator, $second_operand, callable $callback = null): Query
+    public function orWhere(string $first_operand, string $operator, $second_operand, ?callable $callback = null): Query
     {
         return $this->where($first_operand, $operator, $second_operand, $callback, 'or');
     }
@@ -385,7 +385,7 @@ class Query extends Builder
      *
      * @return Query
      */
-    public function orWhereIn(string $operand, $values, callable $callback = null)
+    public function orWhereIn(string $operand, $values, ?callable $callback = null)
     {
         return $this->whereIn($operand, $values, $callback, 'or');
     }
@@ -398,7 +398,7 @@ class Query extends Builder
      * @return Query
      * @throws \Exception
      */
-    public function orWhereNotIn(string $operand, $values, callable $callback = null)
+    public function orWhereNotIn(string $operand, $values, ?callable $callback = null)
     {
         return $this->whereNotIn($operand, $values, $callback, 'or');
     }
@@ -409,7 +409,7 @@ class Query extends Builder
      *
      * @return Query
      */
-    public function orWhereIsNull(string $operand, callable $callback = null)
+    public function orWhereIsNull(string $operand, ?callable $callback = null)
     {
         return $this->whereIsNull($operand, $callback, 'or');
     }
@@ -420,7 +420,7 @@ class Query extends Builder
      *
      * @return Query
      */
-    public function orWhereIsNotNull(string $operand, callable $callback = null)
+    public function orWhereIsNotNull(string $operand, ?callable $callback = null)
     {
         return $this->whereIsNotNull($operand, $callback, 'or');
     }
