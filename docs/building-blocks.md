@@ -169,6 +169,56 @@ foreach ($chain->hasMany('users') as $link) {
 Links are immutable `Link` value objects derived from
 `information_schema` reflection.
 
+## `Rxn\Framework\Model\ActiveRecord`
+
+Minimal active-record layer on top of the `rxn-orm` query builder.
+Subclasses declare their table via `const TABLE`; `find()` returns
+a hydrated instance; relationship methods return `Query` instances
+callers compose.
+
+```php
+use Rxn\Framework\Model\ActiveRecord;
+use Rxn\Orm\Builder\Query;
+
+class User extends ActiveRecord {
+    public const TABLE = 'users';
+    public function orders(): Query    { return $this->hasMany(Order::class, 'user_id'); }
+    public function role(): Query      { return $this->belongsTo(Role::class, 'role_id'); }
+}
+
+class Order extends ActiveRecord { public const TABLE = 'orders'; }
+class Role  extends ActiveRecord { public const TABLE = 'roles'; }
+
+$user = User::find($database, 42);          // null if no match
+echo $user->email;                           // __get on hydrated attributes
+
+$orderRows = $database->run(
+    $user->orders()->andWhere('total', '>=', 100)->orderBy('id', 'DESC')
+);
+$orders = ActiveRecord::hydrate($orderRows, Order::class);
+
+$role = $database->run($user->role())[0] ?? null;
+```
+
+Static entry points:
+
+- `Foo::find($database, $id)` — fetch and hydrate, or null.
+- `Foo::query()` — fresh SELECT `Query` scoped to this table.
+- `Foo::hydrate($rows, Class::class)` — hydrate raw rows into
+  instances; useful after calling `$database->run(...)`.
+
+Instance methods:
+
+- `$record->id()` — primary-key value.
+- `$record->toArray()` — raw attributes.
+- `$record->hasMany(Class::class, 'fk')` / `hasOne` / `belongsTo`
+  — each returns a composable `Query`.
+
+The layer is deliberately read-oriented. Persistence goes through
+the `Insert` / `Update` / `Delete` builders and `Database::run()`;
+if your app wants an Eloquent-style `$user->save()`, add it as a
+thin layer on top.
+
 ## ORM / query builder (`davidwyly/rxn-orm`)
 
 Shipped as a separate composer package — see

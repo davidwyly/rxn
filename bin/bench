@@ -26,7 +26,13 @@ use Rxn\Framework\Http\PsrAdapter;
 use Rxn\Framework\Http\Request;
 use Rxn\Framework\Http\Response;
 use Rxn\Framework\Http\Router;
+use Rxn\Framework\Model\ActiveRecord;
 use Rxn\Framework\Utility\Validator;
+use Rxn\Orm\Builder\Delete;
+use Rxn\Orm\Builder\Insert;
+use Rxn\Orm\Builder\Query;
+use Rxn\Orm\Builder\Raw;
+use Rxn\Orm\Builder\Update;
 
 $filter = $argv[1] ?? null;
 
@@ -94,6 +100,73 @@ class BenchA { public function __construct(public BenchB $b) {} }
 $cases['container.get.depth_3'] = function () {
     $c = new Container();
     return $c->get(BenchA::class);
+};
+
+// Query builder: realistic compound SELECT
+$cases['builder.select.compound'] = function () {
+    (new Query())
+        ->select(['u.id', 'u.email'])
+        ->from('users', 'u')
+        ->leftJoin('orders', 'o.user_id', '=', 'u.id', 'o')
+        ->where('u.active', '=', 1)
+        ->andWhereIn('u.role', ['admin', 'owner'])
+        ->andWhereIsNull('u.deleted_at')
+        ->groupBy('u.id')
+        ->orderBy('u.id', 'DESC')
+        ->limit(50)
+        ->toSql();
+};
+
+$cases['builder.select.subquery'] = function () {
+    $sub = (new Query())
+        ->select([Raw::of('COUNT(*)')])
+        ->from('orders')
+        ->where('user_id', '=', Raw::of('u.id'));
+    (new Query())
+        ->select(['u.id'])
+        ->selectSubquery($sub, 'order_count')
+        ->from('users', 'u')
+        ->where('u.active', '=', 1)
+        ->toSql();
+};
+
+$cases['builder.insert.multirow'] = function () {
+    (new Insert())
+        ->into('users')
+        ->rows([
+            ['email' => 'a@example.com', 'role' => 'admin'],
+            ['email' => 'b@example.com', 'role' => 'member'],
+            ['email' => 'c@example.com', 'role' => 'member'],
+        ])
+        ->toSql();
+};
+
+$cases['builder.update.simple'] = function () {
+    (new Update())
+        ->table('users')
+        ->set(['role' => 'admin', 'updated_at' => Raw::of('NOW()')])
+        ->where('id', '=', 42)
+        ->toSql();
+};
+
+$cases['builder.delete.simple'] = function () {
+    (new Delete())
+        ->from('users')
+        ->where('deleted_at', '<', '2025-01-01')
+        ->toSql();
+};
+
+// ActiveRecord hydrate on a batch of rows
+class BenchAR extends ActiveRecord
+{
+    public const TABLE = 'bench';
+}
+$rows100 = array_map(
+    fn (int $i) => ['id' => $i, 'email' => "u$i@example.com", 'role' => 'member'],
+    range(1, 100)
+);
+$cases['active_record.hydrate_100'] = function () use ($rows100) {
+    ActiveRecord::hydrate($rows100, BenchAR::class);
 };
 
 // PSR-7: build a ServerRequest from a fixed set of globals

@@ -44,3 +44,108 @@ jobs:
 
       - name: Run PHPUnit
         run: vendor/bin/phpunit
+
+  integration:
+    name: Integration (HTTP + MySQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test_root
+          MYSQL_DATABASE: rxn_app
+          MYSQL_USER: app_user
+          MYSQL_PASSWORD: test_pw
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -uroot -ptest_root --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Wait for MySQL
+        run: |
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h127.0.0.1 -uapp_user -ptest_pw --silent; then
+              echo "MySQL is ready"
+              break
+            fi
+            echo "Waiting for MySQL... ($i/30)"
+            sleep 2
+          done
+
+      - name: Configure .env
+        run: |
+          cat > app/Config/.env <<'EOF'
+          ENVIRONMENT=local
+          APP_NAMESPACE=Organization\Product\
+          APP_TIMEZONE=UTC
+          APP_USE_RXN_ORM=1
+          APP_USE_MULTIBYTE=1
+          APP_USE_FILE_CACHING=0
+          APP_USE_QUERY_CACHING=0
+          APP_USE_IO_SANITIZATION=0
+          APP_ENABLE_DATABASES=read,write
+          APP_DISABLE_SERVICES=Stats,Utility
+          DATABASE_READ_HOST=127.0.0.1
+          DATABASE_READ_NAME=rxn_app
+          DATABASE_READ_USERNAME=app_user
+          DATABASE_READ_PASSWORD=test_pw
+          DATABASE_READ_CHARSET=utf8
+          DATABASE_WRITE_HOST=127.0.0.1
+          DATABASE_WRITE_NAME=rxn_app
+          DATABASE_WRITE_USERNAME=app_user
+          DATABASE_WRITE_PASSWORD=test_pw
+          DATABASE_WRITE_CHARSET=utf8
+          TEST_OAUTH_CONSUMER_KEY=1
+          TEST_OAUTH_CONSUMER_SECRET=1
+          TEST_OAUTH_TOKEN_KEY=1
+          TEST_OAUTH_TOKEN_SECRET=1
+          EOF
+
+      - name: Start PHP server
+        run: |
+          php -S 127.0.0.1:8080 public/index.php > /tmp/server.log 2>&1 &
+          echo $! > /tmp/server.pid
+          sleep 2
+
+      - name: Smoke request — GET /v1.1/smoke/ping
+        run: |
+          body=$(mktemp)
+          status=$(curl -sS -o "$body" -w "%{http_code}" \
+            "http://127.0.0.1:8080/?params=v1.1/smoke/ping")
+          echo "HTTP $status"
+          echo "--- body ---"
+          cat "$body"
+          echo
+          echo "--- server log ---"
+          cat /tmp/server.log || true
+          echo
+
+          test "$status" = "200"
+          grep -q '"ok"' "$body"
+          grep -q '"success"' "$body"
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f /tmp/server.pid ]; then
+            kill "$(cat /tmp/server.pid)" 2>/dev/null || true
+          fi
