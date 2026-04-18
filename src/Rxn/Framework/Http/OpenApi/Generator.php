@@ -2,6 +2,14 @@
 
 namespace Rxn\Framework\Http\OpenApi;
 
+use Rxn\Framework\Http\Attribute\InSet;
+use Rxn\Framework\Http\Attribute\Length;
+use Rxn\Framework\Http\Attribute\Max;
+use Rxn\Framework\Http\Attribute\Min;
+use Rxn\Framework\Http\Attribute\Pattern;
+use Rxn\Framework\Http\Attribute\Required;
+use Rxn\Framework\Http\Binding\RequestDto;
+
 /**
  * Reflection-driven OpenAPI 3.0 spec generator. Given a list of
  * controller class names (FQCN), enumerate each `action_v{N}` method
@@ -15,10 +23,17 @@ namespace Rxn\Framework\Http\OpenApi;
  *
  * What lands in the spec:
  * - Every non-static public method matching `/^[a-z][a-z0-9_]*_v\d+$/`
- *   that is defined on the class itself (not inherited), skipping
- *   methods whose parameters can't be trivially described (only
- *   non-object parameters become query params; object params are
- *   assumed DI and omitted).
+ *   that is defined on the class itself (not inherited).
+ * - Scalar method parameters become query parameters.
+ * - A parameter whose type implements `RequestDto` becomes a
+ *   `requestBody` under `application/json`; the DTO's public
+ *   properties + validation attributes are emitted as a JSON
+ *   Schema, so the spec inherits the same `#[Min]` / `#[Length]` /
+ *   `#[Pattern]` / `#[InSet]` metadata that drives runtime
+ *   validation. Operations with a body default to POST; the rest
+ *   stay on GET.
+ * - Object parameters that aren't DTOs are assumed DI-resolved and
+ *   omitted.
  * - The native `{data, meta}` envelope as the 200 response schema
  *   and RFC 7807 Problem Details as the default error response —
  *   the same two shapes the framework itself emits.
@@ -29,6 +44,15 @@ namespace Rxn\Framework\Http\OpenApi;
  */
 final class Generator
 {
+    /**
+     * DTO class-strings collected across all scanned operations.
+     * Each one is emitted once into `components.schemas`, keyed by
+     * the short class name.
+     *
+     * @var array<string, class-string>
+     */
+    private array $dtoClasses = [];
+
     /**
      * @param array<string, mixed>             $info    OpenAPI `info` object
      * @param list<array{url: string, description?: string}> $servers
@@ -50,6 +74,8 @@ final class Generator
     /** @return array<string, mixed> */
     public function generate(): array
     {
+        $this->dtoClasses = [];
+
         $paths = [];
         foreach ($this->controllers as $class) {
             foreach ($this->extractOperations($class) as $path => $operation) {
@@ -57,11 +83,18 @@ final class Generator
             }
         }
         ksort($paths);
+
+        $schemas = self::envelopeSchemas();
+        foreach ($this->dtoClasses as $shortName => $dtoClass) {
+            $schemas[$shortName] = $this->dtoSchema($dtoClass);
+        }
+        ksort($schemas);
+
         $spec = [
             'openapi'    => '3.0.3',
             'info'       => $this->info,
             'paths'      => $paths,
-            'components' => ['schemas' => self::envelopeSchemas()],
+            'components' => ['schemas' => $schemas],
         ];
         if ($this->servers !== []) {
             $spec['servers'] = $this->servers;
@@ -104,35 +137,178 @@ final class Generator
                 $controllerSlug,
                 $actionName
             );
-            $operation = [
-                'get' => [
-                    'summary'     => $this->summaryFor($class, $method),
-                    'operationId' => sprintf('%s.%s.v%d.%d', $controllerSlug, $actionName, $controllerVersion, $actionVersion),
-                    'tags'        => [$controllerSlug],
-                    'parameters'  => $this->parametersFor($method),
-                    'responses'   => [
-                        '200' => [
-                            'description' => 'Success envelope',
-                            'content'     => [
-                                'application/json' => [
-                                    'schema' => ['$ref' => '#/components/schemas/RxnSuccess'],
-                                ],
+
+            [$queryParams, $dtoClass] = $this->splitParameters($method);
+            $httpMethod = $dtoClass !== null ? 'post' : 'get';
+
+            $op = [
+                'summary'     => $this->summaryFor($class, $method),
+                'operationId' => sprintf('%s.%s.v%d.%d', $controllerSlug, $actionName, $controllerVersion, $actionVersion),
+                'tags'        => [$controllerSlug],
+                'parameters'  => $queryParams,
+                'responses'   => [
+                    '200' => [
+                        'description' => 'Success envelope',
+                        'content'     => [
+                            'application/json' => [
+                                'schema' => ['$ref' => '#/components/schemas/RxnSuccess'],
                             ],
                         ],
-                        'default' => [
-                            'description' => 'RFC 7807 Problem Details',
-                            'content'     => [
-                                'application/problem+json' => [
-                                    'schema' => ['$ref' => '#/components/schemas/ProblemDetails'],
-                                ],
+                    ],
+                    'default' => [
+                        'description' => 'RFC 7807 Problem Details',
+                        'content'     => [
+                            'application/problem+json' => [
+                                'schema' => ['$ref' => '#/components/schemas/ProblemDetails'],
                             ],
                         ],
                     ],
                 ],
             ];
-            $out[$path] = $operation;
+            if ($dtoClass !== null) {
+                $shortName = (new \ReflectionClass($dtoClass))->getShortName();
+                $this->dtoClasses[$shortName] = $dtoClass;
+                $op['requestBody'] = [
+                    'required' => true,
+                    'content'  => [
+                        'application/json' => [
+                            'schema' => ['$ref' => '#/components/schemas/' . $shortName],
+                        ],
+                    ],
+                ];
+            }
+
+            $out[$path] = [$httpMethod => $op];
         }
         return $out;
+    }
+
+    /**
+     * @return array{0: list<array<string, mixed>>, 1: class-string<RequestDto>|null}
+     */
+    private function splitParameters(\ReflectionMethod $method): array
+    {
+        $queryParams = [];
+        $dtoClass    = null;
+
+        foreach ($method->getParameters() as $p) {
+            $type = $p->getType();
+            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+                $typeName = $type->getName();
+                if (is_a($typeName, RequestDto::class, true) && $dtoClass === null) {
+                    $dtoClass = $typeName;
+                }
+                // DI-injected deps (and any DTO beyond the first) stay out of the spec.
+                continue;
+            }
+            $queryParams[] = [
+                'name'     => $p->getName(),
+                'in'       => 'query',
+                'required' => !$p->isOptional(),
+                'schema'   => ['type' => $this->mapPhpType($type)],
+            ];
+        }
+        return [$queryParams, $dtoClass];
+    }
+
+    /**
+     * Build a JSON Schema for a RequestDto by walking its public
+     * typed properties and mapping each validation attribute to the
+     * equivalent OpenAPI keyword.
+     *
+     * @param class-string<RequestDto> $class
+     * @return array<string, mixed>
+     */
+    private function dtoSchema(string $class): array
+    {
+        $ref = new \ReflectionClass($class);
+        $properties = [];
+        $required   = [];
+
+        foreach ($ref->getProperties(\ReflectionProperty::IS_PUBLIC) as $prop) {
+            $properties[$prop->getName()] = $this->propertySchema($prop);
+            if ($this->isPropertyRequired($prop)) {
+                $required[] = $prop->getName();
+            }
+        }
+
+        $schema = [
+            'type'       => 'object',
+            'properties' => $properties,
+        ];
+        if ($required !== []) {
+            $schema['required'] = $required;
+        }
+        return $schema;
+    }
+
+    /** @return array<string, mixed> */
+    private function propertySchema(\ReflectionProperty $prop): array
+    {
+        $schema = [];
+        $type   = $prop->getType();
+        if ($type instanceof \ReflectionNamedType) {
+            $schema['type'] = $this->mapPhpType($type);
+            if ($type->allowsNull()) {
+                $schema['nullable'] = true;
+            }
+        }
+
+        foreach ($prop->getAttributes() as $attr) {
+            $instance = $attr->newInstance();
+            if ($instance instanceof Min) {
+                $schema['minimum'] = $instance->min;
+            } elseif ($instance instanceof Max) {
+                $schema['maximum'] = $instance->max;
+            } elseif ($instance instanceof Length) {
+                if ($instance->min !== null) {
+                    $schema['minLength'] = $instance->min;
+                }
+                if ($instance->max !== null) {
+                    $schema['maxLength'] = $instance->max;
+                }
+            } elseif ($instance instanceof Pattern) {
+                $schema['pattern'] = self::stripRegexDelimiters($instance->regex);
+            } elseif ($instance instanceof InSet) {
+                $schema['enum'] = $instance->values;
+            }
+        }
+
+        if ($prop->hasDefaultValue()) {
+            $schema['default'] = $prop->getDefaultValue();
+        }
+        return $schema;
+    }
+
+    private function isPropertyRequired(\ReflectionProperty $prop): bool
+    {
+        if ($prop->getAttributes(Required::class) !== []) {
+            return true;
+        }
+        $type = $prop->getType();
+        if (!$prop->hasDefaultValue() && $type instanceof \ReflectionNamedType && !$type->allowsNull()) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Strip `/.../[flags]` (or any matching delimiter pair) from a
+     * PHP regex so the inner expression can land in OpenAPI's
+     * `pattern` keyword. Returns the input unchanged if nothing
+     * matches — callers may supply a bare regex already.
+     */
+    private static function stripRegexDelimiters(string $regex): string
+    {
+        if (strlen($regex) < 2) {
+            return $regex;
+        }
+        $first    = $regex[0];
+        $lastPos  = strrpos($regex, $first);
+        if ($lastPos === false || $lastPos === 0) {
+            return $regex;
+        }
+        return substr($regex, 1, $lastPos - 1);
     }
 
     /**
@@ -157,26 +333,6 @@ final class Generator
             return [null, 0];
         }
         return [$slug, (int)$m[1]];
-    }
-
-    /** @return list<array<string, mixed>> */
-    private function parametersFor(\ReflectionMethod $method): array
-    {
-        $params = [];
-        foreach ($method->getParameters() as $p) {
-            $type = $p->getType();
-            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
-                // injected dependency; not a request parameter
-                continue;
-            }
-            $params[] = [
-                'name'     => $p->getName(),
-                'in'       => 'query',
-                'required' => !$p->isOptional(),
-                'schema'   => ['type' => $this->mapPhpType($type)],
-            ];
-        }
-        return $params;
     }
 
     private function mapPhpType(?\ReflectionType $type): string
@@ -237,6 +393,16 @@ final class Generator
                     'status'   => ['type' => 'integer'],
                     'detail'   => ['type' => 'string'],
                     'instance' => ['type' => 'string', 'format' => 'uri-reference'],
+                    'errors'   => [
+                        'type'  => 'array',
+                        'items' => [
+                            'type'       => 'object',
+                            'properties' => [
+                                'field'   => ['type' => 'string'],
+                                'message' => ['type' => 'string'],
+                            ],
+                        ],
+                    ],
                     'x-rxn-elapsed-ms' => ['type' => 'string'],
                 ],
             ],

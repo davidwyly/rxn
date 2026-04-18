@@ -5,6 +5,7 @@ namespace Rxn\Framework\Tests\Http\OpenApi;
 use PHPUnit\Framework\TestCase;
 use Rxn\Framework\Http\OpenApi\Generator;
 use Rxn\Framework\Tests\Http\OpenApi\Fixture\v1\ProductsController;
+use Rxn\Framework\Tests\Http\OpenApi\Fixture\v1\WidgetsController;
 use Rxn\Framework\Tests\Http\OpenApi\Fixture\v2\OrderItemsController;
 
 final class GeneratorTest extends TestCase
@@ -105,5 +106,101 @@ final class GeneratorTest extends TestCase
     {
         $spec = (new Generator(controllers: ['\\No\\Such\\Class']))->generate();
         $this->assertSame([], $spec['paths']);
+    }
+
+    public function testDtoParameterFlipsOperationToPostWithRequestBody(): void
+    {
+        $spec = (new Generator(controllers: [WidgetsController::class]))->generate();
+        $op   = $spec['paths']['/v1.1/widgets/create'];
+
+        $this->assertArrayHasKey('post', $op);
+        $this->assertArrayNotHasKey('get', $op);
+        $this->assertTrue($op['post']['requestBody']['required']);
+        $this->assertSame(
+            ['$ref' => '#/components/schemas/CreateWidget'],
+            $op['post']['requestBody']['content']['application/json']['schema']
+        );
+    }
+
+    public function testNonDtoMethodStaysOnGetWithQueryParams(): void
+    {
+        $spec = (new Generator(controllers: [WidgetsController::class]))->generate();
+        $op   = $spec['paths']['/v1.1/widgets/list'];
+
+        $this->assertArrayHasKey('get', $op);
+        $this->assertArrayNotHasKey('requestBody', $op['get']);
+        $names = array_column($op['get']['parameters'], 'name');
+        $this->assertSame(['page'], $names);
+    }
+
+    public function testDtoSchemaIsEmittedWithRequiredAndProperties(): void
+    {
+        $spec   = (new Generator(controllers: [WidgetsController::class]))->generate();
+        $schema = $spec['components']['schemas']['CreateWidget'];
+
+        $this->assertSame('object', $schema['type']);
+        // name + price are #[Required]; price has a default? No —
+        // non-default non-nullable int is implicitly required even
+        // without the attribute. Both should appear.
+        $this->assertContains('name', $schema['required']);
+        $this->assertContains('price', $schema['required']);
+        $this->assertArrayHasKey('name', $schema['properties']);
+        $this->assertArrayHasKey('price', $schema['properties']);
+        $this->assertArrayHasKey('slug', $schema['properties']);
+    }
+
+    public function testLengthAttributesBecomeOpenapiLengthKeywords(): void
+    {
+        $spec   = (new Generator(controllers: [WidgetsController::class]))->generate();
+        $name   = $spec['components']['schemas']['CreateWidget']['properties']['name'];
+
+        $this->assertSame('string', $name['type']);
+        $this->assertSame(1, $name['minLength']);
+        $this->assertSame(100, $name['maxLength']);
+    }
+
+    public function testMinMaxBecomeOpenapiNumericBounds(): void
+    {
+        $spec  = (new Generator(controllers: [WidgetsController::class]))->generate();
+        $price = $spec['components']['schemas']['CreateWidget']['properties']['price'];
+
+        $this->assertSame('integer', $price['type']);
+        $this->assertSame(0, $price['minimum']);
+        $this->assertSame(1_000_000, $price['maximum']);
+    }
+
+    public function testPatternAttributeStripsDelimiters(): void
+    {
+        $spec = (new Generator(controllers: [WidgetsController::class]))->generate();
+        $slug = $spec['components']['schemas']['CreateWidget']['properties']['slug'];
+
+        $this->assertSame('^[a-z0-9-]+$', $slug['pattern']);
+    }
+
+    public function testInSetBecomesEnum(): void
+    {
+        $spec   = (new Generator(controllers: [WidgetsController::class]))->generate();
+        $status = $spec['components']['schemas']['CreateWidget']['properties']['status'];
+
+        $this->assertSame(['draft', 'published', 'archived'], $status['enum']);
+        $this->assertSame('draft', $status['default']);
+    }
+
+    public function testNullablePropertyMarksSchemaNullable(): void
+    {
+        $spec = (new Generator(controllers: [WidgetsController::class]))->generate();
+        $note = $spec['components']['schemas']['CreateWidget']['properties']['note'];
+
+        $this->assertTrue($note['nullable']);
+        $this->assertNotContains('note', $spec['components']['schemas']['CreateWidget']['required'] ?? []);
+    }
+
+    public function testDefaultValueSurfacedOnSchema(): void
+    {
+        $spec     = (new Generator(controllers: [WidgetsController::class]))->generate();
+        $featured = $spec['components']['schemas']['CreateWidget']['properties']['featured'];
+
+        $this->assertSame('boolean', $featured['type']);
+        $this->assertFalse($featured['default']);
     }
 }

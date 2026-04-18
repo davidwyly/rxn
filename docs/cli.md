@@ -82,11 +82,31 @@ Flags:
 | `--out=<PATH>` | Write to this file instead of stdout. |
 | `--root=<DIR>` | Alternative project root to scan (testing / CI). |
 
-Method parameters are mapped to query parameters; DI-injected
-object params are skipped. The standard Rxn success / error
-envelopes are emitted as referenceable `#/components/schemas/`
-entries. Pipe the output into Swagger UI, Redocly, or any OpenAPI
-consumer.
+Parameter mapping:
+
+- Scalar parameters (`int`, `string`, `bool`, …) → query parameters.
+- A parameter whose type implements
+  `Rxn\Framework\Http\Binding\RequestDto` → `requestBody` under
+  `application/json`, and the operation method flips from `GET`
+  to `POST`. The DTO's public properties + validation attributes
+  emit as a JSON Schema under `#/components/schemas/{ShortName}`:
+  - `#[Required]` or non-default non-nullable → `required` list
+  - `#[Min(n)]` / `#[Max(n)]` → `minimum` / `maximum`
+  - `#[Length(min, max)]` → `minLength` / `maxLength`
+  - `#[Pattern('/.../')]` → `pattern` (delimiters stripped)
+  - `#[InSet([...])]` → `enum`
+  - Nullable properties → `nullable: true`
+  - Default values → `default`
+- DI-injected object params (everything else) are skipped.
+
+Because the generator reflects the *same* metadata the Binder
+uses at runtime, the spec can't drift from the validation
+behaviour. Ship one source of truth (the DTO) and both sides
+stay in lockstep.
+
+Pipe the output into Swagger UI, Redocly, or any OpenAPI
+consumer — or pair with `Http\OpenApi\SwaggerUi::html($specUrl)`
+for one-line interactive docs.
 
 ## Environment knobs
 

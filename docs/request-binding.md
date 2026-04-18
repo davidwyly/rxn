@@ -131,6 +131,9 @@ alongside any container-resolved services.
   — your IDE autocompletes them, your static analyzer checks
   them, and they live next to the property they describe.
 - **Always in sync.** The same reflection that powers DTO binding
-  will feed request-body schemas into the OpenAPI generator (see
-  [`docs/cli.md`](cli.md)), so the API contract doesn't drift
-  from the code.
+  at runtime also feeds request-body schemas into the OpenAPI
+  generator (see [`docs/cli.md`](cli.md)) — validation attributes
+  map one-to-one to JSON Schema keywords (`#[Min]` → `minimum`,
+  `#[Length]` → `minLength`/`maxLength`, `#[Pattern]` → `pattern`,
+  `#[InSet]` → `enum`). The API contract can't drift from the
+  validation behaviour because both are reading the same DTO.

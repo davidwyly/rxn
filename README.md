@@ -87,7 +87,10 @@ Opinionated pieces worth naming:
   `{id:uuid}`, custom) so `/users/foo` falls through to 404
   instead of reaching a controller that has to validate and throw.
 - **Reflection-driven OpenAPI** — the framework knows your
-  controllers; why duplicate that in a YAML file?
+  controllers; why duplicate that in a YAML file? DTO validation
+  attributes map one-to-one to JSON Schema keywords, so the spec
+  *can't* drift from the runtime behaviour — both sides read the
+  same class.
 - **Production-safe by default** — stack traces never ship outside
   dev, boundary input sanitisation is one env flag, session
   cookies auto-flip to `Secure` behind an HTTPS proxy.
@@ -151,7 +154,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Current test counts:
 
-- **Rxn framework:** 221 tests / 495 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 230 tests / 521 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
@@ -267,6 +270,12 @@ Current test counts:
       (`bin/rxn openapi`; `Http\OpenApi\Generator` + `Discoverer`)
    - [X] One-line interactive docs via
          `Http\OpenApi\SwaggerUi::html($specUrl)`
+   - [X] DTO parameters emit as `requestBody` with validation
+         attributes mapped to JSON Schema keywords (`#[Min]` →
+         `minimum`, `#[Length]` → `minLength`/`maxLength`,
+         `#[Pattern]` → `pattern`, `#[InSet]` → `enum`) — the same
+         class drives both validation and the spec, so they can't
+         drift
 - [X] In-process HTTP test client + fluent response assertions
       (`Testing\TestClient` + `TestResponse`) — no web server, no
       curl, PHPUnit-integrated failures
