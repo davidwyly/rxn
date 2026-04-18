@@ -52,8 +52,11 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
          is JSON so XSS escaping is the frontend's job)*
    - [X] CSRF synchronizer tokens *(see `Session::token()` /
          `Session::validateToken()`)*
-   - [ ] Authentication / authorization framework
-   - [ ] Rate limiting
+   - [~] Authentication *(minimal bearer-token resolver in
+         `Rxn\Framework\Service\Auth`; app supplies the token→user
+         lookup via `setResolver()`)*
+   - [X] Rate limiting *(fixed-window, file-backed; see
+         `Rxn\Framework\Utility\RateLimiter`)*
 - [X] Exception-driven error handling *(throw anywhere and Rxn renders
       a JSON error envelope)*
 - [X] Versioning
@@ -83,7 +86,8 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
       - [X] Object file caching (atomic writes via Filecache)
 - [ ] Authentication *(OAuth2 / OpenID / SAML all planned)*
 - [ ] Automated validation of API requests using API contracts
-- [ ] Event logging
+- [X] Event logging *(append-only JSON-lines; see
+      `Rxn\Framework\Utility\Logger`)*
 - [ ] Mailer *(stub; constructor throws LogicException)*
 - [ ] Scheduler
 - [X] Database migrations *(file-based `*.sql` runner; see
