@@ -118,8 +118,6 @@ PHP lint every touched file with `php -l <path>` before committing.
 
 ## Known gaps (pick these up before inventing new ones)
 
-- **ORM relationship autowiring (`Rxn\Framework\Data\Map\Chain\Link`)**
-  is still a throwing stub.
 - **Mailer** is intentionally a throwing stub; wire to a tiny PHP
   `mail()` wrapper or a single SMTP library if it becomes necessary.
 
@@ -141,6 +139,9 @@ PHP lint every touched file with `php -l <path>` before committing.
 - **Query result caching** — call `$database->setCache($dir)` then
   `$database->enableCache()` and every subsequent read Query hits the
   filesystem cache first.
+- **ORM relationship graph (`Rxn\Framework\Data\Chain`)** — build
+  from a `Map` and query with `belongsTo($table)` / `hasMany($table)`
+  to get immutable `Link` edges derived from FK schema.
 
 When finishing any of these, prefer the smallest working version.
 Ship it, get tests green, move on.
