@@ -28,6 +28,31 @@ public function handle(Request $request, callable $next): Response;
 Return a `Response` without calling `$next` to short-circuit the
 rest of the pipeline (e.g. rate-limit 429, auth 401).
 
+Pipelines wrap the terminal handler onion-style: every middleware
+runs its "before" code in registration order, the terminal fires
+in the middle, and every "after" code runs in reverse order on the
+way back out.
+
+```mermaid
+flowchart LR
+    Req[Request] --> CORS
+    subgraph CORS
+        direction LR
+        subgraph RateLimit
+            direction LR
+            subgraph Auth
+                direction LR
+                Terminal[["Controller::dispatch (terminal)"]]
+            end
+        end
+    end
+    CORS --> Res[Response]
+```
+
+A short-circuit from any ring skips every inner ring — the
+`Response` returned by that middleware travels straight back out
+through the layers that have already run their before-code.
+
 ## PSR-7 / PSR-15 bridge
 
 `Rxn\Framework\Http\PsrAdapter` and `Psr15Pipeline` let apps opt
@@ -226,6 +251,59 @@ Shipped as a separate composer package — see
 required transitively by Rxn. `Database::run($builder)` takes any
 `Rxn\Orm\Builder\Buildable` (`Query`, `Insert`, `Update`, `Delete`)
 and executes it.
+
+```mermaid
+classDiagram
+    class Buildable {
+        <<interface>>
+        +toSql() array
+    }
+    class Query {
+        +select() Query
+        +from() Query
+        +where() Query
+        +orderBy() Query
+        +limit() Query
+        +toSql() array
+    }
+    class Insert {
+        +into() self
+        +row() self
+        +onDuplicateKeyUpdate() self
+        +returning() self
+        +toSql() array
+    }
+    class Update {
+        +table() self
+        +set() self
+        +where() self
+        +returning() self
+        +toSql() array
+    }
+    class Delete {
+        +from() self
+        +where() self
+        +allowEmptyWhere() self
+        +returning() self
+        +toSql() array
+    }
+    class Database {
+        +run(Buildable) mixed
+    }
+
+    Buildable <|.. Query
+    Buildable <|.. Insert
+    Buildable <|.. Update
+    Buildable <|.. Delete
+    Database ..> Buildable : consumes
+    Update ..> HasWhere : trait
+    Delete ..> HasWhere : trait
+    Query ..> HasWhere : trait
+```
+
+Every builder returns a `[string $sql, array $bindings]` pair from
+`toSql()`; callers that want to skip `Database::run()` can feed
+that tuple to any PDO connection directly.
 
 ### `Rxn\Orm\Builder\Query`
 
