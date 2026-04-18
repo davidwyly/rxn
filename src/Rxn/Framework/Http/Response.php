@@ -295,4 +295,34 @@ class Response
         }
         return $array;
     }
+
+    /**
+     * Serialize this envelope exactly the way the top-level renderer
+     * does. Extracted here so middleware (ETag, compression, etc.)
+     * can inspect the wire bytes without duplicating the encoder
+     * flags.
+     */
+    public function toJson(): string
+    {
+        $json = json_encode(
+            (object)$this->stripEmptyParams(),
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+        );
+        // Null bytes can trip JSON decoders on the other end.
+        return str_replace('\\u0000', '', $json);
+    }
+
+    /**
+     * Build a body-less "304 Not Modified" response. Used by the
+     * ETag middleware to short-circuit when the client already has
+     * a fresh copy; the renderer emits headers only.
+     */
+    public static function notModified(): self
+    {
+        $r = (new \ReflectionClass(self::class))->newInstanceWithoutConstructor();
+        $r->rendered = true;
+        $r->code     = 304;
+        $r->meta     = ['success' => true, 'code' => 304];
+        return $r;
+    }
 }

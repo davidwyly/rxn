@@ -104,17 +104,13 @@ class App
         }
 
         $code = $response->getCode() ?: Response::DEFAULT_SUCCESS_CODE;
-        $json = json_encode(
-            (object)$response->stripEmptyParams(),
-            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
-        );
-
-        // Null bytes can trip JSON decoders on the other end.
-        $json = str_replace('\\u0000', '', $json);
-
-        header('content-type: application/json');
         http_response_code((int)$code);
-        echo $json;
+        // 304 / 204 are headers-only by spec.
+        if ($code === 304 || $code === 204) {
+            return;
+        }
+        header('content-type: application/json');
+        echo $response->toJson();
     }
 
     public static function getElapsedMs(): string

@@ -37,6 +37,34 @@ flowchart TB
 See [`docs/index.md`](docs/index.md) for the full request sequence
 and per-subsystem deep dives.
 
+## Why Rxn
+
+Things Rxn ships that peer micro-frameworks typically leave to the
+app author:
+
+- **Attribute routing + middleware** co-located with the controller
+  method — `#[Route('GET', '/products/{id:int}')]` and
+  `#[Middleware(Auth::class)]` are the route table. No separate
+  routes.php to drift out of sync.
+- **Typed route constraints** (`{id:int}`, `{slug:slug}`,
+  `{id:uuid}`, and custom patterns) so `/users/foo` falls through
+  to 404 instead of reaching a controller that has to validate and
+  throw.
+- **OpenAPI 3 spec generation** straight from reflection
+  (`bin/rxn openapi`) — the spec is always in sync with the code.
+- **Conditional GET via weak ETags** (`Http\Middleware\ETag`) —
+  drop it in the pipeline and GET-heavy endpoints stop re-sending
+  unchanged payloads. No controller changes.
+- **CORS, request-id correlation, JSON-body decoding with size
+  caps** as dependency-free, injectable-for-test middlewares.
+- **Production-safe error envelopes** — stack traces never ship
+  outside dev, boundary input sanitisation is one env flag, session
+  cookies auto-flip to `Secure` behind an HTTPS proxy.
+- **ORM extracted** to
+  [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm) so
+  the framework itself stays small; query builder, upsert,
+  RETURNING, subqueries, and ActiveRecord hydration all live there.
+
 ## Quickstart
 
 ```bash
@@ -62,7 +90,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Current test counts:
 
-- **Rxn framework:** 155 tests / 349 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 176 tests / 391 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
@@ -121,6 +149,14 @@ Current test counts:
 - [X] URI Routing
    - [X] Convention-based (`/v{N}/{controller}/{action}/key/value/...`)
    - [X] Explicit pattern routing (`Rxn\Framework\Http\Router`)
+   - [X] Typed route constraints (`{id:int}`, `{slug:slug}`,
+         `{id:uuid}`, custom) — a non-matching URL just falls
+         through to 404 instead of bubbling up as a controller-level
+         validation error
+   - [X] Attribute-based routing — `#[Route('GET', '/products/{id:int}')]`
+         + `#[Middleware(Auth::class)]` directly on controller methods
+         via `Rxn\Framework\Http\Attribute\Scanner`; no separate
+         route table
    - [X] Apache 2 (.htaccess)
    - [X] NGINX (see `docker/nginx`)
 - [X] Dependency Injection container
@@ -138,8 +174,9 @@ Current test counts:
 - [X] HTTP middleware pipeline *(both Rxn-native and PSR-15; see
       `Http\Pipeline` / `Http\Psr15Pipeline`)*
    - [X] Shipped middlewares: CORS w/ preflight, request-id
-         correlation, JSON-body decoding with size caps (see
-         `Http\Middleware\{Cors,RequestId,JsonBody}`)
+         correlation, JSON-body decoding with size caps, conditional
+         GET via weak ETags + 304 short-circuit (see
+         `Http\Middleware\{Cors,RequestId,JsonBody,ETag}`)
 - [X] PSR-7 bridge *(`Http\PsrAdapter::serverRequestFromGlobals()` /
       `::emit()`; ecosystem middleware drops in via Psr15Pipeline)*
 - [X] Speed and performance

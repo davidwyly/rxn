@@ -270,6 +270,52 @@ final class RouterTest extends TestCase
         $this->assertInstanceOf(Route::class, $route);
     }
 
+    public function testIntConstraintMatchesDigitsOnly(): void
+    {
+        $r = new Router();
+        $r->get('/users/{id:int}', 'show');
+        $this->assertNotNull($r->match('GET', '/users/42'));
+        $this->assertNull($r->match('GET', '/users/abc'));
+    }
+
+    public function testSlugConstraintMatchesLowercaseAndDashes(): void
+    {
+        $r = new Router();
+        $r->get('/posts/{slug:slug}', 'show');
+        $this->assertNotNull($r->match('GET', '/posts/my-post-42'));
+        $this->assertNull($r->match('GET', '/posts/My_Post'));
+    }
+
+    public function testUuidConstraintMatchesCanonicalForm(): void
+    {
+        $r = new Router();
+        $r->get('/sessions/{id:uuid}', 'show');
+        $this->assertNotNull($r->match('GET', '/sessions/550e8400-e29b-41d4-a716-446655440000'));
+        $this->assertNull($r->match('GET', '/sessions/not-a-uuid'));
+    }
+
+    public function testCustomConstraintCanBeRegistered(): void
+    {
+        $r = (new Router())->constraint('year', '\d{4}');
+        $r->get('/archive/{y:year}', 'show');
+        $this->assertNotNull($r->match('GET', '/archive/1999'));
+        $this->assertNull($r->match('GET', '/archive/42'));
+    }
+
+    public function testUnknownConstraintThrows(): void
+    {
+        $r = new Router();
+        $this->expectException(\InvalidArgumentException::class);
+        $r->get('/{id:nonsense}', 'x');
+    }
+
+    public function testUntypedPlaceholderStillMatchesAnySegment(): void
+    {
+        $r = new Router();
+        $r->get('/anything/{x}', 'show');
+        $this->assertNotNull($r->match('GET', '/anything/whatever-123'));
+    }
+
     private function passthrough(): Middleware
     {
         return new class implements Middleware {

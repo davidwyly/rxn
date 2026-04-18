@@ -117,6 +117,26 @@ Non-body methods (`GET`, `HEAD`, `DELETE`, `OPTIONS`) pass through
 untouched; requests without a `Content-Type` pass through as
 empty bodies.
 
+#### `Rxn\Framework\Http\Middleware\ETag`
+
+Conditional-GET support. After the downstream handler runs, hashes
+the response payload (the envelope's `data` only — per-request
+`meta.elapsed_ms` would otherwise invalidate every entry), emits
+the weak ETag, and short-circuits to `304 Not Modified` when the
+client's `If-None-Match` matches.
+
+```php
+use Rxn\Framework\Http\Middleware\ETag;
+
+$pipeline->add(new ETag());
+```
+
+Scoped to successful `GET` / `HEAD` responses; everything else
+(POST/PUT/DELETE, errors, null payloads) passes through untouched.
+The wildcard `If-None-Match: *` is honoured. Zero configuration —
+drop it in and GET-heavy endpoints stop retransmitting unchanged
+payloads.
+
 ## PSR-7 / PSR-15 bridge
 
 `Rxn\Framework\Http\PsrAdapter` and `Psr15Pipeline` let apps opt
