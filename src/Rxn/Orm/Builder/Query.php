@@ -25,8 +25,50 @@ class Query extends Builder implements Buildable
         return $this;
     }
 
-    public function from(string $table, ?string $alias = null): Query
+    /**
+     * Append a subquery as a SELECT column.
+     *
+     *   $sub = (new Query())->select([Raw::of('COUNT(*)')])
+     *       ->from('orders')
+     *       ->where('user_id', '=', Raw::of('u.id'));
+     *   $q->select(['u.id'])->selectSubquery($sub, 'order_count')->from('users', 'u');
+     *
+     * Bindings from the subquery are merged into the outer Query's
+     * binding list at call time, so invoke selectSubquery before
+     * methods whose placeholders appear later in the resulting SQL
+     * (typically: before where() / groupBy() / etc).
+     */
+    public function selectSubquery(Buildable $subquery, string $alias): Query
     {
+        if ($alias === '') {
+            throw new \InvalidArgumentException('selectSubquery requires a non-empty alias');
+        }
+        [$sub_sql, $sub_bindings] = $subquery->toSql();
+        $command = isset($this->commands['SELECT DISTINCT']) ? 'SELECT DISTINCT' : 'SELECT';
+        $this->commands[$command][] = '(' . $sub_sql . ') AS `' . trim($alias, '`') . '`';
+        foreach ($sub_bindings as $b) {
+            $this->bindings[] = $b;
+        }
+        return $this;
+    }
+
+    /**
+     * @param string|Buildable $table bare identifier, or a nested
+     *        Buildable whose SQL becomes `(subquery) AS alias`.
+     */
+    public function from($table, ?string $alias = null): Query
+    {
+        if ($table instanceof Buildable) {
+            if ($alias === null || $alias === '') {
+                throw new \InvalidArgumentException('FROM subquery requires an alias');
+            }
+            [$sub_sql, $sub_bindings] = $table->toSql();
+            $this->commands['FROM'][] = '(' . $sub_sql . ') AS `' . trim($alias, '`') . '`';
+            foreach ($sub_bindings as $b) {
+                $this->bindings[] = $b;
+            }
+            return $this;
+        }
         $from = new From();
         $from->set($table, $alias);
         $this->loadCommands($from);

@@ -129,8 +129,16 @@ trait HasWhere
         $operator = strtoupper($operator);
         $field    = $this->cleanReference($field);
         if ($operator === 'IN' || $operator === 'NOT IN') {
+            // Subquery form: WHERE col IN (SELECT ...)
+            if ($value instanceof Buildable) {
+                [$sub_sql, $sub_bindings] = $value->toSql();
+                foreach ($sub_bindings as $b) {
+                    $this->bindings[] = $b;
+                }
+                return $field . ' ' . $operator . ' (' . $sub_sql . ')';
+            }
             if (!is_array($value) || $value === []) {
-                throw new \InvalidArgumentException("$operator requires a non-empty array");
+                throw new \InvalidArgumentException("$operator requires a non-empty array or a Buildable subquery");
             }
             $placeholders = [];
             foreach ($value as $v) {
@@ -146,6 +154,20 @@ trait HasWhere
             $this->bindings[] = $value[0];
             $this->bindings[] = $value[1];
             return $field . ' BETWEEN ? AND ?';
+        }
+        // Raw on the value side emits verbatim (useful for
+        // correlated subqueries referencing an outer alias).
+        if ($value instanceof Raw) {
+            return $field . ' ' . $operator . ' ' . $value->sql;
+        }
+        // Scalar subquery on the value side: SELECT that returns
+        // exactly one row / column, e.g. `x = (SELECT MAX(y) FROM z)`.
+        if ($value instanceof Buildable) {
+            [$sub_sql, $sub_bindings] = $value->toSql();
+            foreach ($sub_bindings as $b) {
+                $this->bindings[] = $b;
+            }
+            return $field . ' ' . $operator . ' (' . $sub_sql . ')';
         }
         $this->bindings[] = $value;
         return $field . ' ' . $operator . ' ?';

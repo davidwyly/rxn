@@ -263,6 +263,60 @@ $database->run(
 `WHERE` clause — it has to be called explicitly so a forgotten
 condition can't accidentally wipe the table.
 
+### Upsert (`ON DUPLICATE KEY UPDATE`, MySQL)
+
+```php
+$database->run(
+    (new Insert())
+        ->into('counters')
+        ->row(['key' => 'pageviews', 'value' => 1])
+        ->onDuplicateKeyUpdate(['value' => Raw::of('value + 1')])
+);
+// INSERT INTO `counters` (`key`, `value`) VALUES (?, ?)
+// ON DUPLICATE KEY UPDATE `value` = value + 1
+```
+
+### `RETURNING` (PostgreSQL / SQLite)
+
+All three mutation builders accept `->returning('col', ...)`;
+columns are backtick-escaped, or pass `Raw::of(...)` for arbitrary
+projections. MySQL will reject the statement — callers are
+responsible for knowing their driver supports `RETURNING`.
+
+### Subqueries
+
+Three entry points; every variant merges the subquery's bindings
+into the outer query's positional-binding list at call time.
+
+```php
+// WHERE col IN (SELECT ...)
+$admins = (new Query())->select(['id'])->from('users')->where('role', '=', 'admin');
+$q = (new Query())->select()->from('posts')
+    ->where('author_id', 'IN', $admins);
+
+// WHERE col = (SELECT ...)  — scalar subquery on the value side
+$latest = (new Query())->select([Raw::of('MAX(id)')])->from('orders');
+$q = (new Query())->select()->from('orders')->where('id', '=', $latest);
+
+// FROM (SELECT ...) AS alias
+$frequent = (new Query())
+    ->select(['user_id', Raw::of('COUNT(*) AS order_count')])
+    ->from('orders')->groupBy('user_id')->having('COUNT(*) > 5');
+$q = (new Query())->select()->from($frequent, 'frequent')
+    ->where('order_count', '>', 10);
+
+// (SELECT ...) AS col  as a projected column
+$orderCount = (new Query())->select([Raw::of('COUNT(*)')])
+    ->from('orders')->where('user_id', '=', Raw::of('u.id'));
+$q = (new Query())->select(['u.id'])
+    ->selectSubquery($orderCount, 'order_count')
+    ->from('users', 'u');
+```
+
+`selectSubquery` should be called before outer `where()` / etc
+so its placeholders land ahead of later clauses in the
+positional-binding list.
+
 ## Query-result caching
 
 ```php

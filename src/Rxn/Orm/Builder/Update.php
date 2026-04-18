@@ -30,9 +30,25 @@ final class Update extends Builder implements Buildable
     /** @var array<string, mixed> */
     private array $set = [];
 
+    /** @var string[] */
+    private array $returning = [];
+
     public function table(string $table): self
     {
         $this->table = $table;
+        return $this;
+    }
+
+    /**
+     * Append a RETURNING clause (PostgreSQL / SQLite).
+     *
+     * @param string|Raw ...$columns
+     */
+    public function returning(...$columns): self
+    {
+        foreach ($columns as $col) {
+            $this->returning[] = $col instanceof Raw ? $col->sql : '`' . trim((string)$col, '`') . '`';
+        }
         return $this;
     }
 
@@ -81,6 +97,10 @@ final class Update extends Builder implements Buildable
         $whereSql      = (new QueryParser($this))->whereSql();
         if ($whereSql !== '') {
             $sql .= ' ' . $whereSql;
+        }
+
+        if ($this->returning !== []) {
+            $sql .= ' RETURNING ' . implode(', ', $this->returning);
         }
 
         return [$sql, array_merge($setBindings, $whereBindings)];

@@ -29,9 +29,48 @@ final class Insert extends Builder implements Buildable
     /** @var array<int, array<string, mixed>> */
     private array $rows = [];
 
+    /** @var array<string, mixed>|null */
+    private ?array $on_duplicate = null;
+
+    /** @var string[] */
+    private array $returning = [];
+
     public function into(string $table): self
     {
         $this->table = $table;
+        return $this;
+    }
+
+    /**
+     * MySQL upsert: follow the INSERT with
+     *   ON DUPLICATE KEY UPDATE col = val, ...
+     * Values participate in the bindings stream after the row
+     * placeholders. Raw values (e.g. Raw::of('VALUES(col)')) emit
+     * verbatim, matching the INSERT helper API.
+     *
+     * @param array<string, mixed> $assignments
+     */
+    public function onDuplicateKeyUpdate(array $assignments): self
+    {
+        if ($assignments === []) {
+            throw new \InvalidArgumentException('onDuplicateKeyUpdate requires at least one assignment');
+        }
+        $this->on_duplicate = $assignments;
+        return $this;
+    }
+
+    /**
+     * Append a RETURNING clause (PostgreSQL / SQLite). MySQL will
+     * reject the statement; callers are responsible for knowing
+     * their driver supports it.
+     *
+     * @param string|Raw ...$columns
+     */
+    public function returning(...$columns): self
+    {
+        foreach ($columns as $col) {
+            $this->returning[] = $col instanceof Raw ? $col->sql : '`' . trim((string)$col, '`') . '`';
+        }
         return $this;
     }
 
@@ -99,6 +138,24 @@ final class Insert extends Builder implements Buildable
         $sql = 'INSERT INTO ' . $escapedTable
              . ' (' . implode(', ', $escapedColumns) . ')'
              . ' VALUES ' . implode(', ', $valueRows);
+
+        if ($this->on_duplicate !== null) {
+            $assignments = [];
+            foreach ($this->on_duplicate as $col => $value) {
+                $escapedCol = '`' . trim((string)$col, '`') . '`';
+                if ($value instanceof Raw) {
+                    $assignments[] = "$escapedCol = " . $value->sql;
+                    continue;
+                }
+                $assignments[] = "$escapedCol = ?";
+                $bindings[]    = $value;
+            }
+            $sql .= ' ON DUPLICATE KEY UPDATE ' . implode(', ', $assignments);
+        }
+
+        if ($this->returning !== []) {
+            $sql .= ' RETURNING ' . implode(', ', $this->returning);
+        }
 
         return [$sql, $bindings];
     }

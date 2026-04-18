@@ -27,6 +27,9 @@ final class Delete extends Builder implements Buildable
     private ?string $table = null;
     private bool    $allow_empty_where = false;
 
+    /** @var string[] */
+    private array $returning = [];
+
     public function from(string $table): self
     {
         $this->table = $table;
@@ -41,6 +44,19 @@ final class Delete extends Builder implements Buildable
     public function allowEmptyWhere(bool $allow = true): self
     {
         $this->allow_empty_where = $allow;
+        return $this;
+    }
+
+    /**
+     * Append a RETURNING clause (PostgreSQL / SQLite).
+     *
+     * @param string|Raw ...$columns
+     */
+    public function returning(...$columns): self
+    {
+        foreach ($columns as $col) {
+            $this->returning[] = $col instanceof Raw ? $col->sql : '`' . trim((string)$col, '`') . '`';
+        }
         return $this;
     }
 
@@ -60,6 +76,10 @@ final class Delete extends Builder implements Buildable
         $whereSql  = (new QueryParser($this))->whereSql();
         if ($whereSql !== '') {
             $sql .= ' ' . $whereSql;
+        }
+
+        if ($this->returning !== []) {
+            $sql .= ' RETURNING ' . implode(', ', $this->returning);
         }
 
         return [$sql, $this->bindings];
