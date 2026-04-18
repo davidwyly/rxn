@@ -65,6 +65,9 @@ The philosophy behind Rxn is simple: **strict backend / frontend decoupling**.
 - [X] Scaffolding
    - [X] Version-less CRUD endpoints that reflect current backend records
 - [X] URI Routing
+   - [X] Convention-based *(`/v{N}/{controller}/{action}/key/value/...`)*
+   - [X] Explicit pattern routing *(`Rxn\Framework\Http\Router`;
+         `$router->get('/products/{id}', ...)`)*
    - [X] Apache 2 (.htaccess)
    - [X] NGINX (see docker/nginx)
 - [X] Dependency Injection container

@@ -144,6 +144,14 @@ PHP lint every touched file with `php -l <path>` before committing.
   `->handle($request, $terminal)` where `$terminal` is the controller
   dispatcher. Middleware may short-circuit by returning a Response
   without calling `$next`.
+- **Explicit router (`Rxn\Framework\Http\Router`)** — method + path
+  pattern matching with `{name}` placeholders, alongside the
+  convention-based URL scheme. `$router->get('/products/{id}', ...);
+  $router->match($method, $path)` returns `['handler' => ...,
+  'params' => ['id' => '42'], 'pattern' => ...]` or null.
+  `hasMethodMismatch()` tells you whether a 405 is warranted.
+  Handlers are opaque — the caller decides how to invoke them
+  (container, pipeline, etc.).
 
 When finishing any of these, prefer the smallest working version.
 Ship it, get tests green, move on.
