@@ -1,4 +1,5 @@
-<?php
+<?php declare(strict_types=1);
+
 /**
  * This file is part of the Rxn (Reaction) PHP API App
  *
@@ -11,10 +12,12 @@
 
 namespace Rxn\Framework\Data\Map\Chain;
 
-/**
- * TODO
- */
 class Link
 {
-
+    public function __construct()
+    {
+        throw new \LogicException(
+            __CLASS__ . ' is not yet implemented. See the project README for the current roadmap.'
+        );
+    }
 }
