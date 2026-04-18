@@ -45,11 +45,11 @@ class Filecache
      */
     private function setDirectory()
     {
-        $directory = __DIR__ . "Filecache.php/" . $this->config->fileCacheDirectory;
+        $directory = __DIR__ . "/" . $this->config->fileCacheDirectory;
         if (!file_exists($directory)) {
             throw new \Exception("Cache $directory doesn't exist; it may need to be created", 500);
         }
-        $this->directory = realpath(__DIR__ . "Filecache.php/" . $this->config->fileCacheDirectory);
+        $this->directory = realpath(__DIR__ . "/" . $this->config->fileCacheDirectory);
     }
 
     /**

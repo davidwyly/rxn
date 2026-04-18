@@ -86,7 +86,7 @@ class Request
             $this->action_version     = $this->parseActionVersion();
             $this->url                = (array)$this->getSanitizedUrl();
         } catch (\Exception $exception) {
-            $this->validated = true;
+            $this->validated = false;
             $this->exception = $exception;
         }
     }

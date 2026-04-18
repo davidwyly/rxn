@@ -200,7 +200,7 @@ class Collector extends Service
     public function getParamFromGet($parameter)
     {
         if (array_key_exists($parameter, $this->get)) {
-            return $this->get['parameter'];
+            return $this->get[$parameter];
         }
         throw new \Exception("Parameter '$parameter' is not part of the GET request");
 
@@ -215,7 +215,7 @@ class Collector extends Service
     public function getParamFromPost($parameter)
     {
         if (array_key_exists($parameter, $this->post)) {
-            return $this->post['parameter'];
+            return $this->post[$parameter];
         }
         throw new \Exception("Parameter '$parameter' is not part of the POST request");
     }
@@ -229,7 +229,7 @@ class Collector extends Service
     public function getParamFromHeader($parameter)
     {
         if (array_key_exists($parameter, $this->header)) {
-            return $this->header['parameter'];
+            return $this->header[$parameter];
         }
         throw new \Exception("Parameter '$parameter' is not part of the HEADER request");
     }

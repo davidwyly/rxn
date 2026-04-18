@@ -423,7 +423,7 @@ class Query
 
     public function getLastInsertId()
     {
-        $this->last_insert_id;
+        return $this->last_insert_id;
     }
 
     /**
@@ -500,7 +500,7 @@ class Query
         $find_result = $cache_query->run();
 
         if ($find_result) {
-            return unserialize($find_result['package']);
+            return unserialize($find_result['package'], ['allowed_classes' => false]);
         }
         return false;
     }
