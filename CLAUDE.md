@@ -137,6 +137,13 @@ PHP lint every touched file with `php -l <path>` before committing.
 - **ORM relationship graph (`Rxn\Framework\Data\Chain`)** — build
   from a `Map` and query with `belongsTo($table)` / `hasMany($table)`
   to get immutable `Link` edges derived from FK schema.
+- **HTTP middleware pipeline (`Rxn\Framework\Http\Pipeline` +
+  `Middleware`)** — compose cross-cutting concerns (rate limiting,
+  CSRF, auth, logging) without touching every controller. Build a
+  `Pipeline`, `->add()` your middlewares, then call
+  `->handle($request, $terminal)` where `$terminal` is the controller
+  dispatcher. Middleware may short-circuit by returning a Response
+  without calling `$next`.
 
 When finishing any of these, prefer the smallest working version.
 Ship it, get tests green, move on.
