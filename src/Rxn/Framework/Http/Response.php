@@ -359,6 +359,9 @@ class Response
         if ($instance !== null && $instance !== '') {
             $out['instance'] = $instance;
         }
+        if (is_array($this->meta) && isset($this->meta['elapsed_ms'])) {
+            $out['x-rxn-elapsed-ms'] = $this->meta['elapsed_ms'];
+        }
         foreach (['file', 'line', 'trace'] as $k) {
             if (isset($this->errors[$k])) {
                 $out['x-rxn-' . $k] = $this->errors[$k];

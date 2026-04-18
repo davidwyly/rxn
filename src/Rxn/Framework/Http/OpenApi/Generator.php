@@ -19,8 +19,9 @@ namespace Rxn\Framework\Http\OpenApi;
  *   methods whose parameters can't be trivially described (only
  *   non-object parameters become query params; object params are
  *   assumed DI and omitted).
- * - The standard Rxn envelope as the 200 response schema and the
- *   error envelope as the default response.
+ * - The native `{data, meta}` envelope as the 200 response schema
+ *   and RFC 7807 Problem Details as the default error response —
+ *   the same two shapes the framework itself emits.
  *
  * This is a starting point, not an exhaustive contract. Callers that
  * need per-operation detail can post-process the returned array, or
@@ -119,10 +120,10 @@ final class Generator
                             ],
                         ],
                         'default' => [
-                            'description' => 'Error envelope',
+                            'description' => 'RFC 7807 Problem Details',
                             'content'     => [
-                                'application/json' => [
-                                    'schema' => ['$ref' => '#/components/schemas/RxnError'],
+                                'application/problem+json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ProblemDetails'],
                                 ],
                             ],
                         ],
@@ -226,25 +227,17 @@ final class Generator
                     ],
                 ],
             ],
-            'RxnError' => [
-                'type'       => 'object',
-                'required'   => ['errors', 'meta'],
-                'properties' => [
-                    'errors' => [
-                        'type'       => 'object',
-                        'properties' => [
-                            'type'    => ['type' => 'string'],
-                            'message' => ['type' => 'string'],
-                        ],
-                    ],
-                    'meta' => [
-                        'type'       => 'object',
-                        'properties' => [
-                            'success'    => ['type' => 'boolean'],
-                            'code'       => ['type' => 'integer'],
-                            'elapsed_ms' => ['type' => 'number'],
-                        ],
-                    ],
+            'ProblemDetails' => [
+                'type'        => 'object',
+                'description' => 'RFC 7807 Problem Details',
+                'required'    => ['type', 'title', 'status'],
+                'properties'  => [
+                    'type'     => ['type' => 'string', 'format' => 'uri'],
+                    'title'    => ['type' => 'string'],
+                    'status'   => ['type' => 'integer'],
+                    'detail'   => ['type' => 'string'],
+                    'instance' => ['type' => 'string', 'format' => 'uri-reference'],
+                    'x-rxn-elapsed-ms' => ['type' => 'string'],
                 ],
             ],
         ];

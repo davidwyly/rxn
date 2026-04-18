@@ -1,29 +1,47 @@
 # Error handling
 
 Rxn is exception-driven. Throwing an exception at any depth rolls
-back in-flight database transactions and returns a JSON error
-envelope.
+back in-flight database transactions and renders an RFC 7807
+Problem Details document — the single error shape the whole
+ecosystem (API gateways, client libraries, error aggregators)
+already speaks.
 
 ```php
 try {
     $result = $database->query($sql, $bindings);
 } catch (\PDOException $exception) {
-    throw new \Exception("Something went terribly wrong!", 422);
+    throw new \Exception("Widget 42 does not exist", 404);
 }
 ```
 
-The client sees:
+The client sees `Content-Type: application/problem+json` and:
 
 ```json
 {
-  "_rxn": {
-    "success": false,
-    "code": 422,
-    "result": "Unprocessable Entity",
-    "message": "Something went terribly wrong!"
-  }
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Widget 42 does not exist",
+  "instance": "/api/v1/widgets/42",
+  "x-rxn-elapsed-ms": "1.824 ms"
 }
 ```
+
+Field mapping:
+
+| Field | Source |
+|---|---|
+| `type` | `about:blank` by default (category URI if you set one) |
+| `title` | Standard HTTP status text for the code |
+| `status` | HTTP status (from the exception's `$code`) |
+| `detail` | Exception message |
+| `instance` | Request URI |
+| `x-rxn-elapsed-ms` | Diagnostic: time-to-error |
+
+Success responses stay on the native `{data, meta}` envelope
+— RFC 7807 is errors-only by design, and no comparable standard
+covers successful JSON API responses without imposing JSON:API-style
+resource typing.
 
 ## Exception types
 
@@ -46,36 +64,11 @@ falls back to a 500.
 
 ## Debug output
 
-File paths, line numbers, and stack traces are only included in the
-JSON envelope when `ENVIRONMENT` is not `production`. In production
-the payload contains only `type`, `message`, and `code`.
+Outside `ENVIRONMENT=production`, the file / line / stack trace of
+the exception tag along as `x-rxn-file`, `x-rxn-line`,
+`x-rxn-trace` extension members on the Problem Details body — same
+diagnostic surface the previous envelope carried, just under a
+standards-compliant roof. In production those fields are stripped,
+so failing payloads never expose server internals.
 
 Set `ENVIRONMENT=production` in `.env` when shipping.
-
-## RFC 7807 Problem Details (opt-in)
-
-Clients that set `Accept: application/problem+json` get the error
-response in the standard RFC 7807 shape instead of the Rxn
-envelope — `Content-Type: application/problem+json`, body:
-
-```json
-{
-  "type": "about:blank",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "Widget 42 does not exist",
-  "instance": "/api/v1/widgets/42"
-}
-```
-
-`type` defaults to `about:blank`; `title` comes from the standard
-HTTP status text; `status` mirrors the response code; `detail` is
-the exception message; `instance` is the request URI. Dev-mode
-debug fields (file / line / trace) carry across as `x-rxn-*`
-extension members.
-
-Success responses always stay on the native `{data, meta}` envelope
-— 7807 is errors-only by design, so content negotiation applies to
-the failure path only. Existing clients that send
-`Accept: application/json` (or no Accept header) see the Rxn
-envelope as before.

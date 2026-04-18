@@ -39,44 +39,68 @@ and per-subsystem deep dives.
 
 ## Why Rxn
 
-Things Rxn ships that peer micro-frameworks typically leave to the
-app author:
+Five motives drive every decision in the framework:
+**novelty, simplicity, interoperability, speed, and strict JSON.**
 
-- **JSON-only by design**, no other output path. Slim / Lumen /
-  Mezzio / API Platform all support JSON as the happy path but
-  still let controllers return HTML, XML, streams — which means
-  every one of them carries a content-negotiation layer, and every
-  app on top has to remember that a surprising exception can leak
-  an HTML stack trace. Rxn removes the choice: every exit point —
-  including uncaught exceptions — is a JSON envelope rendered by
-  `Response::getFailure`. That single opinion eliminates a whole
-  class of "it worked locally" production surprises and makes the
-  backend/frontend contract unambiguous.
-- **Attribute routing + middleware** co-located with the controller
-  method — `#[Route('GET', '/products/{id:int}')]` and
-  `#[Middleware(Auth::class)]` are the route table. No separate
-  routes.php to drift out of sync.
+### Strict JSON
+
+Every exit point — including uncaught exceptions — is a JSON
+response. Slim / Lumen / Mezzio / API Platform all default to
+JSON but still let controllers return HTML, XML, streams; that
+flexibility forces a content-negotiation layer you can't opt out
+of, and every app on top has to remember a surprising exception
+can leak an HTML stack trace. Rxn removes the choice. Success
+lands on `{data, meta}`; errors land on
+`application/problem+json`. Two shapes, both machine-readable,
+zero negotiation code.
+
+### Interoperability
+
+Errors are **RFC 7807 Problem Details**, not a bespoke envelope.
+API gateways, Problem Details-aware client libraries, and error
+aggregators already understand the shape; Rxn just emits what the
+ecosystem expects. **OpenAPI 3 specs generate from reflection**
+(`bin/rxn openapi`), so the contract is always in sync with the
+code — hand the spec to any OpenAPI consumer (Swagger UI, Redocly,
+client generators). PSR-7 / PSR-15 bridge lets any ecosystem
+middleware drop in via `Psr15Pipeline`.
+
+### Novelty
+
+Opinionated pieces worth naming:
+
+- **Attribute routing + middleware** on the controller method:
+  `#[Route('GET', '/products/{id:int}')]` and
+  `#[Middleware(Auth::class)]` *are* the route table. No separate
+  `routes.php` to drift out of sync.
 - **Typed route constraints** (`{id:int}`, `{slug:slug}`,
-  `{id:uuid}`, and custom patterns) so `/users/foo` falls through
-  to 404 instead of reaching a controller that has to validate and
-  throw.
-- **OpenAPI 3 spec generation** straight from reflection
-  (`bin/rxn openapi`) — the spec is always in sync with the code.
-- **Conditional GET via weak ETags** (`Http\Middleware\ETag`) —
-  drop it in the pipeline and GET-heavy endpoints stop re-sending
-  unchanged payloads. No controller changes.
-- **CORS, request-id correlation, JSON-body decoding with size
-  caps** as dependency-free, injectable-for-test middlewares.
-- **Opt-in RFC 7807 Problem Details** on the error path — clients
-  that send `Accept: application/problem+json` get the standard
-  shape automatically; everyone else still sees the Rxn envelope.
-- **Production-safe error envelopes** — stack traces never ship
-  outside dev, boundary input sanitisation is one env flag, session
+  `{id:uuid}`, custom) so `/users/foo` falls through to 404
+  instead of reaching a controller that has to validate and throw.
+- **Reflection-driven OpenAPI** — the framework knows your
+  controllers; why duplicate that in a YAML file?
+- **Production-safe by default** — stack traces never ship outside
+  dev, boundary input sanitisation is one env flag, session
   cookies auto-flip to `Secure` behind an HTTPS proxy.
-- **ORM extracted** to
-  [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm) so
-  the framework itself stays small; query builder, upsert,
-  RETURNING, subqueries, and ActiveRecord hydration all live there.
+
+### Simplicity
+
+Small enough to read end to end. Dependency-free, injectable-for-test
+middlewares for the common defensive layers: **CORS with preflight,
+request-id correlation, JSON-body decoding with size caps,
+conditional GET via weak ETags**. The ORM lives in a separate
+package ([`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm))
+so the framework itself stays narrow.
+
+### Speed
+
+- PSR-4 autoloading; no reflection on the hot path once classes
+  load.
+- File-backed **query caching** (`Database::setCache()`) and
+  **object file caching** with atomic writes for
+  reflection-derived data.
+- **ETag middleware** drops 304s for unchanged GETs before your
+  controller serializes a byte of response.
+- No content-negotiation layer to walk on every request.
 
 ## Quickstart
 
@@ -157,9 +181,10 @@ Current test counts:
    - [X] Rate limiting (`Utility\RateLimiter`, file-backed with
          `flock`)
 - [X] Exception-driven error handling
-   - [X] RFC 7807 Problem Details (`application/problem+json`) as
-         an opt-in alternate error shape — automatic when the client
-         sends `Accept: application/problem+json`
+   - [X] RFC 7807 Problem Details (`application/problem+json`) is
+         the error shape, period — uncaught exceptions included.
+         Dev-mode file/line/trace carry as `x-rxn-*` extension
+         members
 - [X] Versioning (versioned controllers + actions)
 - [X] Scaffolding (version-less CRUD against a live schema)
 - [X] URI Routing

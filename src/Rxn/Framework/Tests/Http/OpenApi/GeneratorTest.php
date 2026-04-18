@@ -21,7 +21,12 @@ final class GeneratorTest extends TestCase
         $this->assertSame(['title' => 'Test', 'version' => '1.2.3'], $spec['info']);
         $this->assertSame([['url' => 'https://api.example.com']], $spec['servers']);
         $this->assertArrayHasKey('RxnSuccess', $spec['components']['schemas']);
-        $this->assertArrayHasKey('RxnError', $spec['components']['schemas']);
+        $this->assertArrayHasKey('ProblemDetails', $spec['components']['schemas']);
+        // The 7807 fields are the non-negotiable parts.
+        $pd = $spec['components']['schemas']['ProblemDetails']['properties'];
+        foreach (['type', 'title', 'status', 'detail', 'instance'] as $f) {
+            $this->assertArrayHasKey($f, $pd);
+        }
     }
 
     public function testOperationPathAndIdFollowConvention(): void
