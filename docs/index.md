@@ -58,6 +58,7 @@ sequenceDiagram
 |---|---|
 | [Routing](routing.md) | Convention-based URLs and the explicit `Router` |
 | [Dependency injection](dependency-injection.md) | Container, autowiring, method injection |
+| [Request binding + validation](request-binding.md) | DTO hydration + attribute-driven validation |
 | [Scaffolding](scaffolding.md) | Auto-CRUD endpoints against a live schema |
 | [Error handling](error-handling.md) | Exceptions + JSON envelope |
 | [Building blocks](building-blocks.md) | Logger, RateLimiter, Scheduler, Auth, Pipeline, Migration, Chain |

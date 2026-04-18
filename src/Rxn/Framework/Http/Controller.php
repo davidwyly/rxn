@@ -5,6 +5,8 @@ namespace Rxn\Framework\Http;
 use \Rxn\Framework\Data\Database;
 use \Rxn\Framework\Config;
 use \Rxn\Framework\Container;
+use \Rxn\Framework\Http\Binding\Binder;
+use \Rxn\Framework\Http\Binding\RequestDto;
 
 class Controller
 {
@@ -153,6 +155,13 @@ class Controller
     {
         $objects_to_inject = [];
         foreach ($classes_to_inject as $class_to_inject) {
+            // DTOs implementing RequestDto aren't services — they're
+            // hydrated from the request payload and validated before
+            // the action runs. Anything else goes through the container.
+            if (is_a($class_to_inject, RequestDto::class, true)) {
+                $objects_to_inject[] = Binder::bind($class_to_inject);
+                continue;
+            }
             $objects_to_inject[] = $this->container->get($class_to_inject);
         }
         return $objects_to_inject;

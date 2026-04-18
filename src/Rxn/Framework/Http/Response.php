@@ -3,6 +3,7 @@
 namespace Rxn\Framework\Http;
 
 use \Rxn\Framework\App;
+use \Rxn\Framework\Http\Binding\ValidationException;
 
 /**
  * Class Response
@@ -33,6 +34,14 @@ class Response
      * @var
      */
     public $errors;
+
+    /**
+     * Structured per-field errors captured from a ValidationException,
+     * surfaced as the `errors` extension member on Problem Details.
+     *
+     * @var list<array{field: string, message: string}>|null
+     */
+    public ?array $validation_errors = null;
 
     /**
      * @var
@@ -171,6 +180,9 @@ class Response
             'type'    => self::getResponseCodeResult($code),
             'message' => $exception->getMessage(),
         ];
+        if ($exception instanceof ValidationException) {
+            $this->validation_errors = $exception->errors();
+        }
         // Only expose file / line / stack trace outside production,
         // so error payloads never leak server internals to end users.
         if (getenv('ENVIRONMENT') !== 'production') {
@@ -358,6 +370,13 @@ class Response
         ];
         if ($instance !== null && $instance !== '') {
             $out['instance'] = $instance;
+        }
+        if ($this->validation_errors !== null) {
+            // RFC 7807 extension member. Using `errors` (array of
+            // {field, message}) is the shape tools like Laravel's
+            // validator, Spring, and most REST style guides already
+            // emit — so consumers don't need a Rxn-specific reader.
+            $out['errors'] = $this->validation_errors;
         }
         if (is_array($this->meta) && isset($this->meta['elapsed_ms'])) {
             $out['x-rxn-elapsed-ms'] = $this->meta['elapsed_ms'];

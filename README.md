@@ -70,6 +70,15 @@ bridge lets any ecosystem middleware drop in via `Psr15Pipeline`.
 
 Opinionated pieces worth naming:
 
+- **Typed DTO binding + attribute-driven validation.** Declare
+  `public function create_v1(CreateProduct $input): array`, give
+  `CreateProduct` public typed properties with `#[Required]`,
+  `#[Min(0)]`, `#[Length(min: 1, max: 100)]`, etc., and the
+  framework hydrates, casts, validates, and hands your action a
+  populated instance — or fails the whole request with a 422
+  Problem Details listing *every* field error at once. The same
+  FastAPI-class ergonomic move that almost nothing in the PHP
+  ecosystem ships natively, in ~250 LoC with no DSL.
 - **Attribute routing + middleware** on the controller method:
   `#[Route('GET', '/products/{id:int}')]` and
   `#[Middleware(Auth::class)]` *are* the route table. No separate
@@ -109,6 +118,13 @@ the framework itself stays narrow.
 - **ETag middleware** drops 304s for unchanged GETs before your
   controller serializes a byte of response.
 - No content-negotiation layer to walk on every request.
+- **Sync-first, process-per-request, predictable.** We deliberately
+  don't chase async — PHP-FPM's process pool already gives you
+  concurrent-requests concurrency without the Fibers + event-loop
+  + non-blocking-driver tax, and every "why async" benchmark you
+  see is really an "I'm IO-bound and never cached anything" story.
+  Stack RoadRunner or Swoole under Rxn if you need in-request
+  concurrency; the framework doesn't change shape for it.
 
 ## Quickstart
 
@@ -135,7 +151,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Current test counts:
 
-- **Rxn framework:** 203 tests / 451 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 221 tests / 495 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
@@ -145,6 +161,7 @@ Current test counts:
 |---|---|
 | Routing (convention + explicit patterns) | [`docs/routing.md`](docs/routing.md) |
 | Dependency injection | [`docs/dependency-injection.md`](docs/dependency-injection.md) |
+| Request binding + validation | [`docs/request-binding.md`](docs/request-binding.md) |
 | Scaffolded CRUD | [`docs/scaffolding.md`](docs/scaffolding.md) |
 | Error handling | [`docs/error-handling.md`](docs/error-handling.md) |
 | Building blocks (Logger, RateLimiter, Scheduler, Auth, Pipeline, Router, Validator, Migration, Chain, query cache, PSR-7 bridge) | [`docs/building-blocks.md`](docs/building-blocks.md) |
@@ -241,6 +258,11 @@ Current test counts:
 - [ ] Mailer *(out of scope; use symfony/mailer or phpmailer)*
 - [X] Request validation *(rule-based `Validator::assert`; see
       `Rxn\Framework\Utility\Validator`)*
+   - [X] Typed DTO binding with attribute-driven validation —
+         `Http\Binding\RequestDto` + `Http\Binding\Binder` +
+         `#[Required]`, `#[Min]`, `#[Max]`, `#[Length]`,
+         `#[Pattern]`, `#[InSet]`. All errors surface at once as a
+         7807 `errors` extension member.
 - [X] OpenAPI 3 spec generation from reflected controllers
       (`bin/rxn openapi`; `Http\OpenApi\Generator` + `Discoverer`)
    - [X] One-line interactive docs via
