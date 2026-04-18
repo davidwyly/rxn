@@ -122,13 +122,23 @@ PHP lint every touched file with `php -l <path>` before committing.
   wrong class. Feature is advertised but effectively broken.
 - **ORM relationship autowiring (`Rxn\Framework\Data\Map\Chain\Link`)**
   is still a throwing stub.
-- **Authentication** is not implemented. No OAuth/JWT/session-backed
-  user system yet.
-- **Rate limiting** is not implemented.
-- **Event logging** is not implemented.
 - **Mailer** is intentionally a throwing stub; wire to a tiny PHP
-  mail() wrapper or a single SMTP library if it becomes necessary.
+  `mail()` wrapper or a single SMTP library if it becomes necessary.
 - **Scheduler** is not implemented.
+
+## Building blocks you can compose
+
+- **`Rxn\Framework\Utility\Logger`** — append-only JSON-lines logger.
+  `new Logger('/var/log/rxn/app.log'); $log->info('msg', [ctx])`.
+- **`Rxn\Framework\Utility\RateLimiter`** — fixed-window, file-backed.
+  `new RateLimiter('/tmp/rate', limit: 60, window: 60);
+  if (!$rl->allow($ip)) { return 429; }`.
+- **`Rxn\Framework\Service\Auth`** — bearer-token resolver. Register
+  a closure in app bootstrap that maps a token to a principal; call
+  `extractBearer` + `resolve` from controllers that require auth.
+- **`Rxn\Framework\Http\Router\Session::token()` /
+  `::validateToken()`** — CSRF sync tokens.
+- **`Rxn\Framework\Data\Migration`** — file-based `*.sql` runner.
 
 When finishing any of these, prefer the smallest working version.
 Ship it, get tests green, move on.
