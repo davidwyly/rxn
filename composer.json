@@ -4,8 +4,7 @@
   "license": "MIT",
   "autoload": {
     "psr-4": {
-      "Rxn\\": "src/Rxn/",
-      "Davidwyly\\": "src/Davidwyly/"
+      "Rxn\\": "src/Rxn/"
     }
   },
   "config": {
