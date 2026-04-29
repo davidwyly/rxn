@@ -36,6 +36,8 @@ router.match.many.miss              2,399,648            417
 pipeline.3layer                     1,008,024            992
 validator.check.clean                 258,186          3,873
 validator.check.compiled              612,331          1,633
+binder.bind.runtime                   143,353          6,976
+binder.bind.compiled                  919,508          1,088
 container.get.depth_3                 427,778          2,338
 builder.select.compound                52,095         19,196
 builder.select.subquery                77,850         12,845
@@ -60,6 +62,8 @@ psr7.from_globals                     120,581          8,293
 | `pipeline.3layer` | Rxn-typed pipeline with three no-op middlewares |
 | `validator.check.clean` | `Validator::check` against a 4-field rule set (runtime path) |
 | `validator.check.compiled` | Same payload, eval-compiled closure from `Validator::compile($rules)` — schema-compiled rule set, ~2.4× faster than the runtime path |
+| `binder.bind.runtime` | `Binder::bind` hydrating a 5-property DTO with mixed validation attributes |
+| `binder.bind.compiled` | Same payload, eval-compiled closure from `Binder::compileFor($class)` — schema-compiled DTO hydration, ~6.4× faster than the runtime path |
 | `container.get.depth_3` | Autowiring `A → B → C` from a fresh container |
 | `builder.select.compound` | `Query` with SELECT + LEFT JOIN + multi-WHERE + GROUP BY + ORDER BY + LIMIT, materialised via `toSql()` |
 | `builder.select.subquery` | SELECT with a `selectSubquery(...)` correlated subquery |
