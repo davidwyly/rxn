@@ -141,4 +141,31 @@ final class RequestTest extends TestCase
             'action'     => 'list',
         ]);
     }
+
+    public function testParsesVersionWithoutPeriodAsBothControllerAndActionVersion(): void
+    {
+        // Convention is "v{N}.{M}" (controller_version.action_version),
+        // but a URL like ?params=v1/Orders/list omits the action
+        // version. Pre-fix, this crashed with a TypeError because
+        // mb_strpos returned false and that was passed to mb_substr's
+        // length argument. Post-fix, both versions resolve to "v1".
+        $request = $this->buildRequest([
+            'version'    => 'v1',
+            'controller' => 'orders',
+            'action'     => 'list',
+        ]);
+        $this->assertSame('v1', $request->parseControllerVersion());
+        $this->assertSame('v1', $request->parseActionVersion());
+    }
+
+    public function testParsesVersionWithPeriod(): void
+    {
+        $request = $this->buildRequest([
+            'version'    => 'v2.3',
+            'controller' => 'orders',
+            'action'     => 'list',
+        ]);
+        $this->assertSame('v2', $request->parseControllerVersion());
+        $this->assertSame('v3', $request->parseActionVersion());
+    }
 }

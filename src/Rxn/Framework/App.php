@@ -83,8 +83,20 @@ class App
             return $this->renderFailure($request->getException());
         }
 
-        $controller_ref        = $this->api->findController($request);
-        $this->api->controller = $this->container->get($controller_ref);
+        $controller_ref = $this->api->findController($request);
+        try {
+            $this->api->controller = $this->container->get($controller_ref);
+        } catch (\Rxn\Framework\Error\ContainerException $e) {
+            // Convention router resolved the URL into a class
+            // reference, but the class itself doesn't exist (or
+            // isn't autoloadable). From the client's perspective
+            // that's still "no such resource" — 404, not 500.
+            throw new \Rxn\Framework\Error\NotFoundException(
+                "No route matches this request",
+                404,
+                $e,
+            );
+        }
 
         return $this->api->controller->trigger();
     }
