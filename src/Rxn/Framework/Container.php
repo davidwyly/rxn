@@ -73,6 +73,15 @@ class Container
     private static array $parsedNameCache = [];
 
     /**
+     * Precomputed normalised name of the Container class itself. Used
+     * by `get()` to short-circuit when callers ask for the container.
+     * Avoids a `ltrim($class_name, '\\') === ltrim(Container::class, '\\')`
+     * pair on every dispatch — the input is already normalised, so a
+     * single string compare against this constant is enough.
+     */
+    private const SELF_KEY = '\\Rxn\\Framework\\Container';
+
+    /**
      * Container constructor.
      */
     public function __construct()
@@ -115,8 +124,10 @@ class Container
         // change every namespace to be absolute
         $class_name = $this->parseClassName($class_name);
 
-        // in the event that we're looking up the container class, return itself
-        if (ltrim($class_name, '\\') === ltrim(Container::class, '\\')) {
+        // Self-lookup short-circuit. $class_name is already in the
+        // normalised "\Foo\Bar" form post-parseClassName, so a direct
+        // compare against the precomputed self key is enough.
+        if ($class_name === self::SELF_KEY) {
             return $this;
         }
 
@@ -157,7 +168,9 @@ class Container
         } finally {
             unset($this->resolving[$class_name]);
         }
-        $this->addInstance($class_name, $instance);
+        // $class_name is already normalised; skip addInstance() to
+        // avoid a redundant parseClassName() call.
+        $this->instances[$class_name] = $instance;
 
         return $instance;
     }
@@ -244,7 +257,13 @@ class Container
         foreach ($constructor->getParameters() as $p) {
             $type = $p->getType();
             if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
-                $plan[] = ['autowire', $type->getName()];
+                // Pre-normalise the target FQCN so the recursive
+                // get($directive[1]) lands on the parseClassName cache
+                // immediately instead of paying for ltrim + concat.
+                $name = $type->getName();
+                $normalised = self::$parsedNameCache[$name]
+                    ??= '\\' . ltrim($name, '\\');
+                $plan[] = ['autowire', $normalised];
                 continue;
             }
             if ($p->isDefaultValueAvailable()) {
