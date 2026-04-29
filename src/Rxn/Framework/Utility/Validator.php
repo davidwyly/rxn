@@ -95,7 +95,19 @@ final class Validator
             return is_string($result) && $result !== '' ? $result : null;
         }
 
-        [$name, $arg] = array_pad(explode(':', (string)$rule, 2), 2, null);
+        // Hot path: parse "name:arg" without allocating an array.
+        // explode + array_pad allocates a 2-element array per rule;
+        // a typical check() call walks 15-20 rules. strpos + substr
+        // does the same work with no allocation.
+        $rule  = (string) $rule;
+        $colon = strpos($rule, ':');
+        if ($colon === false) {
+            $name = $rule;
+            $arg  = null;
+        } else {
+            $name = substr($rule, 0, $colon);
+            $arg  = substr($rule, $colon + 1);
+        }
 
         switch ($name) {
             case 'string':
