@@ -129,6 +129,10 @@ $rules = [
 $cases['validator.check.clean'] = function () use ($payload, $rules) {
     return Validator::check($payload, $rules);
 };
+$compiledCheck = Validator::compile($rules);
+$cases['validator.check.compiled'] = function () use ($payload, $compiledCheck) {
+    return $compiledCheck($payload);
+};
 
 // Container: autowire a simple chain A -> B -> C
 class BenchC {}

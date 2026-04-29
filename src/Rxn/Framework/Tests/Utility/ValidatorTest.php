@@ -135,4 +135,102 @@ final class ValidatorTest extends TestCase
         $this->assertArrayHasKey('email', $errors);
         $this->assertArrayHasKey('age', $errors);
     }
+
+    /**
+     * @return iterable<string, array{0: array<string, mixed>, 1: array<string, array<int, string>>}>
+     */
+    public static function compileParityCases(): iterable
+    {
+        $rules = [
+            'email' => ['required', 'email'],
+            'age'   => ['required', 'int', 'min:18', 'max:120'],
+            'role'  => ['in:admin,member,guest'],
+            'slug'  => ['regex:/^[a-z0-9-]+$/'],
+            'tags'  => ['array', 'between:1,5'],
+            'title' => ['string', 'min:3', 'max:50'],
+            'site'  => ['url'],
+            'bio'   => ['string'],
+            'price' => ['numeric'],
+            'flag'  => ['bool'],
+        ];
+
+        yield 'all valid' => [
+            [
+                'email' => 'u@example.com',
+                'age'   => 42,
+                'role'  => 'member',
+                'slug'  => 'abc-123',
+                'tags'  => ['a', 'b'],
+                'title' => 'Hello world',
+                'site'  => 'https://example.com',
+                'bio'   => 'about me',
+                'price' => '9.99',
+                'flag'  => 'true',
+            ],
+            $rules,
+        ];
+
+        yield 'all missing optional' => [
+            ['email' => 'u@example.com', 'age' => 25],
+            $rules,
+        ];
+
+        yield 'all invalid' => [
+            [
+                'email' => 'nope',
+                'age'   => 12,
+                'role'  => 'stranger',
+                'slug'  => 'BAD slug',
+                'tags'  => 'not-array',
+                'title' => 'no',
+                'site'  => 'not a url',
+                'bio'   => 123,
+                'price' => 'free',
+                'flag'  => 'maybe',
+            ],
+            $rules,
+        ];
+
+        yield 'edge: empty string == missing' => [
+            ['email' => '', 'age' => 30],
+            $rules,
+        ];
+    }
+
+    /** @dataProvider compileParityCases */
+    public function testCompiledOutputMatchesCheckOutput(array $payload, array $rules): void
+    {
+        $expected = Validator::check($payload, $rules);
+        $compiled = Validator::compile($rules);
+        $this->assertSame($expected, $compiled($payload));
+    }
+
+    public function testCompileCachesEquivalentRuleSets(): void
+    {
+        $rules1 = [
+            'email' => ['required', 'email'],
+            'age'   => ['int', 'min:18'],
+        ];
+        $rules2 = [
+            'email' => ['required', 'email'],
+            'age'   => ['int', 'min:18'],
+        ];
+        $a = Validator::compile($rules1);
+        $b = Validator::compile($rules2);
+        $this->assertSame($a, $b);
+    }
+
+    public function testCompileBypassesCacheForCallableRules(): void
+    {
+        $rules = [
+            'name' => [
+                'required',
+                fn ($v, $f) => str_starts_with((string)$v, 'X') ? "$f must not start with X" : null,
+            ],
+        ];
+        $check = Validator::compile($rules);
+        $this->assertSame([], $check(['name' => 'Alice']));
+        $errors = $check(['name' => 'Xavier']);
+        $this->assertSame(['name' => ['name must not start with X']], $errors);
+    }
 }
