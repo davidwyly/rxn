@@ -26,23 +26,24 @@ host-level load.
 ```
 case                                  ops/sec          ns/op
 ------------------------------ -------------- --------------
-router.match.static                 2,010,791            497
-router.match.single_param           1,228,724            814
-router.match.multi_param            1,022,235            978
-router.match.miss                   1,617,292            618
-router.match.many.first_verb_hit    1,962,884            509
-router.match.many.last_verb_hit     1,919,808            521
-router.match.many.miss              2,464,608            406
-pipeline.3layer                       996,916          1,003
-validator.check.clean                 261,906          3,818
-container.get.depth_3                 423,772          2,360
-builder.select.compound                51,707         19,340
-builder.select.subquery                79,893         12,517
-builder.insert.multirow               394,958          2,532
-builder.update.simple                 283,552          3,527
-builder.delete.simple                 367,559          2,721
-active_record.hydrate_100             110,447          9,054
-psr7.from_globals                     124,001          8,064
+router.match.static                 1,881,349            532
+router.match.single_param           1,215,760            823
+router.match.multi_param              965,012          1,036
+router.match.miss                   1,506,340            664
+router.match.many.first_verb_hit    1,929,780            518
+router.match.many.last_verb_hit     1,892,664            528
+router.match.many.miss              2,399,648            417
+pipeline.3layer                     1,008,024            992
+validator.check.clean                 258,186          3,873
+validator.check.compiled              612,331          1,633
+container.get.depth_3                 427,778          2,338
+builder.select.compound                52,095         19,196
+builder.select.subquery                77,850         12,845
+builder.insert.multirow               396,894          2,520
+builder.update.simple                 273,087          3,662
+builder.delete.simple                 357,459          2,798
+active_record.hydrate_100             109,740          9,112
+psr7.from_globals                     120,581          8,293
 ```
 
 ## What's covered
@@ -57,7 +58,8 @@ psr7.from_globals                     124,001          8,064
 | `router.match.many.last_verb_hit` | 20-route table, hit on the last verb's last entry |
 | `router.match.many.miss` | 20-route table, full miss (verb-bucketing exposure case) |
 | `pipeline.3layer` | Rxn-typed pipeline with three no-op middlewares |
-| `validator.check.clean` | `Validator::check` against a 4-field rule set |
+| `validator.check.clean` | `Validator::check` against a 4-field rule set (runtime path) |
+| `validator.check.compiled` | Same payload, eval-compiled closure from `Validator::compile($rules)` — schema-compiled rule set, ~2.4× faster than the runtime path |
 | `container.get.depth_3` | Autowiring `A → B → C` from a fresh container |
 | `builder.select.compound` | `Query` with SELECT + LEFT JOIN + multi-WHERE + GROUP BY + ORDER BY + LIMIT, materialised via `toSql()` |
 | `builder.select.subquery` | SELECT with a `selectSubquery(...)` correlated subquery |
