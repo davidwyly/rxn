@@ -28,7 +28,7 @@ router.match.multi_param            1,245,524            803
 router.match.miss                   1,835,464            545
 pipeline.3layer                     1,604,536            623
 validator.check.clean                 323,926          3,087
-container.get.depth_3                 358,075          2,793
+container.get.depth_3                 374,755          2,668
 builder.select.compound                78,696         12,707
 builder.select.subquery               107,161          9,332
 builder.insert.multirow               570,068          1,754
@@ -56,6 +56,17 @@ psr7.from_globals                      88,666         11,278
 | `builder.delete.simple` | `Delete` with WHERE |
 | `active_record.hydrate_100` | `ActiveRecord::hydrate` on 100 rows |
 | `psr7.from_globals` | `PsrAdapter::serverRequestFromGlobals()` full-stack |
+
+## A/B'ing a candidate optimisation
+
+When you change a hot path, prove the change moves the needle
+before shipping it. `bench/ab.php` materialises two git refs into
+their own worktrees, runs `bin/bench --json` against each N
+times, and reports per-case median + range + verdict (win /
+regression / noise / uncertain). See
+[`bench/ab/README.md`](../bench/ab/README.md) for the full
+workflow. Past experiments — including negative results — live
+under [`bench/ab/experiments/`](../bench/ab/experiments/).
 
 ## Keeping the numbers honest
 
