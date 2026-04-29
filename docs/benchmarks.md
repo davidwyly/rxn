@@ -22,23 +22,23 @@ apples-to-apples comparisons.
 ```
 case                                  ops/sec          ns/op
 ------------------------------ -------------- --------------
-router.match.static                 1,792,833            558
-router.match.single_param           1,478,448            676
-router.match.multi_param            1,249,064            801
-router.match.miss                   1,866,264            536
-router.match.many.first_verb_hit    2,032,532            492
-router.match.many.last_verb_hit     1,378,472            725
-router.match.many.miss              1,769,689            565
-pipeline.3layer                     1,577,368            634
-validator.check.clean                 318,934          3,135
-container.get.depth_3                 532,000          1,880
-builder.select.compound                76,806         13,020
-builder.select.subquery               107,213          9,327
-builder.insert.multirow               601,548          1,662
-builder.update.simple                 416,560          2,401
-builder.delete.simple                 564,622          1,771
-active_record.hydrate_100              99,447         10,056
-psr7.from_globals                      82,956         12,055
+router.match.static                 1,868,756            535
+router.match.single_param           1,461,160            684
+router.match.multi_param            1,258,100            795
+router.match.miss                   1,960,032            510
+router.match.many.first_verb_hit    2,118,656            472
+router.match.many.last_verb_hit     1,350,368            741
+router.match.many.miss              1,740,140            575
+pipeline.3layer                     1,607,092            622
+validator.check.clean                 357,012          2,801
+container.get.depth_3                 535,048          1,869
+builder.select.compound                77,054         12,978
+builder.select.subquery               106,430          9,396
+builder.insert.multirow               590,960          1,692
+builder.update.simple                 411,441          2,430
+builder.delete.simple                 558,460          1,791
+active_record.hydrate_100             181,330          5,515
+psr7.from_globals                      81,513         12,268
 ```
 
 ## What's covered
