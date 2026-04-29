@@ -221,6 +221,67 @@ $cases['psr7.from_globals'] = function () {
 };
 // leave $_SERVER modified for the run; restore at end.
 
+// CompiledJson: encode 100 typed DTOs
+class BenchProductDto
+{
+    public int    $id;
+    public string $name;
+    public float  $price;
+    public bool   $active;
+    public ?string $note;
+
+    public function __construct(int $id, string $name, float $price, bool $active, ?string $note)
+    {
+        $this->id     = $id;
+        $this->name   = $name;
+        $this->price  = $price;
+        $this->active = $active;
+        $this->note   = $note;
+    }
+}
+$dtos100 = array_map(
+    static fn (int $i) => new BenchProductDto(
+        $i,
+        "Product $i \"alt\"",
+        9.99 + $i,
+        $i % 2 === 0,
+        $i % 3 === 0 ? null : "Note for $i",
+    ),
+    range(1, 100),
+);
+// Warm the encoder cache so the first iteration doesn't pay the
+// reflection / eval cost (that's amortised over the process
+// lifetime in production; the bench measures steady-state per-call).
+\Rxn\Framework\Http\CompiledJson::for(BenchProductDto::class);
+
+$singleDto = $dtos100[0];
+$cases['json.encode_dto.single.baseline'] = function () use ($singleDto) {
+    return json_encode($singleDto, JSON_UNESCAPED_SLASHES);
+};
+$cases['json.encode_dto.single.compiled'] = function () use ($singleDto) {
+    $encode = \Rxn\Framework\Http\CompiledJson::for(BenchProductDto::class);
+    return $encode($singleDto);
+};
+
+$cases['json.encode_dto.list.baseline'] = function () use ($dtos100) {
+    return json_encode($dtos100, JSON_UNESCAPED_SLASHES);
+};
+$cases['json.encode_dto.list.compiled'] = function () use ($dtos100) {
+    $encode = \Rxn\Framework\Http\CompiledJson::for(BenchProductDto::class);
+    $parts  = [];
+    foreach ($dtos100 as $dto) {
+        $parts[] = $encode($dto);
+    }
+    return '[' . implode(',', $parts) . ']';
+};
+// Batch-compiled encoder: one eval'd closure that iterates the whole
+// array, so the 100 invocations of the per-DTO closure collapse into
+// one call.
+$encodeList = \Rxn\Framework\Http\CompiledJson::forList(BenchProductDto::class);
+$cases['json.encode_dto.list.compiled_batch'] = function () use ($dtos100, $encodeList) {
+    return $encodeList($dtos100);
+};
+
 function run_case(callable $fn, float $warmup_s = 0.05, float $run_s = 0.25): array
 {
     // warmup
