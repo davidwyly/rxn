@@ -63,6 +63,16 @@ class Container
     private static array $constructorPlanCache = [];
 
     /**
+     * Memoise normalised class names. parseClassName is a pure
+     * function (`'\\' . ltrim($input, '\\')`); same input always
+     * produces the same output, and it gets called multiple times
+     * per `get()` (entry call + recursive autowire + addInstance).
+     *
+     * @var array<string, string>
+     */
+    private static array $parsedNameCache = [];
+
+    /**
      * Container constructor.
      */
     public function __construct()
@@ -265,8 +275,8 @@ class Container
 
     private function parseClassName($class_name)
     {
-        $class_name = ltrim($class_name, '\\');
-        return "\\" . $class_name;
+        return self::$parsedNameCache[$class_name]
+            ??= "\\" . ltrim($class_name, '\\');
     }
 
     /**
