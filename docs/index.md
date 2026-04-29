@@ -69,6 +69,7 @@ sequenceDiagram
 | [Building blocks](building-blocks.md) | Pipeline + shipped middlewares, Logger, RateLimiter, Scheduler, Auth, Migration, Chain, TestClient, SwaggerUi |
 | [CLI](cli.md) | `bin/rxn` — migrations, scaffolding, OpenAPI spec |
 | [Benchmarks](benchmarks.md) | `bin/bench` — microbenchmarks for the building blocks |
+| [OPcache preload](opcache-preload.md) | `bin/preload.php` — pre-compile the framework at fpm boot |
 
 The full list of features and their implementation status lives in
 the top-level [README](../README.md). Framework-level conventions
