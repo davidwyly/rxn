@@ -1,0 +1,91 @@
+<?php declare(strict_types=1);
+
+namespace Rxn\Framework\Http\Middleware;
+
+use Rxn\Framework\Data\Database;
+use Rxn\Framework\Http\Middleware;
+use Rxn\Framework\Http\Request;
+use Rxn\Framework\Http\Response;
+
+/**
+ * Wrap a request in a database transaction. Commits on a 2xx
+ * response, rolls back on 4xx / 5xx or any thrown exception.
+ *
+ *   $pipeline->add(new Transaction($container->get(Database::class)));
+ *
+ * Middleware vs. per-handler transactions:
+ *
+ *  - **Middleware** (this class) — every mutating request gets a
+ *    transaction by default. Controllers don't have to remember
+ *    the boilerplate. Failures → automatic rollback.
+ *  - **Per-handler** — controllers call `$db->transactionOpen()`
+ *    themselves. Useful for reads that don't need a transaction
+ *    (most don't), or for fine-grained control inside a long
+ *    request.
+ *
+ * Both compose: the middleware nests cleanly with handler-level
+ * `transactionOpen()` calls because Database supports nested
+ * begins via `transaction_depth`.
+ *
+ * GET / HEAD / OPTIONS pass through untouched by default — no
+ * transaction overhead on read-only requests. Apps that *want*
+ * read-side snapshot isolation can override `$wrappedMethods`.
+ *
+ * Multi-database apps add multiple Transaction instances, one per
+ * Database; the middlewares stack and run in pipeline order. The
+ * commit/rollback decision is made independently per database
+ * based on the same response code.
+ */
+final class Transaction implements Middleware
+{
+    public function __construct(
+        private readonly Database $database,
+        /** @var list<string> */
+        private readonly array $wrappedMethods = ['POST', 'PUT', 'PATCH', 'DELETE'],
+    ) {}
+
+    public function handle(Request $request, callable $next): Response
+    {
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        if (!in_array($method, $this->wrappedMethods, true)) {
+            return $next($request);
+        }
+
+        $this->database->transactionOpen();
+        try {
+            $response = $next($request);
+        } catch (\Throwable $exception) {
+            // Roll back, then re-raise — the exception handler /
+            // Response::getFailure() further up the stack still
+            // sees the same Throwable.
+            $this->safeRollback();
+            throw $exception;
+        }
+        // 2xx → commit, anything else → rollback. Validation
+        // failures (422) and client errors (4xx) shouldn't persist
+        // partial writes; server errors (5xx) definitely shouldn't.
+        if ($response->getCode() >= 200 && $response->getCode() < 300) {
+            $this->database->transactionClose();
+        } else {
+            $this->safeRollback();
+        }
+        return $response;
+    }
+
+    /**
+     * Rollback that swallows its own DatabaseException. Called
+     * from both the catch and the post-process branch — neither
+     * should mask the original outcome (the thrown exception or
+     * the 4xx/5xx response) with a "rollback failed" error.
+     * The underlying connection is still propagated up via the
+     * normal exception path on next query attempt.
+     */
+    private function safeRollback(): void
+    {
+        try {
+            $this->database->transactionRollback();
+        } catch (\Throwable) {
+            // Intentionally swallowed — see method docblock.
+        }
+    }
+}
