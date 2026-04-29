@@ -29,6 +29,25 @@ class Container
     private array $bindings = [];
 
     /**
+     * Process-lifetime cache of ReflectionClass instances. The class
+     * graph doesn't change at runtime, and constructing a
+     * ReflectionClass each time `get()` is called is observable on
+     * the dispatch hot path (see bench/ab/results — container
+     * autowire moves +20-30%% under this cache).
+     *
+     * @var array<string, \ReflectionClass>
+     */
+    private static array $reflectionCache = [];
+
+    /**
+     * Same idea for `isService` — the answer is a function of the
+     * class hierarchy, which is also fixed for the process lifetime.
+     *
+     * @var array<string, bool>
+     */
+    private static array $isServiceCache = [];
+
+    /**
      * Container constructor.
      */
     public function __construct()
@@ -125,8 +144,17 @@ class Container
      */
     private function isService($class_name)
     {
-        $reflection = new \ReflectionClass($class_name);
-        return $reflection->isSubclassOf(Service::class);
+        return self::$isServiceCache[$class_name]
+            ??= self::reflectionFor($class_name)->isSubclassOf(Service::class);
+    }
+
+    /**
+     * Class-graph reflection lookup, cached for the process lifetime.
+     */
+    private static function reflectionFor(string $class_name): \ReflectionClass
+    {
+        return self::$reflectionCache[$class_name]
+            ??= new \ReflectionClass($class_name);
     }
 
     /**
@@ -138,7 +166,7 @@ class Container
      */
     private function generateInstance($class_name, array $passed_parameters)
     {
-        $reflection = new \ReflectionClass($class_name);
+        $reflection = self::reflectionFor($class_name);
 
         $constructor = $reflection->getConstructor();
         if (!$constructor) {
