@@ -69,6 +69,34 @@ $cases['router.match.miss'] = function () use ($router) {
     return $router->match('GET', '/no/such/route');
 };
 
+// "Realistic" many-route table: 5 routes per HTTP verb across
+// GET/POST/PUT/DELETE = 20 routes total. The cases below probe
+// the verb-bucket optimization opportunity — a request whose verb
+// only matches a small slice of the table shouldn't pay to walk
+// all 20 routes on every miss.
+$big = new Router();
+foreach (['GET', 'POST', 'PUT', 'DELETE'] as $verb) {
+    $lower = strtolower($verb);
+    for ($i = 0; $i < 5; $i++) {
+        $big->add($verb, "/$lower/path/$i", "h-$verb-$i");
+    }
+}
+
+$cases['router.match.many.first_verb_hit'] = function () use ($big) {
+    // GET /get/path/0 — best case, hits the very first registered route
+    return $big->match('GET', '/get/path/0');
+};
+$cases['router.match.many.last_verb_hit'] = function () use ($big) {
+    // DELETE /delete/path/4 — last verb, last route in its bucket;
+    // a verb-bucketed router only walks 5, a linear router walks 20
+    return $big->match('DELETE', '/delete/path/4');
+};
+$cases['router.match.many.miss'] = function () use ($big) {
+    // Walks the entire table on a linear matcher; with verb buckets
+    // it only walks the routes for GET (5).
+    return $big->match('GET', '/no/such/route');
+};
+
 // Pipeline: 3-layer pass-through
 $noop = new class implements Middleware {
     public function handle(Request $request, callable $next): Response
