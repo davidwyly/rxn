@@ -22,20 +22,23 @@ apples-to-apples comparisons.
 ```
 case                                  ops/sec          ns/op
 ------------------------------ -------------- --------------
-router.match.static                 1,906,142            525
-router.match.single_param           1,464,592            683
-router.match.multi_param            1,245,524            803
-router.match.miss                   1,835,464            545
-pipeline.3layer                     1,604,536            623
-validator.check.clean                 323,926          3,087
-container.get.depth_3                 374,755          2,668
-builder.select.compound                78,696         12,707
-builder.select.subquery               107,161          9,332
-builder.insert.multirow               570,068          1,754
-builder.update.simple                 402,486          2,485
-builder.delete.simple                 540,022          1,852
-active_record.hydrate_100             105,102          9,515
-psr7.from_globals                      88,666         11,278
+router.match.static                 1,634,774            612
+router.match.single_param           1,285,604            778
+router.match.multi_param            1,112,624            899
+router.match.miss                   1,713,684            584
+router.match.many.first_verb_hit    1,835,664            545
+router.match.many.last_verb_hit     1,209,968            826
+router.match.many.miss              1,543,544            648
+pipeline.3layer                     1,406,472            711
+validator.check.clean                 292,871          3,414
+container.get.depth_3                 415,262          2,408
+builder.select.compound                67,744         14,762
+builder.select.subquery                96,286         10,386
+builder.insert.multirow               527,794          1,895
+builder.update.simple                 355,119          2,816
+builder.delete.simple                 492,276          2,031
+active_record.hydrate_100              86,967         11,499
+psr7.from_globals                      73,145         13,671
 ```
 
 ## What's covered
@@ -46,6 +49,9 @@ psr7.from_globals                      88,666         11,278
 | `router.match.single_param` | Single `{placeholder}` capture |
 | `router.match.multi_param` | Two placeholders in the same path |
 | `router.match.miss` | Walking the full route table before returning null |
+| `router.match.many.first_verb_hit` | 20-route table, hit on the first registered route |
+| `router.match.many.last_verb_hit` | 20-route table, hit on the last verb's last entry |
+| `router.match.many.miss` | 20-route table, full miss (verb-bucketing exposure case) |
 | `pipeline.3layer` | Rxn-typed pipeline with three no-op middlewares |
 | `validator.check.clean` | `Validator::check` against a 4-field rule set |
 | `container.get.depth_3` | Autowiring `A → B → C` from a fresh container |
