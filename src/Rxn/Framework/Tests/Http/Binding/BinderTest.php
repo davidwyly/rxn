@@ -194,4 +194,84 @@ final class BinderTest extends TestCase
             $_POST = $prevPost;
         }
     }
+
+    /**
+     * @return iterable<string, array{0: array<string, mixed>}>
+     */
+    public static function compileParityCases(): iterable
+    {
+        yield 'all valid' => [[
+            'name'     => 'Widget',
+            'price'    => '1299',
+            'slug'     => 'widget-v2',
+            'status'   => 'published',
+            'featured' => 'true',
+            'note'     => 'a note',
+        ]];
+
+        yield 'optional fields default' => [[
+            'name'  => 'Widget',
+            'price' => 100,
+        ]];
+
+        yield 'all invalid' => [[
+            'name'     => '',                   // empty -> required fires
+            'price'    => 'free',                // not numeric
+            'slug'     => 'BAD slug',            // pattern fail
+            'status'   => 'unknown',             // not in set
+            'featured' => 'maybe',               // bool cast fail
+        ]];
+
+        yield 'mins / maxes / lengths' => [[
+            'name'   => str_repeat('A', 200),    // length max:100 fails
+            'price'  => -1,                      // min:0 fails
+            'slug'   => 'ok-slug',
+            'status' => 'draft',
+        ]];
+
+        yield 'edge: nullable note explicit null' => [[
+            'name'  => 'X',
+            'price' => 1,
+            'note'  => null,
+        ]];
+    }
+
+    /**
+     * Compiled binder must produce identical hydrated state and identical
+     * error sets to the runtime path. Both forms catch the exception and
+     * compare the collected errors when validation fails.
+     *
+     * @dataProvider compileParityCases
+     * @param array<string, mixed> $bag
+     */
+    public function testCompiledOutputMatchesRuntimeOutput(array $bag): void
+    {
+        $runtimeError = null;
+        $compiledError = null;
+        $runtimeDto = null;
+        $compiledDto = null;
+        try {
+            $runtimeDto = Binder::bind(CreateProduct::class, $bag);
+        } catch (ValidationException $e) {
+            $runtimeError = $e->errors();
+        }
+        $bind = Binder::compileFor(CreateProduct::class);
+        try {
+            $compiledDto = $bind($bag);
+        } catch (ValidationException $e) {
+            $compiledError = $e->errors();
+        }
+        if ($runtimeError !== null || $compiledError !== null) {
+            $this->assertSame($runtimeError, $compiledError, 'error sets diverged');
+            return;
+        }
+        $this->assertEquals($runtimeDto, $compiledDto, 'hydrated state diverged');
+    }
+
+    public function testCompileForCachesPerClass(): void
+    {
+        $a = Binder::compileFor(CreateProduct::class);
+        $b = Binder::compileFor(CreateProduct::class);
+        $this->assertSame($a, $b);
+    }
 }

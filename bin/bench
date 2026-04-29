@@ -22,6 +22,12 @@ namespace Rxn\Framework\Bench;
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use Rxn\Framework\Container;
+use Rxn\Framework\Http\Attribute\InSet;
+use Rxn\Framework\Http\Attribute\Length;
+use Rxn\Framework\Http\Attribute\Min;
+use Rxn\Framework\Http\Attribute\Required;
+use Rxn\Framework\Http\Binding\Binder;
+use Rxn\Framework\Http\Binding\RequestDto;
 use Rxn\Framework\Http\Middleware;
 use Rxn\Framework\Http\Pipeline;
 use Rxn\Framework\Http\PsrAdapter;
@@ -224,6 +230,40 @@ $cases['psr7.from_globals'] = function () {
     return PsrAdapter::serverRequestFromGlobals();
 };
 // leave $_SERVER modified for the run; restore at end.
+
+// Binder: realistic 5-field DTO with mixed validation attributes
+class BenchProductBindDto implements RequestDto
+{
+    #[Required]
+    #[Length(min: 1, max: 100)]
+    public string $name;
+
+    #[Required]
+    #[Min(0)]
+    public int $price;
+
+    public bool $active = true;
+
+    #[Length(max: 500)]
+    public ?string $description = null;
+
+    #[InSet(['draft', 'published', 'archived'])]
+    public string $status = 'draft';
+}
+$bindBag = [
+    'name'        => 'Widget',
+    'price'       => '9',
+    'active'      => 'true',
+    'description' => 'A nice widget',
+    'status'      => 'published',
+];
+$cases['binder.bind.runtime'] = function () use ($bindBag) {
+    return Binder::bind(BenchProductBindDto::class, $bindBag);
+};
+$compiledBinder = Binder::compileFor(BenchProductBindDto::class);
+$cases['binder.bind.compiled'] = function () use ($bindBag, $compiledBinder) {
+    return $compiledBinder($bindBag);
+};
 
 function run_case(callable $fn, float $warmup_s = 0.05, float $run_s = 0.25): array
 {
