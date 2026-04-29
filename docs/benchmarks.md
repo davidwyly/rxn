@@ -15,30 +15,34 @@ rewritten.
 ## Reference numbers
 
 These are the numbers produced on the development workstation
-(PHP 8.4.19, OPcache on, no JIT, `bin/bench` in a tight loop). Your
-mileage will vary; rerun `bin/bench` on your own hardware for
-apples-to-apples comparisons.
+(PHP 8.4.19, OPcache on, no JIT, `bin/bench` in a tight loop) under
+typical mixed-load conditions. On a quiet box every line scales up
+by roughly 1.5×–2× — psr7.from_globals has been seen north of 200k
+on an unloaded run. Your mileage will vary; rerun `bin/bench` on
+your own hardware for apples-to-apples comparisons, and prefer
+`bench/ab.php` for the side-by-side numbers that are robust to
+host-level load.
 
 ```
 case                                  ops/sec          ns/op
 ------------------------------ -------------- --------------
-router.match.static                 2,615,146            382
-router.match.single_param           1,648,436            607
-router.match.multi_param            1,357,928            736
-router.match.miss                   2,252,972            444
-router.match.many.first_verb_hit    2,774,532            360
-router.match.many.last_verb_hit     2,700,324            370
-router.match.many.miss              3,421,284            292
-pipeline.3layer                     1,532,780            652
-validator.check.clean                 350,770          2,851
-container.get.depth_3                 609,480          1,641
-builder.select.compound                77,987         12,823
-builder.select.subquery               109,977          9,093
-builder.insert.multirow               597,132          1,675
-builder.update.simple                 406,429          2,460
-builder.delete.simple                 551,730          1,812
-active_record.hydrate_100             182,847          5,469
-psr7.from_globals                      80,907         12,360
+router.match.static                 2,010,791            497
+router.match.single_param           1,228,724            814
+router.match.multi_param            1,022,235            978
+router.match.miss                   1,617,292            618
+router.match.many.first_verb_hit    1,962,884            509
+router.match.many.last_verb_hit     1,919,808            521
+router.match.many.miss              2,464,608            406
+pipeline.3layer                       996,916          1,003
+validator.check.clean                 261,906          3,818
+container.get.depth_3                 423,772          2,360
+builder.select.compound                51,707         19,340
+builder.select.subquery                79,893         12,517
+builder.insert.multirow               394,958          2,532
+builder.update.simple                 283,552          3,527
+builder.delete.simple                 367,559          2,721
+active_record.hydrate_100             110,447          9,054
+psr7.from_globals                     124,001          8,064
 ```
 
 ## What's covered
