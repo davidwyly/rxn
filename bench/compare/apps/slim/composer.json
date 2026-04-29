@@ -1,0 +1,12 @@
+{
+    "name": "rxn-bench/slim",
+    "description": "Slim 4 app for cross-framework comparison",
+    "require": {
+        "php": "^8.2",
+        "slim/slim": "^4.13",
+        "slim/psr7": "^1.6"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
