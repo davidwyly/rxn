@@ -15,6 +15,8 @@ namespace Rxn\Framework\Bench;
  *
  *   php bin/bench              # run everything
  *   php bin/bench router       # filter by substring
+ *   php bin/bench --json       # JSON array, one object per case
+ *   php bin/bench --json router
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -34,7 +36,15 @@ use Rxn\Orm\Builder\Query;
 use Rxn\Orm\Builder\Raw;
 use Rxn\Orm\Builder\Update;
 
-$filter = $argv[1] ?? null;
+// Argv parsing: positional substring filter + optional --json flag.
+// Stays minimal; the driver in bench/ab.php is the consumer of --json.
+$asJson = false;
+$filter = null;
+foreach (array_slice($argv, 1) as $arg) {
+    if ($arg === '--json') { $asJson = true; continue; }
+    if (str_starts_with($arg, '--')) { continue; } // ignore unknown flags
+    if ($filter === null) { $filter = $arg; }
+}
 
 $cases = [];
 
@@ -207,20 +217,37 @@ function run_case(callable $fn, float $warmup_s = 0.05, float $run_s = 0.25): ar
     ];
 }
 
-printf("%-30s %14s %14s\n", 'case', 'ops/sec', 'ns/op');
-printf("%-30s %14s %14s\n", str_repeat('-', 30), str_repeat('-', 14), str_repeat('-', 14));
-
-foreach ($cases as $name => $fn) {
-    if ($filter !== null && !str_contains($name, $filter)) {
-        continue;
+if ($asJson) {
+    $rows = [];
+    foreach ($cases as $name => $fn) {
+        if ($filter !== null && !str_contains($name, $filter)) {
+            continue;
+        }
+        $r = run_case($fn);
+        $rows[] = [
+            'case'   => $name,
+            'iter'   => $r['iter'],
+            'ops_s'  => $r['ops_s'],
+            'ns_op'  => $r['ns_op'],
+        ];
     }
-    $r = run_case($fn);
-    printf(
-        "%-30s %14s %14s\n",
-        $name,
-        number_format($r['ops_s'], 0),
-        number_format($r['ns_op'], 0)
-    );
+    fwrite(STDOUT, json_encode($rows, JSON_PRETTY_PRINT) . "\n");
+} else {
+    printf("%-30s %14s %14s\n", 'case', 'ops/sec', 'ns/op');
+    printf("%-30s %14s %14s\n", str_repeat('-', 30), str_repeat('-', 14), str_repeat('-', 14));
+
+    foreach ($cases as $name => $fn) {
+        if ($filter !== null && !str_contains($name, $filter)) {
+            continue;
+        }
+        $r = run_case($fn);
+        printf(
+            "%-30s %14s %14s\n",
+            $name,
+            number_format($r['ops_s'], 0),
+            number_format($r['ns_op'], 0)
+        );
+    }
 }
 
 $_SERVER = $originalServer;
