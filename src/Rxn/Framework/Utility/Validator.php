@@ -9,11 +9,15 @@ namespace Rxn\Framework\Utility;
  *
  * Each rule is either:
  *   - a keyword string: 'required', 'string', 'int', 'numeric',
- *     'bool', 'email', 'url', 'array'
+ *     'bool', 'array', 'email', 'url', 'uuid', 'ip', 'ipv4',
+ *     'ipv6', 'json', 'date', 'datetime', 'not_blank'
  *   - a `name:arg[,arg]*` string: 'min:1', 'max:255', 'between:1,10',
- *     'in:foo,bar,baz', 'regex:/pattern/'
+ *     'in:foo,bar,baz', 'regex:/pattern/', 'starts_with:prefix',
+ *     'ends_with:suffix'
  *   - a callable `fn($value, $field): ?string` returning an error
- *     message (or null when the value is acceptable)
+ *     message (or null when the value is acceptable). Bare strings
+ *     are always interpreted as rule names — even when they happen
+ *     to match a PHP builtin function name like `'date'`.
  *
  *   $errors = Validator::check(
  *       ['email' => 'u@example.com', 'age' => 17],
@@ -31,6 +35,13 @@ namespace Rxn\Framework\Utility;
  */
 final class Validator
 {
+    /**
+     * RFC 4122 UUID — any version, lowercase or uppercase hex.
+     * Used by both the `uuid` rule (Validator::evaluate) and the
+     * compiled rule emitter (Validator::compileRule).
+     */
+    private const UUID_REGEX = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
+
     /**
      * @param array<string, mixed> $payload
      * @param array<string, array<int, string|callable>> $rules
@@ -140,7 +151,12 @@ final class Validator
      */
     private static function evaluate(string $field, $value, $rule): ?string
     {
-        if (is_callable($rule)) {
+        // Rules are *either* a name string ("email", "min:18", etc.)
+        // *or* a real callable (Closure / [obj, 'method'] / invokable
+        // object). A bare string is never both — `is_callable("date")`
+        // is true because `date` is a PHP builtin, but here it's a
+        // rule name. The string-name path takes precedence.
+        if (!is_string($rule) && is_callable($rule)) {
             $result = $rule($value, $field);
             return is_string($result) && $result !== '' ? $result : null;
         }
@@ -210,6 +226,52 @@ final class Validator
                 return is_string($value) && preg_match($arg, $value) === 1
                     ? null
                     : "$field format is invalid";
+            case 'uuid':
+                return is_string($value) && preg_match(self::UUID_REGEX, $value) === 1
+                    ? null
+                    : "$field must be a valid UUID";
+            case 'ip':
+                return is_string($value) && filter_var($value, FILTER_VALIDATE_IP) !== false
+                    ? null
+                    : "$field must be a valid IP address";
+            case 'ipv4':
+                return is_string($value) && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false
+                    ? null
+                    : "$field must be a valid IPv4 address";
+            case 'ipv6':
+                return is_string($value) && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false
+                    ? null
+                    : "$field must be a valid IPv6 address";
+            case 'json':
+                return is_string($value) && json_validate($value)
+                    ? null
+                    : "$field must be valid JSON";
+            case 'date':
+                return self::isValidDate($value, 'Y-m-d')
+                    ? null
+                    : "$field must be a valid date (YYYY-MM-DD)";
+            case 'datetime':
+                return self::isValidDateTime($value)
+                    ? null
+                    : "$field must be a valid ISO-8601 datetime";
+            case 'not_blank':
+                return is_string($value) && trim($value) !== ''
+                    ? null
+                    : "$field must not be blank";
+            case 'starts_with':
+                if ($arg === null) {
+                    throw new \InvalidArgumentException("starts_with rule requires a prefix");
+                }
+                return is_string($value) && str_starts_with($value, $arg)
+                    ? null
+                    : "$field must start with '$arg'";
+            case 'ends_with':
+                if ($arg === null) {
+                    throw new \InvalidArgumentException("ends_with rule requires a suffix");
+                }
+                return is_string($value) && str_ends_with($value, $arg)
+                    ? null
+                    : "$field must end with '$arg'";
             default:
                 throw new \InvalidArgumentException("Unknown validation rule '$rule'");
         }
@@ -222,7 +284,7 @@ final class Validator
     {
         foreach ($rules as $fieldRules) {
             foreach ($fieldRules as $r) {
-                if (is_callable($r)) {
+                if (!is_string($r) && is_callable($r)) {
                     return false;
                 }
             }
@@ -306,7 +368,7 @@ final class Validator
     {
         $fieldQ = self::quoteString($field);
 
-        if (is_callable($rule)) {
+        if (!is_string($rule) && is_callable($rule)) {
             // Should already be filtered out by isCacheable — but
             // handle it for the no-cache path so identity is the same.
             $idx = array_push($callables, $rule) - 1;
@@ -337,8 +399,61 @@ final class Validator
             'between'=> self::compileBetweenRule($field, $arg),
             'in'     => self::compileInRule($field, $arg),
             'regex'  => self::compileRegexRule($field, $arg),
+            'uuid'   => "        if (!(\\is_string(\$value) && \\preg_match(" . self::quoteString(self::UUID_REGEX) . ", \$value) === 1)) { \$errors[$fieldQ][] = " . self::quoteString("$field must be a valid UUID") . "; }\n",
+            'ip'     => "        if (!(\\is_string(\$value) && \\filter_var(\$value, \\FILTER_VALIDATE_IP) !== false)) { \$errors[$fieldQ][] = " . self::quoteString("$field must be a valid IP address") . "; }\n",
+            'ipv4'   => "        if (!(\\is_string(\$value) && \\filter_var(\$value, \\FILTER_VALIDATE_IP, \\FILTER_FLAG_IPV4) !== false)) { \$errors[$fieldQ][] = " . self::quoteString("$field must be a valid IPv4 address") . "; }\n",
+            'ipv6'   => "        if (!(\\is_string(\$value) && \\filter_var(\$value, \\FILTER_VALIDATE_IP, \\FILTER_FLAG_IPV6) !== false)) { \$errors[$fieldQ][] = " . self::quoteString("$field must be a valid IPv6 address") . "; }\n",
+            'json'   => "        if (!(\\is_string(\$value) && \\json_validate(\$value))) { \$errors[$fieldQ][] = " . self::quoteString("$field must be valid JSON") . "; }\n",
+            'date'    => self::compileDateRule($field, 'Y-m-d', "$field must be a valid date (YYYY-MM-DD)"),
+            'datetime'=> self::compileDateTimeRule($field),
+            'not_blank' => "        if (!(\\is_string(\$value) && \\trim(\$value) !== '')) { \$errors[$fieldQ][] = " . self::quoteString("$field must not be blank") . "; }\n",
+            'starts_with' => self::compileStartsEndsRule($field, $arg, 'starts_with'),
+            'ends_with'   => self::compileStartsEndsRule($field, $arg, 'ends_with'),
             default  => throw new \InvalidArgumentException("Unknown validation rule '$rule'"),
         };
+    }
+
+    private static function compileDateRule(string $field, string $format, string $message): string
+    {
+        $fieldQ   = self::quoteString($field);
+        $formatQ  = self::quoteString($format);
+        $msgQ     = self::quoteString($message);
+        return "        if (!\\is_string(\$value)) { \$errors[$fieldQ][] = $msgQ; }\n"
+             . "        else {\n"
+             . "            \$dt = \\DateTimeImmutable::createFromFormat('!' . $formatQ, \$value);\n"
+             . "            if (\$dt === false || \$dt->format($formatQ) !== \$value) { \$errors[$fieldQ][] = $msgQ; }\n"
+             . "        }\n";
+    }
+
+    private static function compileDateTimeRule(string $field): string
+    {
+        $fieldQ = self::quoteString($field);
+        $msgQ   = self::quoteString("$field must be a valid ISO-8601 datetime");
+        // Same format list as Validator::isValidDateTime — kept in
+        // sync so runtime and compiled paths accept the same shapes.
+        return "        if (!\\is_string(\$value)) { \$errors[$fieldQ][] = $msgQ; }\n"
+             . "        else {\n"
+             . "            \$ok = false;\n"
+             . "            foreach ([\\DateTimeInterface::RFC3339, \\DateTimeInterface::ATOM, 'Y-m-d\\\\TH:i:s\\\\Z', 'Y-m-d\\\\TH:i:sP', 'Y-m-d H:i:s'] as \$f) {\n"
+             . "                \$dt = \\DateTimeImmutable::createFromFormat(\$f, \$value);\n"
+             . "                if (\$dt !== false && \$dt->format(\$f) === \$value) { \$ok = true; break; }\n"
+             . "            }\n"
+             . "            if (!\$ok) { \$errors[$fieldQ][] = $msgQ; }\n"
+             . "        }\n";
+    }
+
+    private static function compileStartsEndsRule(string $field, ?string $arg, string $kind): string
+    {
+        if ($arg === null) {
+            throw new \InvalidArgumentException("$kind rule requires an argument");
+        }
+        $fieldQ = self::quoteString($field);
+        $argQ   = self::quoteString($arg);
+        $fn     = $kind === 'starts_with' ? '\\str_starts_with' : '\\str_ends_with';
+        $msg    = $kind === 'starts_with'
+            ? "$field must start with '$arg'"
+            : "$field must end with '$arg'";
+        return "        if (!(\\is_string(\$value) && $fn(\$value, $argQ))) { \$errors[$fieldQ][] = " . self::quoteString($msg) . "; }\n";
     }
 
     private static function compileSizeRule(string $field, float $threshold, string $failOp, string $verb): string
@@ -401,6 +516,52 @@ final class Validator
     private static function quoteString(string $s): string
     {
         return "'" . strtr($s, ["\\" => "\\\\", "'" => "\\'"]) . "'";
+    }
+
+    /**
+     * Strict date check — `$value` must be a string in `$format`
+     * and round-trip equal under `DateTimeImmutable::createFromFormat`.
+     * Rejects loose `strtotime`-isms ("now", "next tuesday") and
+     * out-of-range dates that PHP would otherwise normalise
+     * (2024-02-30 → 2024-03-01).
+     */
+    private static function isValidDate(mixed $value, string $format): bool
+    {
+        if (!is_string($value)) {
+            return false;
+        }
+        $parsed = \DateTimeImmutable::createFromFormat('!' . $format, $value);
+        if ($parsed === false) {
+            return false;
+        }
+        return $parsed->format($format) === $value;
+    }
+
+    /**
+     * Accepts ISO-8601 / RFC 3339 datetimes — the shape APIs typically
+     * exchange. Tries each common format until one round-trips clean.
+     */
+    private static function isValidDateTime(mixed $value): bool
+    {
+        if (!is_string($value)) {
+            return false;
+        }
+        // Common API shapes: 2026-04-29T12:34:56Z,
+        // 2026-04-29T12:34:56+00:00, 2026-04-29 12:34:56.
+        $formats = [
+            \DateTimeInterface::RFC3339,
+            \DateTimeInterface::ATOM,
+            'Y-m-d\TH:i:s\Z',
+            'Y-m-d\TH:i:sP',
+            'Y-m-d H:i:s',
+        ];
+        foreach ($formats as $format) {
+            $parsed = \DateTimeImmutable::createFromFormat($format, $value);
+            if ($parsed !== false && $parsed->format($format) === $value) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
