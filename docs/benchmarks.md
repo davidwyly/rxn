@@ -38,7 +38,7 @@ validator.check.clean                 258,186          3,873
 validator.check.compiled              612,331          1,633
 binder.bind.runtime                   143,353          6,976
 binder.bind.compiled                  919,508          1,088
-container.get.depth_3                 427,778          2,338
+container.get.depth_3                 498,174          2,007
 builder.select.compound                52,095         19,196
 builder.select.subquery                77,850         12,845
 builder.insert.multirow               396,894          2,520
