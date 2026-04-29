@@ -14,9 +14,9 @@ final class HealthCheckTest extends TestCase
             'database' => fn () => true,
             'cache'    => fn () => ['ok' => true, 'depth' => 17],
         ]);
-        $this->assertSame('ok', $result['status']);
-        $this->assertSame(['status' => 'ok'], $result['checks']['database']);
-        $this->assertSame(['status' => 'ok', 'ok' => true, 'depth' => 17], $result['checks']['cache']);
+        $this->assertSame('ok', $result['data']['status']);
+        $this->assertSame(['status' => 'ok'], $result['data']['checks']['database']);
+        $this->assertSame(['status' => 'ok', 'ok' => true, 'depth' => 17], $result['data']['checks']['cache']);
         $this->assertSame(200, $result['meta']['status']);
     }
 
@@ -26,9 +26,9 @@ final class HealthCheckTest extends TestCase
             'database' => fn () => true,
             'queue'    => fn () => false,
         ]);
-        $this->assertSame('fail', $result['status']);
-        $this->assertSame(['status' => 'ok'],   $result['checks']['database']);
-        $this->assertSame(['status' => 'fail'], $result['checks']['queue']);
+        $this->assertSame('fail', $result['data']['status']);
+        $this->assertSame(['status' => 'ok'],   $result['data']['checks']['database']);
+        $this->assertSame(['status' => 'fail'], $result['data']['checks']['queue']);
         $this->assertSame(503, $result['meta']['status']);
     }
 
@@ -37,9 +37,9 @@ final class HealthCheckTest extends TestCase
         $result = HealthCheck::run([
             'database' => fn () => throw new \RuntimeException('connection refused'),
         ]);
-        $this->assertSame('fail', $result['status']);
-        $this->assertSame('fail', $result['checks']['database']['status']);
-        $this->assertSame('connection refused', $result['checks']['database']['error']);
+        $this->assertSame('fail', $result['data']['status']);
+        $this->assertSame('fail', $result['data']['checks']['database']['status']);
+        $this->assertSame('connection refused', $result['data']['checks']['database']['error']);
     }
 
     public function testCheckReturningArrayWithExplicitFailStatus(): void
@@ -47,16 +47,16 @@ final class HealthCheckTest extends TestCase
         $result = HealthCheck::run([
             'redis' => fn () => ['status' => 'fail', 'reason' => 'too slow'],
         ]);
-        $this->assertSame('fail', $result['status']);
-        $this->assertSame('fail', $result['checks']['redis']['status']);
-        $this->assertSame('too slow', $result['checks']['redis']['reason']);
+        $this->assertSame('fail', $result['data']['status']);
+        $this->assertSame('fail', $result['data']['checks']['redis']['status']);
+        $this->assertSame('too slow', $result['data']['checks']['redis']['reason']);
     }
 
     public function testEmptyChecksReportsOk(): void
     {
         $result = HealthCheck::run([]);
-        $this->assertSame('ok', $result['status']);
-        $this->assertSame([], $result['checks']);
+        $this->assertSame('ok', $result['data']['status']);
+        $this->assertSame([], $result['data']['checks']);
     }
 
     public function testRegisterAddsRoute(): void
@@ -70,7 +70,7 @@ final class HealthCheckTest extends TestCase
         $this->assertIsCallable($handler);
 
         $body = $handler();
-        $this->assertSame('ok', $body['status']);
+        $this->assertSame('ok', $body['data']['status']);
     }
 
     public function testRegisterReturnsRouteForChainingMiddleware(): void

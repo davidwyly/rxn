@@ -84,17 +84,16 @@ final class HealthCheck
             }
         }
         $status = $allOk ? 'ok' : 'fail';
-        // The handler signature is `(): array` — the framework's
-        // dispatcher wraps this in a Response with a 200 status.
-        // To return 503 when a check fails we'd need to throw, but
-        // that lands as an exception envelope. Cleanest: include
-        // the HTTP status in `meta` and let the renderer pick it
-        // up; for callers that want strict 503-on-fail, use the
-        // returned `'status'` and emit headers themselves.
+        // Returned in Rxn's standard `{data, meta}` envelope shape so
+        // the dispatcher renders it correctly. The HTTP status lives
+        // in `meta.status` (200 / 503) — renderers that want strict
+        // status mapping read it from there.
         return [
-            'status' => $status,
-            'checks' => $results,
-            'meta'   => ['status' => $allOk ? 200 : 503],
+            'data' => [
+                'status' => $status,
+                'checks' => $results,
+            ],
+            'meta' => ['status' => $allOk ? 200 : 503],
         ];
     }
 

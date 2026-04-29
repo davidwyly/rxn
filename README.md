@@ -184,10 +184,68 @@ cumulative scoreboard is in
 
 ```bash
 composer install
-vendor/bin/phpunit          # run the test suite
-composer validate --strict  # sanity-check composer.json
-bin/rxn help                # list CLI subcommands
+vendor/bin/phpunit          # 371 tests, 813 assertions
+bin/rxn help                # CLI subcommands
 ```
+
+### 60-second walkthrough — `examples/products-api/`
+
+Boot the worked-example app and exercise every shipped middleware
+in five minutes:
+
+```bash
+php -S 127.0.0.1:9871 -t examples/products-api/public
+```
+
+In another shell, watch the framework's identity show up across
+five paths:
+
+```bash
+# 1. Health check (HealthCheck route helper)
+curl http://127.0.0.1:9871/health
+# → {"data":{"status":"ok","checks":{"database":{"status":"ok"}}},...}
+
+# 2. Paginated list (Pagination middleware adds X-Total-Count + Link)
+curl -i "http://127.0.0.1:9871/products?per_page=5"
+
+# 3. Create (BearerAuth + Idempotency + DTO validation)
+curl -X POST http://127.0.0.1:9871/products \
+     -H 'Authorization: Bearer demo-admin' \
+     -H 'Idempotency-Key: k-1' \
+     -H 'Content-Type: application/json' \
+     -d '{"name":"Widget","price":9.99,"status":"published"}'
+# → 201 with the created row + meta.authenticated: "Admin"
+
+# 4. Replay the same call — Idempotency middleware short-circuits
+curl -i -X POST http://127.0.0.1:9871/products \
+     -H 'Authorization: Bearer demo-admin' \
+     -H 'Idempotency-Key: k-1' \
+     -H 'Content-Type: application/json' \
+     -d '{"name":"Widget","price":9.99,"status":"published"}'
+# → 201 with `Idempotent-Replayed: true` header, no DB write
+
+# 5. Validation failure — every field error at once
+curl -X POST http://127.0.0.1:9871/products \
+     -H 'Authorization: Bearer demo-admin' \
+     -H 'Idempotency-Key: k-2' \
+     -H 'Content-Type: application/json' \
+     -d '{"name":"","price":-1,"homepage":"not-a-url"}'
+# → 422 with errors[] for name, price, homepage in one round trip
+```
+
+The example is **eight files, ~250 lines of glue**. The whole
+input contract for `POST /products` lives in
+[`examples/products-api/app/Dto/CreateProduct.php`](examples/products-api/app/Dto/CreateProduct.php) —
+one PHP class with public typed properties and validation
+attributes, simultaneously consumed by the Binder, the validator,
+the OpenAPI generator, and the schema-compiled fast path. That's
+the [design philosophy](docs/design-philosophy.md)'s "schema as
+truth, multiple consumers" principle in 30 lines of PHP.
+
+Full walkthrough in
+[`examples/products-api/README.md`](examples/products-api/README.md).
+
+### Docker stack (optional)
 
 Full Docker stack (PHP 8.3-fpm + nginx 1.27 + MySQL 8):
 
@@ -199,22 +257,25 @@ docker compose up --build
 
 Set `INSTALL_XDEBUG=1` in `.env` to build the PHP image with Xdebug 3.
 
+### CI / cross-framework comparison
+
 CI runs lint + phpunit against PHP 8.2, 8.3, and 8.4 plus an
 end-to-end HTTP smoke job against MySQL 8
 (`.github/workflows/ci.yml`).
 
-Current test counts:
+Test counts:
 
-- **Rxn framework:** 253 tests / 572 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 371 tests / 813 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
-Cross-framework comparison harness (`bench/compare/`) benchmarks
-Rxn against Slim 4, a Symfony micro-kernel, and a raw-PHP baseline
-on identical routes — pure PHP, no Docker. See
-[`bench/compare/README.md`](bench/compare/README.md) and
-[`bench/compare/flexibility.md`](bench/compare/flexibility.md) for
-the feature matrix.
+Cross-framework comparison harness
+([`bench/compare/`](bench/compare/)) benchmarks Rxn against Slim 4,
+a Symfony micro-kernel, and a raw-PHP baseline on identical routes
+— pure PHP, no Docker. The full table is in
+[`bench/ab/CONSOLIDATION.md`](bench/ab/CONSOLIDATION.md); the
+methodology is in
+[`bench/compare/README.md`](bench/compare/README.md).
 
 ## Documentation
 
