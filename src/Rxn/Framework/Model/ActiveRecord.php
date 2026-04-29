@@ -84,7 +84,17 @@ abstract class ActiveRecord
         if (!is_subclass_of($class, self::class)) {
             throw new \InvalidArgumentException("$class is not an ActiveRecord");
         }
-        return array_map(fn (array $r) => $class::fromRow($r), $rows);
+        // Inline the per-row construction. array_map+fromRow does
+        // a closure call + a static method dispatch per row; this
+        // body collapses both into one `new $class()` and a direct
+        // property write, sustainably faster on big result sets.
+        $out = [];
+        foreach ($rows as $r) {
+            $instance = new $class();
+            $instance->attributes = $r;
+            $out[] = $instance;
+        }
+        return $out;
     }
 
     /**
