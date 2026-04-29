@@ -137,6 +137,56 @@ The wildcard `If-None-Match: *` is honoured. Zero configuration —
 drop it in and GET-heavy endpoints stop retransmitting unchanged
 payloads.
 
+#### `Rxn\Framework\Http\Middleware\Idempotency`
+
+Stripe-style idempotency for mutating endpoints. Clients send an
+`Idempotency-Key: <uuid>` header; the middleware stores the
+response keyed by `(key, sha256(method + URI + body))` and replays
+on retry. Out-of-the-box backend is file-based (zero
+dependencies); apps with Redis/Memcached/APCu wire in the duck-
+typed PSR-16 bridge.
+
+```php
+use Rxn\Framework\Http\Idempotency\FileIdempotencyStore;
+use Rxn\Framework\Http\Idempotency\Psr16IdempotencyStore;
+use Rxn\Framework\Http\Middleware\Idempotency;
+
+// Default — file backend, single-host:
+$pipeline->add(new Idempotency(
+    new FileIdempotencyStore('/var/run/rxn/idempotency'),
+));
+
+// With any PSR-16-shaped cache (no psr/simple-cache dependency
+// in Rxn — the constructor parameter is `object`, validated
+// structurally):
+$pipeline->add(new Idempotency(
+    new Psr16IdempotencyStore($yourPsr16Cache),
+));
+```
+
+Five paths through the middleware:
+
+| Situation | Outcome |
+|---|---|
+| No header on request | Pass through; middleware does nothing |
+| GET / HEAD / OPTIONS (configurable) | Pass through; idempotency only applies to mutations |
+| Cold key | Process the request, store the response with TTL, return |
+| Replay (same key, same body) | Return stored response with `Idempotent-Replayed: true` header |
+| Replay (same key, **different** body) | 400 Problem Details — `idempotency_key_in_use_with_different_body` |
+| Concurrent retry while in-flight | 409 Conflict — `idempotency_key_in_use` |
+
+Defaults: `Idempotency-Key` header name, 24h response TTL, 30s
+lock TTL, applies to `POST` / `PUT` / `PATCH` / `DELETE`. All
+configurable via constructor args. 5xx responses are
+deliberately **not** cached so retries can hit a healthy backend
+once it recovers.
+
+To run a custom Redis client without the PSR-16 bridge,
+implement `Rxn\Framework\Http\Idempotency\IdempotencyStore`
+(four methods: `lock`, `release`, `get`, `put`). Backed by
+Redis's `SET key value NX EX ttl`, the lock acquisition becomes
+properly atomic.
+
 ## PSR-7 / PSR-15 bridge
 
 `Rxn\Framework\Http\PsrAdapter` and `Psr15Pipeline` let apps opt
