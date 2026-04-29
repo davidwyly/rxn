@@ -61,6 +61,7 @@ sequenceDiagram
 
 | Topic | Notes |
 |---|---|
+| [Design philosophy](design-philosophy.md) | The ten principles that let Rxn be fast, readable, and small at the same time |
 | [Routing](routing.md) | Convention-based URLs and the explicit `Router` |
 | [Dependency injection](dependency-injection.md) | Container, autowiring, method injection |
 | [Request binding + validation](request-binding.md) | DTO hydration + attribute-driven validation |

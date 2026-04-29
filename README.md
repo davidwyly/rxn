@@ -4,16 +4,26 @@
 
 ##### Status: alpha. Targets PHP 8.2+ and ships a Docker stack on PHP 8.3-fpm.
 
-Rxn (from "reaction") is built around a single opinion: **strict
+Rxn (from "reaction") tries to land all three of **fast**,
+**readable**, and **small** at the same time. The usual trilemma
+("pick two") is real only when the three are treated as orthogonal
+axes to optimise independently — they aren't. Bad design hurts all
+three at once; good design helps all three at once. The
+[design philosophy doc](docs/design-philosophy.md) is the working
+theory.
+
+The operational consequence is a single opinion: **strict
 backend/frontend decoupling**. The backend is API-only, responds in
 JSON, and rolls up every uncaught exception into a JSON error
-envelope. Frontends — web, mobile, whatever — build against the
-versioned contracts and stay decoupled.
+envelope (RFC 7807 Problem Details). Frontends — web, mobile,
+whatever — build against the versioned contracts and stay
+decoupled. JSON-only is a *narrowing* decision that pays
+dividends down the stack: no content negotiation, no view layer,
+one error envelope.
 
-The framework aims, in order, to be **fast**, **small**, and
-**easy to use**. The ORM / query builder lives in a separate
-package — [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)
-— pulled in automatically via Composer.
+The ORM / query builder lives in a separate package —
+[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm) — pulled
+in automatically via Composer.
 
 ## At a glance
 
@@ -113,21 +123,62 @@ the framework itself stays narrow.
 
 ### Speed
 
-- PSR-4 autoloading; no reflection on the hot path once classes
-  load.
-- File-backed **query caching** (`Database::setCache()`) and
-  **object file caching** with atomic writes for
-  reflection-derived data.
+Cross-framework HTTP throughput, PHP 8.4, `php -S` per-request
+worker mode (full table + methodology in
+[`bench/ab/CONSOLIDATION.md`](bench/ab/CONSOLIDATION.md)):
+
+| Framework | GET /hello | GET /products/{id} | POST valid | POST 422 |
+|---|---:|---:|---:|---:|
+| **rxn** | **8,167** | **8,439** | **9,312** | **9,391** |
+| raw PHP (no framework) | 6,757 | 8,450 | 8,162 | 7,297 |
+| symfony micro-kernel | 4,218 | 4,158 | 4,012 | 4,022 |
+| slim 4 | 3,796 | 3,865 | 3,749 | 3,759 |
+
+≈ **2× the throughput of Slim and Symfony**, on par with hand-rolled
+PHP, **2-3× lower p99 latency**. On routes that actually do work
+(POST + validate), Rxn beats raw PHP by 14-29%.
+
+How that's possible (the
+[design philosophy](docs/design-philosophy.md) document is the long
+version):
+
+- **PSR-4 autoloading; no reflection on the hot path once caches
+  warm.** Container caches reflection / construction plans /
+  parsed-name lookups and compiles per-class factory closures —
+  five stacked optimisations, transparent, ~2.2× cumulative.
+- **Optional schema-compiled fast paths.** For long-lived workers
+  (RoadRunner / Swoole / FrankenPHP), `Validator::compile($rules)`
+  runs **2.45×** faster than the runtime path; `Binder::compileFor($class)`
+  runs **6.4×** faster. Same APIs, two performance profiles.
+- **OPcache preload script** ([`bin/preload.php`](bin/preload.php))
+  for fpm cold-start latency.
+- **File-backed query caching** (`Database::setCache()`) and
+  **object file caching** with atomic writes for reflection-derived
+  data.
 - **ETag middleware** drops 304s for unchanged GETs before your
   controller serializes a byte of response.
-- No content-negotiation layer to walk on every request.
+- **No content-negotiation layer** to walk on every request.
 - **Sync-first, process-per-request, predictable.** We deliberately
-  don't chase async — PHP-FPM's process pool already gives you
-  concurrent-requests concurrency without the Fibers + event-loop
-  + non-blocking-driver tax, and every "why async" benchmark you
-  see is really an "I'm IO-bound and never cached anything" story.
-  Stack RoadRunner or Swoole under Rxn if you need in-request
-  concurrency; the framework doesn't change shape for it.
+  don't chase async — PHP-FPM's process pool gives you concurrent-
+  requests concurrency without the Fibers + event-loop +
+  non-blocking-driver tax. Stack RoadRunner or Swoole under Rxn if
+  you need in-request concurrency; the framework doesn't change
+  shape for it (and the compile-path opt-ins above start paying
+  for themselves there).
+
+### How it stays this way
+
+Every shipped optimisation has an A/B run with worktree-based
+comparison, ranges, and a non-overlapping-range verdict
+(`bench/ab.php`). Negative-result branches stay on origin with
+their writeups. Sixteen experiments documented; eleven merged,
+four documented as negative results, one shipped as
+infrastructure.
+
+The principles that produced those eleven wins are written down
+in [`docs/design-philosophy.md`](docs/design-philosophy.md). The
+cumulative scoreboard is in
+[`bench/ab/CONSOLIDATION.md`](bench/ab/CONSOLIDATION.md).
 
 ## Quickstart
 
