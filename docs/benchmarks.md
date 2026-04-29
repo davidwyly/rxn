@@ -26,26 +26,26 @@ host-level load.
 ```
 case                                  ops/sec          ns/op
 ------------------------------ -------------- --------------
-router.match.static                 1,881,349            532
-router.match.single_param           1,215,760            823
-router.match.multi_param              965,012          1,036
-router.match.miss                   1,506,340            664
-router.match.many.first_verb_hit    1,929,780            518
-router.match.many.last_verb_hit     1,892,664            528
-router.match.many.miss              2,399,648            417
-pipeline.3layer                     1,008,024            992
-validator.check.clean                 258,186          3,873
-validator.check.compiled              612,331          1,633
-binder.bind.runtime                   143,353          6,976
-binder.bind.compiled                  919,508          1,088
-container.get.depth_3                 498,174          2,007
-builder.select.compound                52,095         19,196
-builder.select.subquery                77,850         12,845
-builder.insert.multirow               396,894          2,520
-builder.update.simple                 273,087          3,662
-builder.delete.simple                 357,459          2,798
-active_record.hydrate_100             109,740          9,112
-psr7.from_globals                     120,581          8,293
+router.match.static                 1,870,833            535
+router.match.single_param           1,185,300            844
+router.match.multi_param              982,663          1,018
+router.match.miss                   1,579,376            633
+router.match.many.first_verb_hit    1,938,300            516
+router.match.many.last_verb_hit     1,911,132            523
+router.match.many.miss              2,459,092            407
+pipeline.3layer                       979,976          1,020
+validator.check.clean                 255,262          3,918
+validator.check.compiled              626,204          1,597
+binder.bind.runtime                   141,955          7,044
+binder.bind.compiled                  908,008          1,101
+container.get.depth_3                 496,028          2,016
+builder.select.compound                51,563         19,394
+builder.select.subquery                78,436         12,749
+builder.insert.multirow               401,013          2,494
+builder.update.simple                 277,508          3,603
+builder.delete.simple                 373,151          2,680
+active_record.hydrate_100             111,380          8,978
+psr7.from_globals                     126,050          7,933
 ```
 
 ## What's covered
