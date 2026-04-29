@@ -50,6 +50,27 @@ final class Router
     private array $named = [];
 
     /**
+     * Per-verb compiled alternation regex + lookup table. The regex
+     * combines every route in the bucket with a PCRE `(*MARK:...)`
+     * sentinel per alternative, so a single preg_match identifies
+     * which route matched. The lookup gives back the Route plus the
+     * starting capture-group offset for that route's placeholders.
+     *
+     * @var array<string, array{
+     *     regex: string,
+     *     marks: array<string, array{route: Route, firstGroup: int}>
+     * }>
+     */
+    private array $bucketCompiled = [];
+
+    /**
+     * Set when add() runs. Cleared by ensureBucketsCompiled() on the
+     * next match. Lazy compile lets bulk registration happen with
+     * one final compile pass instead of N intermediate ones.
+     */
+    private bool $bucketsDirty = false;
+
+    /**
      * @param string|string[] $methods
      */
     public function add(array|string $methods, string $pattern, mixed $handler): Route
@@ -69,6 +90,7 @@ final class Router
         foreach ($normalized as $m) {
             $this->routesByMethod[$m][] = $route;
         }
+        $this->bucketsDirty = true;
         return $route;
     }
 
@@ -139,11 +161,87 @@ final class Router
         if ($path === null) {
             return null;
         }
-        // Walk only the routes that accept $method. The bucket
-        // membership check is what `in_array($method, ->methods)`
-        // used to do per-route — now amortised at registration.
-        $bucket = $this->routesByMethod[$method] ?? [];
-        foreach ($bucket as $route) {
+        if ($this->bucketsDirty) {
+            $this->compileBuckets();
+        }
+        $compiled = $this->bucketCompiled[$method] ?? null;
+        if ($compiled === null) {
+            return null;
+        }
+        if (!preg_match($compiled['regex'], $path, $matches)) {
+            return null;
+        }
+        // PCRE returns the name of the matched (*MARK:...) sentinel
+        // in $matches['MARK']. Fall through to a linear scan only if
+        // the runtime somehow didn't surface it (no PCRE2 build I
+        // know of misses MARK, but treat it as a safety net).
+        $mark = $matches['MARK'] ?? null;
+        if ($mark === null || !isset($compiled['marks'][$mark])) {
+            return $this->matchLinear($method, $path);
+        }
+        $hit   = $compiled['marks'][$mark];
+        $route = $hit['route'];
+        $params = [];
+        foreach ($route->paramNames as $i => $name) {
+            $params[$name] = $matches[$hit['firstGroup'] + $i];
+        }
+        return [
+            'handler'     => $route->handler,
+            'params'      => $params,
+            'pattern'     => $route->pattern,
+            'name'        => $route->getName(),
+            'middlewares' => $route->getMiddlewares(),
+        ];
+    }
+
+    /**
+     * Compile each verb bucket into a single alternation regex.
+     * Every route gets a `(*MARK:...)` sentinel so a winning
+     * preg_match can name the matching route in one call.
+     */
+    private function compileBuckets(): void
+    {
+        $this->bucketCompiled = [];
+        foreach ($this->routesByMethod as $verb => $routes) {
+            $parts = [];
+            $marks = [];
+            $groupOffset = 1;
+            foreach ($routes as $i => $route) {
+                $body = self::stripDelimitersAndAnchors($route->regex);
+                $mark = 'r' . $i;
+                $parts[] = $body . '(*MARK:' . $mark . ')';
+                $marks[$mark] = ['route' => $route, 'firstGroup' => $groupOffset];
+                $groupOffset += count($route->paramNames);
+            }
+            $this->bucketCompiled[$verb] = [
+                'regex' => '#^(?:' . implode('|', $parts) . ')$#',
+                'marks' => $marks,
+            ];
+        }
+        $this->bucketsDirty = false;
+    }
+
+    /**
+     * Strip the `#^...$#` wrapper that compile() adds, so the inner
+     * pattern can be embedded inside an outer alternation.
+     */
+    private static function stripDelimitersAndAnchors(string $regex): string
+    {
+        // compile() always emits `#^<body>$#` where <body> starts
+        // with `/`. Drop the `#^` prefix (2 chars) and `$#` suffix
+        // (2 chars) so the body — including its leading slash —
+        // can be slotted into an outer alternation that re-anchors.
+        return substr($regex, 2, -2);
+    }
+
+    /**
+     * Fallback linear scan; used only if MARK isn't surfaced for
+     * some reason. Functionally identical to the pre-alternation
+     * implementation.
+     */
+    private function matchLinear(string $method, string $path): ?array
+    {
+        foreach ($this->routesByMethod[$method] ?? [] as $route) {
             if (!preg_match($route->regex, $path, $matches)) {
                 continue;
             }
