@@ -48,6 +48,21 @@ class Container
     private static array $isServiceCache = [];
 
     /**
+     * Pre-computed construction recipe per class. Each entry is a
+     * directive describing how to fill the corresponding constructor
+     * parameter slot — `['autowire', $class]`, `['default', $value]`,
+     * `['null']`, or `['fail', $param_name]`. `null` cache entry
+     * means "no constructor; use newInstanceWithoutConstructor".
+     *
+     * Caching the recipe lets `generateInstance()` skip every
+     * Reflection*Parameter call after the first resolution, which
+     * is where the bulk of the autowire cost lives.
+     *
+     * @var array<string, list<array{0: string, 1?: mixed}>|null>
+     */
+    private static array $constructorPlanCache = [];
+
+    /**
      * Container constructor.
      */
     public function __construct()
@@ -166,49 +181,73 @@ class Container
      */
     private function generateInstance($class_name, array $passed_parameters)
     {
+        $plan = self::constructorPlanFor($class_name);
         $reflection = self::reflectionFor($class_name);
-
-        $constructor = $reflection->getConstructor();
-        if (!$constructor) {
+        if ($plan === null) {
             return $reflection->newInstanceWithoutConstructor();
         }
 
-        $constructor_parameters = $constructor->getParameters();
-
         $create_parameters = [];
-        foreach ($constructor_parameters as $key => $constructor_parameter) {
-            // use matching parameter
+        foreach ($plan as $key => $directive) {
             if (array_key_exists($key, $passed_parameters)) {
                 $create_parameters[$key] = $passed_parameters[$key];
                 continue;
             }
-
-            // if the parameter has a concrete class type, autowire it
-            $type = $constructor_parameter->getType();
-            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
-                $create_parameters[$key] = $this->get($type->getName());
-                continue;
+            switch ($directive[0]) {
+                case 'autowire':
+                    $create_parameters[$key] = $this->get($directive[1]);
+                    break;
+                case 'default':
+                    $create_parameters[$key] = $directive[1];
+                    break;
+                case 'null':
+                    $create_parameters[$key] = null;
+                    break;
+                case 'fail':
+                    throw new ContainerException(
+                        "Cannot autowire parameter \${$directive[1]} of $class_name: "
+                        . "no type hint, default value, or explicitly-passed value."
+                    );
             }
-
-            // optional scalar parameter: use its default
-            if ($constructor_parameter->isDefaultValueAvailable()) {
-                $create_parameters[$key] = $constructor_parameter->getDefaultValue();
-                continue;
-            }
-
-            // nullable scalar parameter with no default: pass null
-            if ($constructor_parameter->allowsNull()) {
-                $create_parameters[$key] = null;
-                continue;
-            }
-
-            throw new ContainerException(
-                "Cannot autowire parameter \${$constructor_parameter->getName()} of $class_name: "
-                . "no type hint, default value, or explicitly-passed value."
-            );
         }
 
         return $reflection->newInstanceArgs($create_parameters);
+    }
+
+    /**
+     * Compile the construction recipe for a class, or fetch the
+     * cached one. Returning `null` indicates "no constructor", so
+     * the caller can skip straight to newInstanceWithoutConstructor.
+     *
+     * @return list<array{0: string, 1?: mixed}>|null
+     */
+    private static function constructorPlanFor(string $class_name): ?array
+    {
+        if (array_key_exists($class_name, self::$constructorPlanCache)) {
+            return self::$constructorPlanCache[$class_name];
+        }
+        $constructor = self::reflectionFor($class_name)->getConstructor();
+        if (!$constructor) {
+            return self::$constructorPlanCache[$class_name] = null;
+        }
+        $plan = [];
+        foreach ($constructor->getParameters() as $p) {
+            $type = $p->getType();
+            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+                $plan[] = ['autowire', $type->getName()];
+                continue;
+            }
+            if ($p->isDefaultValueAvailable()) {
+                $plan[] = ['default', $p->getDefaultValue()];
+                continue;
+            }
+            if ($p->allowsNull()) {
+                $plan[] = ['null'];
+                continue;
+            }
+            $plan[] = ['fail', $p->getName()];
+        }
+        return self::$constructorPlanCache[$class_name] = $plan;
     }
 
     /**
