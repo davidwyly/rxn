@@ -19,13 +19,28 @@ use Psr\Http\Message\ServerRequestInterface;
 final class PsrAdapter
 {
     /**
+     * Process-lifetime cache for the Nyholm factory and creator —
+     * both are stateless wrappers, so building a fresh pair per
+     * request is pure waste.
+     */
+    private static ?Psr17Factory $factory = null;
+    private static ?ServerRequestCreator $creator = null;
+
+    /**
      * Build a PSR-7 ServerRequest from the current PHP globals.
      */
     public static function serverRequestFromGlobals(): ServerRequestInterface
     {
-        $factory = new Psr17Factory();
-        $creator = new ServerRequestCreator($factory, $factory, $factory, $factory);
-        return $creator->fromGlobals();
+        if (self::$creator === null) {
+            self::$factory = new Psr17Factory();
+            self::$creator = new ServerRequestCreator(
+                self::$factory,
+                self::$factory,
+                self::$factory,
+                self::$factory
+            );
+        }
+        return self::$creator->fromGlobals();
     }
 
     /**
@@ -64,6 +79,6 @@ final class PsrAdapter
      */
     public static function factory(): Psr17Factory
     {
-        return new Psr17Factory();
+        return self::$factory ??= new Psr17Factory();
     }
 }
