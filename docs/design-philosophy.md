@@ -240,6 +240,71 @@ This honesty is **how you keep the design budget intact**. A
 framework that pretends to do everything ends up doing
 everything, which means it does nothing well.
 
+## 11. Optional dependencies via lazy-autoload, not hard requires
+
+Some optional integrations want a real package — `psr/simple-cache`
+for Redis-via-Idempotency, `davidwyly/rxn-orm` for the query builder
++ ActiveRecord layer. The naive design lists them in `require` and
+forces every Rxn app to install them. The naive *alternative* is
+duck-typing (`object` parameters + `method_exists` validation), which
+works but costs the reviewer mental load on every read.
+
+There's a third path that gets all three of *no required deps*,
+*full nominal-type interop*, and *no clever-with-a-cost code*:
+
+```php
+use Psr\SimpleCache\CacheInterface;            // namespace alias only
+use Rxn\Orm\Builder\Buildable;
+
+final class Psr16IdempotencyStore implements IdempotencyStore {
+    public function __construct(private readonly CacheInterface $cache) {}
+}
+
+class Database {
+    public function run(\Rxn\Orm\Builder\Buildable $builder) { ... }
+}
+```
+
+PHP's autoloader is **lazy on typed parameters.** A `use` statement
+is a namespace alias — PHP doesn't try to resolve it at file-parse
+time. Resolution happens only when the symbol is actually
+*referenced at runtime*: a `new`, an `instanceof`, or a method
+call where PHP needs to verify an argument's type. So:
+
+- The framework as a whole loads cleanly without the optional
+  package installed — files containing the type-hint sit inert,
+  never referenced, never autoloaded.
+- Anyone calling `new Psr16IdempotencyStore($cache)` is passing a
+  PSR-16 cache, which means they have `psr/simple-cache` installed.
+  Autoload resolves cleanly at construction time.
+- Anyone calling `Database::run($buildable)` has rxn-orm
+  installed. Same shape.
+- Reviewers see normal nominal type-hints. No `object` weirdness,
+  no `method_exists` validation, no docblock gymnastics.
+
+The pattern in `composer.json`:
+
+```json
+"require": { /* what every app needs */ },
+"require-dev": {
+    "davidwyly/rxn-orm": "^0.1"     // framework's own tests use it
+},
+"suggest": {
+    "psr/simple-cache": "...required only when using Psr16IdempotencyStore...",
+    "davidwyly/rxn-orm": "...required only when you use Database::run() or ActiveRecord..."
+}
+```
+
+The `suggest` block isn't decorative — it documents the exact code
+paths that need each optional package, so apps know when to reach
+for `composer require`.
+
+This pattern is now load-bearing for two distinct integrations
+(PSR-16 cache, Rxn ORM). It scales: any future ecosystem
+integration that's optional for some apps but wants a clean
+nominal type-hint goes through the same shape. **Document the
+trick once, apply it N times.**
+
 ## The recursive insight
 
 These principles compound:
@@ -277,6 +342,7 @@ principles are how we keep the substrate healthy.
 | 8 — smallness as constraint | ~3,000 LOC of framework code; whole framework readable in an afternoon |
 | 9 — ergonomics are performance | `bin/preload.php`, `bench/ab/CONSOLIDATION.md`, `docs/index.md`'s topic table |
 | 10 — honesty | "alpha" status in README, `App::run` open-bugs note in `docs/benchmarks.md`, the long-lived-worker caveat in every compile-path docstring |
+| 11 — optional deps via lazy autoload | `Psr16IdempotencyStore` (typehints `\Psr\SimpleCache\CacheInterface`) and `Database::run()` / `ActiveRecord` (typehint `\Rxn\Orm\Builder\Buildable` / `Query`); both packages live in `composer.json`'s `suggest` block, framework loads cleanly without them |
 
 ## Anti-patterns we deliberately avoid
 
