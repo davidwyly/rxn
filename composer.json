@@ -27,6 +27,9 @@
   "require-dev": {
     "phpunit/phpunit": "^10.5"
   },
+  "suggest": {
+    "psr/simple-cache": "^3.0 — required only when using `Psr16IdempotencyStore` to plug an existing PSR-16 cache (Redis / Memcached / APCu) into the Idempotency middleware. Apps using `FileIdempotencyStore` (the default) don't need this."
+  },
   "scripts": {
     "test": "phpunit"
   },

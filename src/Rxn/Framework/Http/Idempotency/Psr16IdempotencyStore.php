@@ -2,10 +2,11 @@
 
 namespace Rxn\Framework\Http\Idempotency;
 
+use Psr\SimpleCache\CacheInterface;
+
 /**
- * Adapter from any PSR-16-shaped cache to `IdempotencyStore`,
- * **without importing PSR-16 nominally**. Apps that already run
- * Redis / Memcached / APCu through `symfony/cache`,
+ * Adapter from any PSR-16 cache to `IdempotencyStore`. Apps that
+ * already run Redis / Memcached / APCu through `symfony/cache`,
  * `cache/redis-adapter`, or any other PSR-16 implementation drop
  * it in directly:
  *
@@ -14,50 +15,49 @@ namespace Rxn\Framework\Http\Idempotency;
  *       ...
  *   );
  *
- * The constructor parameter is declared `object` (not
- * `\Psr\SimpleCache\CacheInterface`), and the four required methods
- * are validated structurally at construction. This means:
+ * # Why this works without `psr/simple-cache` in `require`
  *
- *  - **No new composer dependency.** Rxn's `composer.json` doesn't
- *    gain `psr/simple-cache`.
- *  - **Full PSR-16 interop.** Any object exposing
- *    `get(string)`, `set(string, mixed, int)`, `has(string)`, and
- *    `delete(string)` works.
- *  - **IDE-friendly** when PSR-16 is on the classpath. The
- *    docblock points at `\Psr\SimpleCache\CacheInterface`; IDEs
- *    that have the interface autoloaded surface the typed methods.
- *    IDEs that don't fall back to `object`.
+ * The framework's `composer.json` lists `psr/simple-cache` only as
+ * a `suggest`, not a `require`. Apps that don't use PSR-16 don't
+ * pay for it. So how does this file declare a `CacheInterface`
+ * type-hint when the package may not be installed?
  *
- * Concurrency: the lock implementation uses the cache's own
- * `has + set + ttl` to coordinate. This is **not atomic** at the
- * cache level — a redundant `setIfAbsent` semantic would be
- * better — but PSR-16 doesn't expose one. For high-contention
- * deployments, implement `IdempotencyStore` directly against the
- * Redis client and use `SET key value NX EX ttl` for an atomic
- * acquire.
+ * **PHP's lazy autoload of typed parameters.** The `use` statement
+ * above is a namespace alias — PHP doesn't try to resolve it at
+ * file-parse time. Resolution happens only when the symbol is
+ * actually *referenced at runtime*: when someone calls
+ * `new Psr16IdempotencyStore($cache)` and PHP needs to verify
+ * `$cache instanceof CacheInterface`.
+ *
+ * So:
+ *
+ *  - The framework autoloads cleanly without `psr/simple-cache`
+ *    installed — this file sits inert, never referenced, never
+ *    autoloaded.
+ *  - Anyone calling `new Psr16IdempotencyStore(...)` is passing a
+ *    PSR-16 cache, which means they have `psr/simple-cache`
+ *    installed. The autoload then resolves cleanly.
+ *  - Reviewers see a normal nominal type-hint, no `object` +
+ *    `method_exists` cleverness, no docblock gymnastics.
+ *
+ * Same trilemma busted as before — zero required deps, full
+ * interop, no duplication — different load-bearing PHP feature.
+ *
+ * # Concurrency note
+ *
+ * The lock implementation uses the cache's `has + set + ttl` to
+ * coordinate. This is **not atomic** at the cache level — a real
+ * `setIfAbsent` semantic would be better — but PSR-16 doesn't
+ * expose one. For high-contention deployments, implement
+ * `IdempotencyStore` directly against the Redis client and use
+ * `SET key value NX EX ttl` for an atomic acquire.
  */
 final class Psr16IdempotencyStore implements IdempotencyStore
 {
     private const LOCK_SUFFIX = ':lock';
 
-    /**
-     * @param \Psr\SimpleCache\CacheInterface|object $cache
-     *        Any PSR-16-shaped cache. Validated structurally at
-     *        construction; no PSR-16 nominal type required.
-     */
-    public function __construct(private readonly object $cache)
+    public function __construct(private readonly CacheInterface $cache)
     {
-        foreach (['get', 'set', 'has', 'delete'] as $method) {
-            if (!method_exists($cache, $method)) {
-                throw new \InvalidArgumentException(
-                    sprintf(
-                        'Psr16IdempotencyStore: cache object %s missing required method %s()',
-                        $cache::class,
-                        $method,
-                    ),
-                );
-            }
-        }
     }
 
     public function lock(string $key, int $ttlSeconds): bool

@@ -168,27 +168,32 @@ final class IdempotencyTest extends TestCase
     }
 
     // -------- Psr16 bridge --------
+    //
+    // The bridge declares a nominal `\Psr\SimpleCache\CacheInterface`
+    // type-hint. PSR-16 isn't a hard dependency of the framework
+    // (it's `suggest`-only), so these tests load a stub interface
+    // when the real package isn't installed — see
+    // `tests/Fixture/Psr16Stub.php`.
 
-    public function testPsr16BridgeRejectsCacheMissingMethods(): void
+    protected function loadPsr16Stub(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $cache = new class {
-            // Missing set/has/delete intentionally
-            public function get(string $k): mixed { return null; }
-        };
-        new Psr16IdempotencyStore($cache);
+        require_once __DIR__ . '/../../Fixture/Psr16Stub.php';
     }
 
-    public function testPsr16BridgeWorksWithDuckTypedCache(): void
+    public function testPsr16BridgeRejectsNonCacheInterface(): void
     {
-        $cache = new class {
-            /** @var array<string, mixed> */
-            public array $data = [];
-            public function get(string $k, mixed $default = null): mixed { return $this->data[$k] ?? $default; }
-            public function set(string $k, mixed $v, ?int $ttl = null): bool { $this->data[$k] = $v; return true; }
-            public function has(string $k): bool { return array_key_exists($k, $this->data); }
-            public function delete(string $k): bool { unset($this->data[$k]); return true; }
-        };
+        $this->loadPsr16Stub();
+        // PHP's nominal type system enforces the interface — nothing
+        // for `Psr16IdempotencyStore` itself to validate.
+        $this->expectException(\TypeError::class);
+        /** @phpstan-ignore-next-line — intentional misuse */
+        new Psr16IdempotencyStore(new \stdClass());
+    }
+
+    public function testPsr16BridgeWorksWithRealCacheInterface(): void
+    {
+        $this->loadPsr16Stub();
+        $cache = $this->makePsr16Cache();
         $store = new Psr16IdempotencyStore($cache);
 
         $this->assertNull($store->get('foo'));
@@ -200,19 +205,38 @@ final class IdempotencyTest extends TestCase
 
     public function testPsr16BridgeLockSemantics(): void
     {
-        $cache = new class {
-            public array $data = [];
-            public function get(string $k, mixed $default = null): mixed { return $this->data[$k] ?? $default; }
-            public function set(string $k, mixed $v, ?int $ttl = null): bool { $this->data[$k] = $v; return true; }
-            public function has(string $k): bool { return array_key_exists($k, $this->data); }
-            public function delete(string $k): bool { unset($this->data[$k]); return true; }
-        };
+        $this->loadPsr16Stub();
+        $cache = $this->makePsr16Cache();
         $store = new Psr16IdempotencyStore($cache);
 
         $this->assertTrue($store->lock('k', 30));
         $this->assertFalse($store->lock('k', 30), 'second lock attempt while held should fail');
         $store->release('k');
         $this->assertTrue($store->lock('k', 30), 'lock should be acquirable after release');
+    }
+
+    /**
+     * In-memory PSR-16 implementation for the bridge tests. Built
+     * via eval inside the test to keep the `implements` clause off
+     * the file's parse path — that way running this test file
+     * doesn't require the PSR-16 stub to be loaded yet.
+     */
+    private function makePsr16Cache(): object
+    {
+        return eval(<<<'PHP'
+            return new class implements \Psr\SimpleCache\CacheInterface {
+                /** @var array<string, mixed> */
+                public array $data = [];
+                public function get(string $k, mixed $default = null): mixed { return $this->data[$k] ?? $default; }
+                public function set(string $k, mixed $v, null|int|\DateInterval $ttl = null): bool { $this->data[$k] = $v; return true; }
+                public function delete(string $k): bool { unset($this->data[$k]); return true; }
+                public function clear(): bool { $this->data = []; return true; }
+                public function getMultiple(iterable $keys, mixed $default = null): iterable { $out = []; foreach ($keys as $k) { $out[$k] = $this->get($k, $default); } return $out; }
+                public function setMultiple(iterable $values, null|int|\DateInterval $ttl = null): bool { foreach ($values as $k => $v) { $this->set($k, $v, $ttl); } return true; }
+                public function deleteMultiple(iterable $keys): bool { foreach ($keys as $k) { $this->delete($k); } return true; }
+                public function has(string $k): bool { return array_key_exists($k, $this->data); }
+            };
+        PHP);
     }
 
     // -------- File store specific --------
