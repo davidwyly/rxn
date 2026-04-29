@@ -205,11 +205,24 @@ class Container
     private function generateInstance($class_name, array $passed_parameters)
     {
         $plan = self::constructorPlanFor($class_name);
-        $reflection = self::reflectionFor($class_name);
         if ($plan === null) {
+            $reflection = self::reflectionFor($class_name);
             return $reflection->newInstanceWithoutConstructor();
         }
 
+        // Fast path: when callers don't override constructor params,
+        // dispatch through the eval-compiled per-class factory. The
+        // factory inlines `new $class($this->get(...), ...)` so we
+        // skip ReflectionClass::newInstanceArgs() and the per-call
+        // foreach over the directive plan.
+        if ($passed_parameters === []) {
+            $factory = self::$factoryCache[$class_name] ??= self::compileFactory($class_name, $plan);
+            if ($factory !== null) {
+                return $factory($this);
+            }
+        }
+
+        // Slow path: parameter overrides — keep the runtime walker.
         $create_parameters = [];
         foreach ($plan as $key => $directive) {
             if (array_key_exists($key, $passed_parameters)) {
@@ -234,7 +247,73 @@ class Container
             }
         }
 
+        $reflection = self::reflectionFor($class_name);
         return $reflection->newInstanceArgs($create_parameters);
+    }
+
+    /**
+     * Per-class factory cache. Each entry is a closure
+     * `static fn (Container $c) => new $class(...)` whose
+     * constructor args are inlined to either `$c->get(<dep>)`
+     * (for autowired class deps) or PHP literals (for defaults
+     * resolved at compile time).
+     *
+     * Cache value is null when the plan can't be compiled
+     * (e.g. a `'fail'` directive on a parameter that has no
+     * autowireable type and no default — the runtime path keeps
+     * the same exception message in that case).
+     *
+     * @var array<string, \Closure(self): object|null>
+     */
+    private static array $factoryCache = [];
+
+    /**
+     * Generate `static fn (Container $c) => new $class($c->get(...), ...)`
+     * for `$class_name`, given the already-compiled directive plan.
+     * Returns null when any directive is a `'fail'` (the runtime
+     * path then throws with the parameter name baked into the
+     * error message — we don't try to reproduce that in compiled
+     * code).
+     *
+     * @param list<array{0: string, 1?: mixed}> $plan
+     */
+    private static function compileFactory(string $class_name, array $plan): ?\Closure
+    {
+        $args = [];
+        foreach ($plan as $directive) {
+            switch ($directive[0]) {
+                case 'autowire':
+                    // $directive[1] is the pre-normalised FQCN literal.
+                    $args[] = '$c->get(' . self::quoteString($directive[1]) . ')';
+                    break;
+                case 'default':
+                    $args[] = var_export($directive[1], true);
+                    break;
+                case 'null':
+                    $args[] = 'null';
+                    break;
+                case 'fail':
+                    // A required parameter has no autowireable type —
+                    // we can't compile a factory for this class. Fall
+                    // back to the runtime walker (which produces the
+                    // ContainerException with the parameter name).
+                    return null;
+            }
+        }
+        $argList = implode(', ', $args);
+        $literal = '\\' . ltrim($class_name, '\\');
+        $code = "return static fn (\\Rxn\\Framework\\Container \$c) => new $literal($argList);";
+        /** @var \Closure(self): object $closure */
+        $closure = eval($code);
+        if (!$closure instanceof \Closure) {
+            throw new \RuntimeException("Container: failed to compile factory for $class_name");
+        }
+        return $closure;
+    }
+
+    private static function quoteString(string $s): string
+    {
+        return "'" . strtr($s, ["\\" => "\\\\", "'" => "\\'"]) . "'";
     }
 
     /**
