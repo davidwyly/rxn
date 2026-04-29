@@ -105,11 +105,31 @@ are non-nullable without a default) fail.
 | `#[Length(min, max)]` | `?int`, `?int` | UTF-8 length bounds (either may be null) |
 | `#[Pattern('/regex/')]` | `string` | Regex match (caller supplies delimiters) |
 | `#[InSet(['a', 'b'])]` | `list<scalar>` | Enum-like membership |
+| `#[Email]` | — | RFC 5322-ish via `FILTER_VALIDATE_EMAIL` |
+| `#[Url]` | — | URL via `FILTER_VALIDATE_URL` |
+| `#[Uuid]` | — | RFC 4122 UUID, any version, case-insensitive |
+| `#[Json]` | — | Parseable JSON string via `json_validate()` |
+| `#[Date]` | — | YYYY-MM-DD, strict round-trip via `DateTimeImmutable` |
+| `#[NotBlank]` | — | String contains at least one non-whitespace char |
+| `#[StartsWith('prefix')]` | `string` | String prefix check |
+| `#[EndsWith('suffix')]` | `string` | String suffix check |
+
+All attributes implementing `Validates` work on both the runtime
+`Binder::bind` path AND the schema-compiled `Binder::compileFor`
+path. The 8 attributes added in the constraint-parity round each
+have a dedicated inliner in the compiled-binder code-gen — they're
+not just runtime-instantiated, they're fully baked into the
+generated PHP for the 6.4× speedup.
 
 Custom attributes: implement
 `Rxn\Framework\Http\Binding\Validates::validate(mixed $value): ?string`
 on any `#[Attribute(Attribute::TARGET_PROPERTY)]` class and the
-Binder picks it up — no registration step.
+Binder picks it up — no registration step. App-defined attributes
+fall back to runtime `newInstance()` on the runtime path; on the
+compiled path they're instantiated *once at compile time* and
+captured by the closure, so the per-call instantiation cost is
+eliminated even for attributes the framework doesn't know how to
+inline.
 
 ## Attribute-routed controllers
 

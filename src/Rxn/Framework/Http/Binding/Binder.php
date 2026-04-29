@@ -2,12 +2,20 @@
 
 namespace Rxn\Framework\Http\Binding;
 
+use Rxn\Framework\Http\Attribute\Date;
+use Rxn\Framework\Http\Attribute\Email;
+use Rxn\Framework\Http\Attribute\EndsWith;
 use Rxn\Framework\Http\Attribute\InSet;
+use Rxn\Framework\Http\Attribute\Json;
 use Rxn\Framework\Http\Attribute\Length;
 use Rxn\Framework\Http\Attribute\Max;
 use Rxn\Framework\Http\Attribute\Min;
+use Rxn\Framework\Http\Attribute\NotBlank;
 use Rxn\Framework\Http\Attribute\Pattern;
 use Rxn\Framework\Http\Attribute\Required;
+use Rxn\Framework\Http\Attribute\StartsWith;
+use Rxn\Framework\Http\Attribute\Url;
+use Rxn\Framework\Http\Attribute\Uuid;
 
 /**
  * Hydrate a `RequestDto` from the merged request bag (query +
@@ -306,13 +314,77 @@ final class Binder
     private static function inlineValidator(string $attrName, array $args, string $valueExpr, string $fieldQ): ?string
     {
         return match ($attrName) {
-            Min::class     => self::inlineMin($args, $valueExpr, $fieldQ),
-            Max::class     => self::inlineMax($args, $valueExpr, $fieldQ),
-            Length::class  => self::inlineLength($args, $valueExpr, $fieldQ),
-            Pattern::class => self::inlinePattern($args, $valueExpr, $fieldQ),
-            InSet::class   => self::inlineInSet($args, $valueExpr, $fieldQ),
-            default        => null,
+            Min::class        => self::inlineMin($args, $valueExpr, $fieldQ),
+            Max::class        => self::inlineMax($args, $valueExpr, $fieldQ),
+            Length::class     => self::inlineLength($args, $valueExpr, $fieldQ),
+            Pattern::class    => self::inlinePattern($args, $valueExpr, $fieldQ),
+            InSet::class      => self::inlineInSet($args, $valueExpr, $fieldQ),
+            Email::class      => self::inlineFilter($valueExpr, $fieldQ, 'FILTER_VALIDATE_EMAIL', 'must be a valid email address'),
+            Url::class        => self::inlineFilter($valueExpr, $fieldQ, 'FILTER_VALIDATE_URL', 'must be a valid URL'),
+            Uuid::class       => self::inlineUuid($valueExpr, $fieldQ),
+            Json::class       => self::inlineJson($valueExpr, $fieldQ),
+            Date::class       => self::inlineDate($valueExpr, $fieldQ),
+            NotBlank::class   => self::inlineNotBlank($valueExpr, $fieldQ),
+            StartsWith::class => self::inlineStartsEnds($args, $valueExpr, $fieldQ, 'starts_with'),
+            EndsWith::class   => self::inlineStartsEnds($args, $valueExpr, $fieldQ, 'ends_with'),
+            default           => null,
         };
+    }
+
+    private static function inlineFilter(string $valueExpr, string $fieldQ, string $filterConst, string $msg): string
+    {
+        return "        if (\\is_string($valueExpr) && \\filter_var($valueExpr, \\$filterConst) === false) {\n"
+             . "            \$errors[] = ['field' => $fieldQ, 'message' => " . self::quoteString($msg) . "];\n"
+             . "        }\n";
+    }
+
+    private static function inlineUuid(string $valueExpr, string $fieldQ): string
+    {
+        $regexQ = self::quoteString(Uuid::REGEX);
+        return "        if (\\is_string($valueExpr) && \\preg_match($regexQ, $valueExpr) !== 1) {\n"
+             . "            \$errors[] = ['field' => $fieldQ, 'message' => 'must be a valid UUID'];\n"
+             . "        }\n";
+    }
+
+    private static function inlineJson(string $valueExpr, string $fieldQ): string
+    {
+        return "        if (\\is_string($valueExpr) && !\\json_validate($valueExpr)) {\n"
+             . "            \$errors[] = ['field' => $fieldQ, 'message' => 'must be valid JSON'];\n"
+             . "        }\n";
+    }
+
+    private static function inlineDate(string $valueExpr, string $fieldQ): string
+    {
+        return "        if (\\is_string($valueExpr)) {\n"
+             . "            \$dt = \\DateTimeImmutable::createFromFormat('!Y-m-d', $valueExpr);\n"
+             . "            if (\$dt === false || \$dt->format('Y-m-d') !== $valueExpr) {\n"
+             . "                \$errors[] = ['field' => $fieldQ, 'message' => 'must be a valid date (YYYY-MM-DD)'];\n"
+             . "            }\n"
+             . "        }\n";
+    }
+
+    private static function inlineNotBlank(string $valueExpr, string $fieldQ): string
+    {
+        return "        if (\\is_string($valueExpr) && \\trim($valueExpr) === '') {\n"
+             . "            \$errors[] = ['field' => $fieldQ, 'message' => 'must not be blank'];\n"
+             . "        }\n";
+    }
+
+    /**
+     * @param array<int|string, mixed> $args
+     */
+    private static function inlineStartsEnds(array $args, string $valueExpr, string $fieldQ, string $kind): string
+    {
+        $argName = $kind === 'starts_with' ? 'prefix' : 'suffix';
+        $arg = $args[0] ?? $args[$argName] ?? '';
+        $argQ = self::quoteString((string)$arg);
+        $fn   = $kind === 'starts_with' ? '\\str_starts_with' : '\\str_ends_with';
+        $msg  = $kind === 'starts_with'
+            ? "must start with '$arg'"
+            : "must end with '$arg'";
+        return "        if (\\is_string($valueExpr) && !$fn($valueExpr, $argQ)) {\n"
+             . "            \$errors[] = ['field' => $fieldQ, 'message' => " . self::quoteString($msg) . "];\n"
+             . "        }\n";
     }
 
     /** @param array<int|string, mixed> $args */
