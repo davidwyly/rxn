@@ -49,9 +49,12 @@ final class Pipeline
     public function handle(Request $request, callable $terminal): Response
     {
         // Build the chain from the inside out: the innermost call is
-        // $terminal, and each middleware wraps the next step.
+        // $terminal, and each middleware wraps the next step. Walk
+        // the array backward by index instead of array_reverse() so
+        // the per-handle() reversed-array allocation drops out.
         $next = $terminal;
-        foreach (array_reverse($this->middlewares) as $middleware) {
+        for ($i = count($this->middlewares) - 1; $i >= 0; $i--) {
+            $middleware = $this->middlewares[$i];
             $next = static function (Request $req) use ($middleware, $next): Response {
                 return $middleware->handle($req, $next);
             };
