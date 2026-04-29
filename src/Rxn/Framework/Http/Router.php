@@ -34,6 +34,18 @@ final class Router
     /** @var Route[] */
     private array $routes = [];
 
+    /**
+     * Routes bucketed by accepted HTTP method. A route registered
+     * for ['GET', 'HEAD'] lands in both buckets so `match()` can
+     * skip straight to the verb-relevant slice without scanning
+     * every entry. Built as `add()` runs; the linear `$routes`
+     * list is still authoritative for `hasMethodMismatch()` and
+     * `indexNames()`, where ordering across verbs matters.
+     *
+     * @var array<string, Route[]>
+     */
+    private array $routesByMethod = [];
+
     /** @var array<string, Route> */
     private array $named = [];
 
@@ -54,6 +66,9 @@ final class Router
         [$regex, $params] = $this->compile($pattern);
         $route = new Route($normalized, $regex, $params, $handler, $pattern);
         $this->routes[] = $route;
+        foreach ($normalized as $m) {
+            $this->routesByMethod[$m][] = $route;
+        }
         return $route;
     }
 
@@ -124,11 +139,12 @@ final class Router
         if ($path === null) {
             return null;
         }
-        foreach ($this->routes as $route) {
+        // Walk only the routes that accept $method. The bucket
+        // membership check is what `in_array($method, ->methods)`
+        // used to do per-route — now amortised at registration.
+        $bucket = $this->routesByMethod[$method] ?? [];
+        foreach ($bucket as $route) {
             if (!preg_match($route->regex, $path, $matches)) {
-                continue;
-            }
-            if (!in_array($method, $route->methods, true)) {
                 continue;
             }
             $params = [];
