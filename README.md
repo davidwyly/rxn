@@ -154,9 +154,16 @@ end-to-end HTTP smoke job against MySQL 8
 
 Current test counts:
 
-- **Rxn framework:** 230 tests / 521 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 253 tests / 572 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
+
+Cross-framework comparison harness (`bench/compare/`) benchmarks
+Rxn against Slim 4, a Symfony micro-kernel, and a raw-PHP baseline
+on identical routes — pure PHP, no Docker. See
+[`bench/compare/README.md`](bench/compare/README.md) and
+[`bench/compare/flexibility.md`](bench/compare/flexibility.md) for
+the feature matrix.
 
 ## Documentation
 
@@ -170,6 +177,7 @@ Current test counts:
 | Building blocks (Logger, RateLimiter, Scheduler, Auth, Pipeline, Router, Validator, Migration, Chain, query cache, PSR-7 bridge) | [`docs/building-blocks.md`](docs/building-blocks.md) |
 | CLI (`bin/rxn`) | [`docs/cli.md`](docs/cli.md) |
 | Benchmarks (`bin/bench`) | [`docs/benchmarks.md`](docs/benchmarks.md) |
+| Cross-framework comparison (Slim / Symfony / raw) | [`bench/compare/README.md`](bench/compare/README.md) |
 | Contribution / style guide | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 
 ## Features
