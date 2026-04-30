@@ -1,0 +1,14 @@
+{
+    "name": "rxn-bench/symfony",
+    "description": "Symfony micro-kernel app for cross-framework comparison",
+    "require": {
+        "php": "^8.2",
+        "symfony/http-foundation": "^6.4 || ^7.0",
+        "symfony/http-kernel": "^6.4 || ^7.0",
+        "symfony/routing": "^6.4 || ^7.0",
+        "symfony/event-dispatcher": "^6.4 || ^7.0"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

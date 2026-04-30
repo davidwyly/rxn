@@ -135,15 +135,33 @@ class Request
 
     /**
      * @return bool
-     * @throws RequestException
-     * @throws \Exception
+     * @throws \Rxn\Framework\Error\NotFoundException
      */
     private function validateRequiredParams()
     {
         foreach ($this->config->endpoint_parameters as $parameter) {
-            $param_from_get = $this->collector->getParamFromGet($parameter);
+            try {
+                $param_from_get = $this->collector->getParamFromGet($parameter);
+            } catch (\Exception $e) {
+                // Convention router couldn't pull a required
+                // parameter (version / controller / action) off the
+                // request — that's "no route matches this URL".
+                // 404, not 500. Catches both Collector's bare
+                // \Exception ("not part of GET request") and any
+                // sanitisation exception underneath. The parameter
+                // name is included in the message so client tooling
+                // and error aggregators can tell *which* convention
+                // slot was empty.
+                throw new \Rxn\Framework\Error\NotFoundException(
+                    "No route matches this request (missing $parameter)",
+                    404,
+                    $e,
+                );
+            }
             if (!isset($param_from_get)) {
-                throw new RequestException("Required parameter $parameter is missing from request");
+                throw new \Rxn\Framework\Error\NotFoundException(
+                    "No route matches this request (missing $parameter)",
+                );
             }
         }
         $this->validated = true;
@@ -201,10 +219,17 @@ class Request
             return null;
         }
 
-        $period_position    = mb_strpos($full_version, ".");
-        $controller_version = mb_substr($full_version, 0, $period_position);
+        // Convention is "v{N}.{M}" (controller_version.action_version),
+        // but tolerate "v{N}" — when the period is missing, the
+        // whole string IS the controller_version. mb_strpos returns
+        // false in that case, and feeding `false` to mb_substr's
+        // length argument throws TypeError on modern PHP.
+        $period_position = mb_strpos($full_version, ".");
+        if ($period_position === false) {
+            return $full_version;
+        }
 
-        return $controller_version;
+        return mb_substr($full_version, 0, $period_position);
     }
 
     /**
@@ -218,11 +243,16 @@ class Request
             return null;
         }
 
-        $period_position       = mb_strpos($full_version, ".");
-        $action_version_number = mb_substr($full_version, $period_position + 1);
+        // Mirror parseControllerVersion's tolerance: when there's no
+        // period, the URL omitted the action version, so it's
+        // identical to the controller version (e.g. "v1" → both
+        // controller_version and action_version are "v1").
+        $period_position = mb_strpos($full_version, ".");
+        if ($period_position === false) {
+            return $full_version;
+        }
 
-        $action_version = "v$action_version_number";
-        return $action_version;
+        return 'v' . mb_substr($full_version, $period_position + 1);
     }
 
     /**

@@ -367,10 +367,17 @@ class Database
     }
 
     /**
+     * Roll the open transaction back. Public counterpart to
+     * `transactionOpen()` / `transactionClose()` — middleware and
+     * application code that needs to abandon a transaction (e.g.
+     * a transaction-wrapping middleware reacting to a 4xx response)
+     * call this directly. The previous version of this method was
+     * private; the asymmetry was an oversight.
+     *
      * @return bool
      * @throws DatabaseException
      */
-    private function transactionRollback()
+    public function transactionRollback()
     {
         if ($this->transaction_depth < 1) {
             throw new DatabaseException(__METHOD__ . ": transaction does not exist", 500);

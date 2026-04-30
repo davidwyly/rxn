@@ -4,16 +4,26 @@
 
 ##### Status: alpha. Targets PHP 8.2+ and ships a Docker stack on PHP 8.3-fpm.
 
-Rxn (from "reaction") is built around a single opinion: **strict
+Rxn (from "reaction") tries to land all three of **fast**,
+**readable**, and **small** at the same time. The usual trilemma
+("pick two") is real only when the three are treated as orthogonal
+axes to optimise independently — they aren't. Bad design hurts all
+three at once; good design helps all three at once. The
+[design philosophy doc](docs/design-philosophy.md) is the working
+theory.
+
+The operational consequence is a single opinion: **strict
 backend/frontend decoupling**. The backend is API-only, responds in
 JSON, and rolls up every uncaught exception into a JSON error
-envelope. Frontends — web, mobile, whatever — build against the
-versioned contracts and stay decoupled.
+envelope (RFC 7807 Problem Details). Frontends — web, mobile,
+whatever — build against the versioned contracts and stay
+decoupled. JSON-only is a *narrowing* decision that pays
+dividends down the stack: no content negotiation, no view layer,
+one error envelope.
 
-The framework aims, in order, to be **fast**, **small**, and
-**easy to use**. The ORM / query builder lives in a separate
-package — [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)
-— pulled in automatically via Composer.
+The ORM / query builder lives in a separate package —
+[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm) — pulled
+in automatically via Composer.
 
 ## At a glance
 
@@ -113,30 +123,129 @@ the framework itself stays narrow.
 
 ### Speed
 
-- PSR-4 autoloading; no reflection on the hot path once classes
-  load.
-- File-backed **query caching** (`Database::setCache()`) and
-  **object file caching** with atomic writes for
-  reflection-derived data.
+Cross-framework HTTP throughput, PHP 8.4, `php -S` per-request
+worker mode (full table + methodology in
+[`bench/ab/CONSOLIDATION.md`](bench/ab/CONSOLIDATION.md)):
+
+| Framework | GET /hello | GET /products/{id} | POST valid | POST 422 |
+|---|---:|---:|---:|---:|
+| **rxn** | **8,167** | **8,439** | **9,312** | **9,391** |
+| raw PHP (no framework) | 6,757 | 8,450 | 8,162 | 7,297 |
+| symfony micro-kernel | 4,218 | 4,158 | 4,012 | 4,022 |
+| slim 4 | 3,796 | 3,865 | 3,749 | 3,759 |
+
+≈ **2× the throughput of Slim and Symfony**, on par with hand-rolled
+PHP, **2-3× lower p99 latency**. On routes that actually do work
+(POST + validate), Rxn beats raw PHP by 14-29%.
+
+How that's possible (the
+[design philosophy](docs/design-philosophy.md) document is the long
+version):
+
+- **PSR-4 autoloading; no reflection on the hot path once caches
+  warm.** Container caches reflection / construction plans /
+  parsed-name lookups and compiles per-class factory closures —
+  five stacked optimisations, transparent, ~2.2× cumulative.
+- **Optional schema-compiled fast paths.** For long-lived workers
+  (RoadRunner / Swoole / FrankenPHP), `Validator::compile($rules)`
+  runs **2.45×** faster than the runtime path; `Binder::compileFor($class)`
+  runs **6.4×** faster. Same APIs, two performance profiles.
+- **OPcache preload script** ([`bin/preload.php`](bin/preload.php))
+  for fpm cold-start latency.
+- **File-backed query caching** (`Database::setCache()`) and
+  **object file caching** with atomic writes for reflection-derived
+  data.
 - **ETag middleware** drops 304s for unchanged GETs before your
   controller serializes a byte of response.
-- No content-negotiation layer to walk on every request.
+- **No content-negotiation layer** to walk on every request.
 - **Sync-first, process-per-request, predictable.** We deliberately
-  don't chase async — PHP-FPM's process pool already gives you
-  concurrent-requests concurrency without the Fibers + event-loop
-  + non-blocking-driver tax, and every "why async" benchmark you
-  see is really an "I'm IO-bound and never cached anything" story.
-  Stack RoadRunner or Swoole under Rxn if you need in-request
-  concurrency; the framework doesn't change shape for it.
+  don't chase async — PHP-FPM's process pool gives you concurrent-
+  requests concurrency without the Fibers + event-loop +
+  non-blocking-driver tax. Stack RoadRunner or Swoole under Rxn if
+  you need in-request concurrency; the framework doesn't change
+  shape for it (and the compile-path opt-ins above start paying
+  for themselves there).
+
+### How it stays this way
+
+Every shipped optimisation has an A/B run with worktree-based
+comparison, ranges, and a non-overlapping-range verdict
+(`bench/ab.php`). Negative-result branches stay on origin with
+their writeups. Sixteen experiments documented; eleven merged,
+four documented as negative results, one shipped as
+infrastructure.
+
+The principles that produced those eleven wins are written down
+in [`docs/design-philosophy.md`](docs/design-philosophy.md). The
+cumulative scoreboard is in
+[`bench/ab/CONSOLIDATION.md`](bench/ab/CONSOLIDATION.md).
 
 ## Quickstart
 
 ```bash
 composer install
-vendor/bin/phpunit          # run the test suite
-composer validate --strict  # sanity-check composer.json
-bin/rxn help                # list CLI subcommands
+vendor/bin/phpunit          # 371 tests, 813 assertions
+bin/rxn help                # CLI subcommands
 ```
+
+### 60-second walkthrough — `examples/products-api/`
+
+Boot the worked-example app and exercise every shipped middleware
+in five minutes:
+
+```bash
+php -S 127.0.0.1:9871 -t examples/products-api/public
+```
+
+In another shell, watch the framework's identity show up across
+five paths:
+
+```bash
+# 1. Health check (HealthCheck route helper)
+curl http://127.0.0.1:9871/health
+# → {"data":{"status":"ok","checks":{"database":{"status":"ok"}}},...}
+
+# 2. Paginated list (Pagination middleware adds X-Total-Count + Link)
+curl -i "http://127.0.0.1:9871/products?per_page=5"
+
+# 3. Create (BearerAuth + Idempotency + DTO validation)
+curl -X POST http://127.0.0.1:9871/products \
+     -H 'Authorization: Bearer demo-admin' \
+     -H 'Idempotency-Key: k-1' \
+     -H 'Content-Type: application/json' \
+     -d '{"name":"Widget","price":9.99,"status":"published"}'
+# → 201 with the created row + meta.authenticated: "Admin"
+
+# 4. Replay the same call — Idempotency middleware short-circuits
+curl -i -X POST http://127.0.0.1:9871/products \
+     -H 'Authorization: Bearer demo-admin' \
+     -H 'Idempotency-Key: k-1' \
+     -H 'Content-Type: application/json' \
+     -d '{"name":"Widget","price":9.99,"status":"published"}'
+# → 201 with `Idempotent-Replayed: true` header, no DB write
+
+# 5. Validation failure — every field error at once
+curl -X POST http://127.0.0.1:9871/products \
+     -H 'Authorization: Bearer demo-admin' \
+     -H 'Idempotency-Key: k-2' \
+     -H 'Content-Type: application/json' \
+     -d '{"name":"","price":-1,"homepage":"not-a-url"}'
+# → 422 with errors[] for name, price, homepage in one round trip
+```
+
+The example is **eight files, ~250 lines of glue**. The whole
+input contract for `POST /products` lives in
+[`examples/products-api/app/Dto/CreateProduct.php`](examples/products-api/app/Dto/CreateProduct.php) —
+one PHP class with public typed properties and validation
+attributes, simultaneously consumed by the Binder, the validator,
+the OpenAPI generator, and the schema-compiled fast path. That's
+the [design philosophy](docs/design-philosophy.md)'s "schema as
+truth, multiple consumers" principle in 30 lines of PHP.
+
+Full walkthrough in
+[`examples/products-api/README.md`](examples/products-api/README.md).
+
+### Docker stack (optional)
 
 Full Docker stack (PHP 8.3-fpm + nginx 1.27 + MySQL 8):
 
@@ -148,15 +257,25 @@ docker compose up --build
 
 Set `INSTALL_XDEBUG=1` in `.env` to build the PHP image with Xdebug 3.
 
+### CI / cross-framework comparison
+
 CI runs lint + phpunit against PHP 8.2, 8.3, and 8.4 plus an
 end-to-end HTTP smoke job against MySQL 8
 (`.github/workflows/ci.yml`).
 
-Current test counts:
+Test counts:
 
-- **Rxn framework:** 230 tests / 521 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 371 tests / 813 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
+
+Cross-framework comparison harness
+([`bench/compare/`](bench/compare/)) benchmarks Rxn against Slim 4,
+a Symfony micro-kernel, and a raw-PHP baseline on identical routes
+— pure PHP, no Docker. The full table is in
+[`bench/ab/CONSOLIDATION.md`](bench/ab/CONSOLIDATION.md); the
+methodology is in
+[`bench/compare/README.md`](bench/compare/README.md).
 
 ## Documentation
 
@@ -170,6 +289,7 @@ Current test counts:
 | Building blocks (Logger, RateLimiter, Scheduler, Auth, Pipeline, Router, Validator, Migration, Chain, query cache, PSR-7 bridge) | [`docs/building-blocks.md`](docs/building-blocks.md) |
 | CLI (`bin/rxn`) | [`docs/cli.md`](docs/cli.md) |
 | Benchmarks (`bin/bench`) | [`docs/benchmarks.md`](docs/benchmarks.md) |
+| Cross-framework comparison (Slim / Symfony / raw) | [`bench/compare/README.md`](bench/compare/README.md) |
 | Contribution / style guide | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 
 ## Features

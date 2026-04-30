@@ -135,4 +135,170 @@ final class ValidatorTest extends TestCase
         $this->assertArrayHasKey('email', $errors);
         $this->assertArrayHasKey('age', $errors);
     }
+
+    /**
+     * @return iterable<string, array{0: array<string, mixed>, 1: array<string, array<int, string>>}>
+     */
+    public static function compileParityCases(): iterable
+    {
+        $rules = [
+            'email' => ['required', 'email'],
+            'age'   => ['required', 'int', 'min:18', 'max:120'],
+            'role'  => ['in:admin,member,guest'],
+            'slug'  => ['regex:/^[a-z0-9-]+$/'],
+            'tags'  => ['array', 'between:1,5'],
+            'title' => ['string', 'min:3', 'max:50'],
+            'site'  => ['url'],
+            'bio'   => ['string'],
+            'price' => ['numeric'],
+            'flag'  => ['bool'],
+        ];
+
+        yield 'all valid' => [
+            [
+                'email' => 'u@example.com',
+                'age'   => 42,
+                'role'  => 'member',
+                'slug'  => 'abc-123',
+                'tags'  => ['a', 'b'],
+                'title' => 'Hello world',
+                'site'  => 'https://example.com',
+                'bio'   => 'about me',
+                'price' => '9.99',
+                'flag'  => 'true',
+            ],
+            $rules,
+        ];
+
+        yield 'all missing optional' => [
+            ['email' => 'u@example.com', 'age' => 25],
+            $rules,
+        ];
+
+        yield 'all invalid' => [
+            [
+                'email' => 'nope',
+                'age'   => 12,
+                'role'  => 'stranger',
+                'slug'  => 'BAD slug',
+                'tags'  => 'not-array',
+                'title' => 'no',
+                'site'  => 'not a url',
+                'bio'   => 123,
+                'price' => 'free',
+                'flag'  => 'maybe',
+            ],
+            $rules,
+        ];
+
+        yield 'edge: empty string == missing' => [
+            ['email' => '', 'age' => 30],
+            $rules,
+        ];
+    }
+
+    /** @dataProvider compileParityCases */
+    public function testCompiledOutputMatchesCheckOutput(array $payload, array $rules): void
+    {
+        $expected = Validator::check($payload, $rules);
+        $compiled = Validator::compile($rules);
+        $this->assertSame($expected, $compiled($payload));
+    }
+
+    public function testCompileCachesEquivalentRuleSets(): void
+    {
+        $rules1 = [
+            'email' => ['required', 'email'],
+            'age'   => ['int', 'min:18'],
+        ];
+        $rules2 = [
+            'email' => ['required', 'email'],
+            'age'   => ['int', 'min:18'],
+        ];
+        $a = Validator::compile($rules1);
+        $b = Validator::compile($rules2);
+        $this->assertSame($a, $b);
+    }
+
+    public function testCompileBypassesCacheForCallableRules(): void
+    {
+        $rules = [
+            'name' => [
+                'required',
+                fn ($v, $f) => str_starts_with((string)$v, 'X') ? "$f must not start with X" : null,
+            ],
+        ];
+        $check = Validator::compile($rules);
+        $this->assertSame([], $check(['name' => 'Alice']));
+        $errors = $check(['name' => 'Xavier']);
+        $this->assertSame(['name' => ['name must not start with X']], $errors);
+    }
+
+    /**
+     * @return iterable<string, array{0: string, 1: mixed, 2: bool}>
+     */
+    public static function expandedRuleCases(): iterable
+    {
+        yield 'uuid valid'        => ['uuid', '550e8400-e29b-41d4-a716-446655440000', true];
+        yield 'uuid invalid'      => ['uuid', 'not-a-uuid', false];
+        yield 'uuid uppercase'    => ['uuid', '550E8400-E29B-41D4-A716-446655440000', true];
+        yield 'ip v4 valid'       => ['ip', '192.168.1.1', true];
+        yield 'ip v6 valid'       => ['ip', '::1', true];
+        yield 'ip invalid'        => ['ip', '999.999.999.999', false];
+        yield 'ipv4 v4'           => ['ipv4', '192.168.1.1', true];
+        yield 'ipv4 v6 fails'     => ['ipv4', '::1', false];
+        yield 'ipv6 v6'           => ['ipv6', '::1', true];
+        yield 'ipv6 v4 fails'     => ['ipv6', '192.168.1.1', false];
+        yield 'json object'       => ['json', '{"a":1}', true];
+        yield 'json array'        => ['json', '[1,2,3]', true];
+        yield 'json invalid'      => ['json', 'not json', false];
+        yield 'date valid'        => ['date', '2026-04-29', true];
+        yield 'date bad month'    => ['date', '2026-13-01', false];
+        yield 'date phantom day'  => ['date', '2024-02-30', false];
+        yield 'date wrong format' => ['date', '04/29/2026', false];
+        yield 'datetime ISO Z'    => ['datetime', '2026-04-29T12:34:56Z', true];
+        yield 'datetime ISO offset' => ['datetime', '2026-04-29T12:34:56+00:00', true];
+        yield 'datetime SQL'      => ['datetime', '2026-04-29 12:34:56', true];
+        yield 'datetime invalid'  => ['datetime', 'tomorrow', false];
+        yield 'not_blank space-only' => ['not_blank', '   ', false];
+        yield 'not_blank tab-only'   => ['not_blank', "\t\n", false];
+        yield 'not_blank ok'      => ['not_blank', 'hi', true];
+        yield 'starts_with hit'   => ['starts_with:abc', 'abcdef', true];
+        yield 'starts_with miss'  => ['starts_with:abc', 'xyzdef', false];
+        yield 'ends_with hit'     => ['ends_with:xyz', 'abcxyz', true];
+        yield 'ends_with miss'    => ['ends_with:xyz', 'abcdef', false];
+    }
+
+    /** @dataProvider expandedRuleCases */
+    public function testExpandedRuleRuntime(string $rule, mixed $value, bool $shouldPass): void
+    {
+        $errors = Validator::check(['v' => $value], ['v' => [$rule]]);
+        if ($shouldPass) {
+            $this->assertSame([], $errors);
+        } else {
+            $this->assertArrayHasKey('v', $errors);
+        }
+    }
+
+    /** @dataProvider expandedRuleCases */
+    public function testExpandedRuleCompiled(string $rule, mixed $value, bool $shouldPass): void
+    {
+        $check  = Validator::compile(['v' => [$rule]]);
+        $errors = $check(['v' => $value]);
+        if ($shouldPass) {
+            $this->assertSame([], $errors);
+        } else {
+            $this->assertArrayHasKey('v', $errors);
+        }
+    }
+
+    public function testRuleNamedLikePhpFunctionStillTreatedAsString(): void
+    {
+        // 'date' is also a PHP builtin; is_callable('date') is true.
+        // The Validator must treat it as a rule name, not call it as
+        // a function. Pre-fix, this threw a TypeError from date()
+        // being called with the value as the timestamp arg.
+        $errors = Validator::check(['v' => '2026-04-29'], ['v' => ['date']]);
+        $this->assertSame([], $errors);
+    }
 }

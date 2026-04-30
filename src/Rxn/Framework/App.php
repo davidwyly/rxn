@@ -37,7 +37,14 @@ class App
     {
         $this->container = new Container();
         $this->container->get(Startup::class);
-        $this->container->get(Service\Registry::class);
+
+        // Service\Registry used to be eagerly constructed here, which
+        // forced a MySQL connection during boot — every request,
+        // including 404s and /health checks, depended on the database
+        // being reachable. Registry's actual consumers (legacy
+        // `Model\Record`, `Data\Map`) pull it from the container on
+        // first access; apps not using those code paths never touch
+        // the schema. Convention router boot is now database-free.
         $this->api = $this->container->get(Api::class);
 
         try {
@@ -76,8 +83,20 @@ class App
             return $this->renderFailure($request->getException());
         }
 
-        $controller_ref        = $this->api->findController($request);
-        $this->api->controller = $this->container->get($controller_ref);
+        $controller_ref = $this->api->findController($request);
+        try {
+            $this->api->controller = $this->container->get($controller_ref);
+        } catch (\Rxn\Framework\Error\ContainerException $e) {
+            // Convention router resolved the URL into a class
+            // reference, but the class itself doesn't exist (or
+            // isn't autoloadable). From the client's perspective
+            // that's still "no such resource" — 404, not 500.
+            throw new \Rxn\Framework\Error\NotFoundException(
+                "No route matches this request",
+                404,
+                $e,
+            );
+        }
 
         return $this->api->controller->trigger();
     }

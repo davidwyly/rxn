@@ -29,6 +29,59 @@ class Container
     private array $bindings = [];
 
     /**
+     * Process-lifetime cache of ReflectionClass instances. The class
+     * graph doesn't change at runtime, and constructing a
+     * ReflectionClass each time `get()` is called is observable on
+     * the dispatch hot path (see bench/ab/results — container
+     * autowire moves +20-30%% under this cache).
+     *
+     * @var array<string, \ReflectionClass>
+     */
+    private static array $reflectionCache = [];
+
+    /**
+     * Same idea for `isService` — the answer is a function of the
+     * class hierarchy, which is also fixed for the process lifetime.
+     *
+     * @var array<string, bool>
+     */
+    private static array $isServiceCache = [];
+
+    /**
+     * Pre-computed construction recipe per class. Each entry is a
+     * directive describing how to fill the corresponding constructor
+     * parameter slot — `['autowire', $class]`, `['default', $value]`,
+     * `['null']`, or `['fail', $param_name]`. `null` cache entry
+     * means "no constructor; use newInstanceWithoutConstructor".
+     *
+     * Caching the recipe lets `generateInstance()` skip every
+     * Reflection*Parameter call after the first resolution, which
+     * is where the bulk of the autowire cost lives.
+     *
+     * @var array<string, list<array{0: string, 1?: mixed}>|null>
+     */
+    private static array $constructorPlanCache = [];
+
+    /**
+     * Memoise normalised class names. parseClassName is a pure
+     * function (`'\\' . ltrim($input, '\\')`); same input always
+     * produces the same output, and it gets called multiple times
+     * per `get()` (entry call + recursive autowire + addInstance).
+     *
+     * @var array<string, string>
+     */
+    private static array $parsedNameCache = [];
+
+    /**
+     * Precomputed normalised name of the Container class itself. Used
+     * by `get()` to short-circuit when callers ask for the container.
+     * Avoids a `ltrim($class_name, '\\') === ltrim(Container::class, '\\')`
+     * pair on every dispatch — the input is already normalised, so a
+     * single string compare against this constant is enough.
+     */
+    private const SELF_KEY = '\\Rxn\\Framework\\Container';
+
+    /**
      * Container constructor.
      */
     public function __construct()
@@ -71,8 +124,10 @@ class Container
         // change every namespace to be absolute
         $class_name = $this->parseClassName($class_name);
 
-        // in the event that we're looking up the container class, return itself
-        if (ltrim($class_name, '\\') === ltrim(Container::class, '\\')) {
+        // Self-lookup short-circuit. $class_name is already in the
+        // normalised "\Foo\Bar" form post-parseClassName, so a direct
+        // compare against the precomputed self key is enough.
+        if ($class_name === self::SELF_KEY) {
             return $this;
         }
 
@@ -113,7 +168,9 @@ class Container
         } finally {
             unset($this->resolving[$class_name]);
         }
-        $this->addInstance($class_name, $instance);
+        // $class_name is already normalised; skip addInstance() to
+        // avoid a redundant parseClassName() call.
+        $this->instances[$class_name] = $instance;
 
         return $instance;
     }
@@ -125,8 +182,17 @@ class Container
      */
     private function isService($class_name)
     {
-        $reflection = new \ReflectionClass($class_name);
-        return $reflection->isSubclassOf(Service::class);
+        return self::$isServiceCache[$class_name]
+            ??= self::reflectionFor($class_name)->isSubclassOf(Service::class);
+    }
+
+    /**
+     * Class-graph reflection lookup, cached for the process lifetime.
+     */
+    private static function reflectionFor(string $class_name): \ReflectionClass
+    {
+        return self::$reflectionCache[$class_name]
+            ??= new \ReflectionClass($class_name);
     }
 
     /**
@@ -138,49 +204,158 @@ class Container
      */
     private function generateInstance($class_name, array $passed_parameters)
     {
-        $reflection = new \ReflectionClass($class_name);
-
-        $constructor = $reflection->getConstructor();
-        if (!$constructor) {
+        $plan = self::constructorPlanFor($class_name);
+        if ($plan === null) {
+            $reflection = self::reflectionFor($class_name);
             return $reflection->newInstanceWithoutConstructor();
         }
 
-        $constructor_parameters = $constructor->getParameters();
+        // Fast path: when callers don't override constructor params,
+        // dispatch through the eval-compiled per-class factory. The
+        // factory inlines `new $class($this->get(...), ...)` so we
+        // skip ReflectionClass::newInstanceArgs() and the per-call
+        // foreach over the directive plan.
+        if ($passed_parameters === []) {
+            $factory = self::$factoryCache[$class_name] ??= self::compileFactory($class_name, $plan);
+            if ($factory !== null) {
+                return $factory($this);
+            }
+        }
 
+        // Slow path: parameter overrides — keep the runtime walker.
         $create_parameters = [];
-        foreach ($constructor_parameters as $key => $constructor_parameter) {
-            // use matching parameter
+        foreach ($plan as $key => $directive) {
             if (array_key_exists($key, $passed_parameters)) {
                 $create_parameters[$key] = $passed_parameters[$key];
                 continue;
             }
-
-            // if the parameter has a concrete class type, autowire it
-            $type = $constructor_parameter->getType();
-            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
-                $create_parameters[$key] = $this->get($type->getName());
-                continue;
+            switch ($directive[0]) {
+                case 'autowire':
+                    $create_parameters[$key] = $this->get($directive[1]);
+                    break;
+                case 'default':
+                    $create_parameters[$key] = $directive[1];
+                    break;
+                case 'null':
+                    $create_parameters[$key] = null;
+                    break;
+                case 'fail':
+                    throw new ContainerException(
+                        "Cannot autowire parameter \${$directive[1]} of $class_name: "
+                        . "no type hint, default value, or explicitly-passed value."
+                    );
             }
-
-            // optional scalar parameter: use its default
-            if ($constructor_parameter->isDefaultValueAvailable()) {
-                $create_parameters[$key] = $constructor_parameter->getDefaultValue();
-                continue;
-            }
-
-            // nullable scalar parameter with no default: pass null
-            if ($constructor_parameter->allowsNull()) {
-                $create_parameters[$key] = null;
-                continue;
-            }
-
-            throw new ContainerException(
-                "Cannot autowire parameter \${$constructor_parameter->getName()} of $class_name: "
-                . "no type hint, default value, or explicitly-passed value."
-            );
         }
 
+        $reflection = self::reflectionFor($class_name);
         return $reflection->newInstanceArgs($create_parameters);
+    }
+
+    /**
+     * Per-class factory cache. Each entry is a closure
+     * `static fn (Container $c) => new $class(...)` whose
+     * constructor args are inlined to either `$c->get(<dep>)`
+     * (for autowired class deps) or PHP literals (for defaults
+     * resolved at compile time).
+     *
+     * Cache value is null when the plan can't be compiled
+     * (e.g. a `'fail'` directive on a parameter that has no
+     * autowireable type and no default — the runtime path keeps
+     * the same exception message in that case).
+     *
+     * @var array<string, \Closure(self): object|null>
+     */
+    private static array $factoryCache = [];
+
+    /**
+     * Generate `static fn (Container $c) => new $class($c->get(...), ...)`
+     * for `$class_name`, given the already-compiled directive plan.
+     * Returns null when any directive is a `'fail'` (the runtime
+     * path then throws with the parameter name baked into the
+     * error message — we don't try to reproduce that in compiled
+     * code).
+     *
+     * @param list<array{0: string, 1?: mixed}> $plan
+     */
+    private static function compileFactory(string $class_name, array $plan): ?\Closure
+    {
+        $args = [];
+        foreach ($plan as $directive) {
+            switch ($directive[0]) {
+                case 'autowire':
+                    // $directive[1] is the pre-normalised FQCN literal.
+                    $args[] = '$c->get(' . self::quoteString($directive[1]) . ')';
+                    break;
+                case 'default':
+                    $args[] = var_export($directive[1], true);
+                    break;
+                case 'null':
+                    $args[] = 'null';
+                    break;
+                case 'fail':
+                    // A required parameter has no autowireable type —
+                    // we can't compile a factory for this class. Fall
+                    // back to the runtime walker (which produces the
+                    // ContainerException with the parameter name).
+                    return null;
+            }
+        }
+        $argList = implode(', ', $args);
+        $literal = '\\' . ltrim($class_name, '\\');
+        $code = "return static fn (\\Rxn\\Framework\\Container \$c) => new $literal($argList);";
+        /** @var \Closure(self): object $closure */
+        $closure = eval($code);
+        if (!$closure instanceof \Closure) {
+            throw new \RuntimeException("Container: failed to compile factory for $class_name");
+        }
+        return $closure;
+    }
+
+    private static function quoteString(string $s): string
+    {
+        return "'" . strtr($s, ["\\" => "\\\\", "'" => "\\'"]) . "'";
+    }
+
+    /**
+     * Compile the construction recipe for a class, or fetch the
+     * cached one. Returning `null` indicates "no constructor", so
+     * the caller can skip straight to newInstanceWithoutConstructor.
+     *
+     * @return list<array{0: string, 1?: mixed}>|null
+     */
+    private static function constructorPlanFor(string $class_name): ?array
+    {
+        if (array_key_exists($class_name, self::$constructorPlanCache)) {
+            return self::$constructorPlanCache[$class_name];
+        }
+        $constructor = self::reflectionFor($class_name)->getConstructor();
+        if (!$constructor) {
+            return self::$constructorPlanCache[$class_name] = null;
+        }
+        $plan = [];
+        foreach ($constructor->getParameters() as $p) {
+            $type = $p->getType();
+            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+                // Pre-normalise the target FQCN so the recursive
+                // get($directive[1]) lands on the parseClassName cache
+                // immediately instead of paying for ltrim + concat.
+                $name = $type->getName();
+                $normalised = self::$parsedNameCache[$name]
+                    ??= '\\' . ltrim($name, '\\');
+                $plan[] = ['autowire', $normalised];
+                continue;
+            }
+            if ($p->isDefaultValueAvailable()) {
+                $plan[] = ['default', $p->getDefaultValue()];
+                continue;
+            }
+            if ($p->allowsNull()) {
+                $plan[] = ['null'];
+                continue;
+            }
+            $plan[] = ['fail', $p->getName()];
+        }
+        return self::$constructorPlanCache[$class_name] = $plan;
     }
 
     /**
@@ -198,8 +373,8 @@ class Container
 
     private function parseClassName($class_name)
     {
-        $class_name = ltrim($class_name, '\\');
-        return "\\" . $class_name;
+        return self::$parsedNameCache[$class_name]
+            ??= "\\" . ltrim($class_name, '\\');
     }
 
     /**

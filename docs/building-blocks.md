@@ -137,6 +137,173 @@ The wildcard `If-None-Match: *` is honoured. Zero configuration —
 drop it in and GET-heavy endpoints stop retransmitting unchanged
 payloads.
 
+#### `Rxn\Framework\Http\Middleware\Idempotency`
+
+Stripe-style idempotency for mutating endpoints. Clients send an
+`Idempotency-Key: <uuid>` header; the middleware stores the
+response keyed by `(key, sha256(method + URI + body))` and replays
+on retry. Out-of-the-box backend is file-based (zero
+dependencies); apps with Redis/Memcached/APCu wire in the duck-
+typed PSR-16 bridge.
+
+```php
+use Rxn\Framework\Http\Idempotency\FileIdempotencyStore;
+use Rxn\Framework\Http\Idempotency\Psr16IdempotencyStore;
+use Rxn\Framework\Http\Middleware\Idempotency;
+
+// Default — file backend, single-host:
+$pipeline->add(new Idempotency(
+    new FileIdempotencyStore('/var/run/rxn/idempotency'),
+));
+
+// With any PSR-16-shaped cache (no psr/simple-cache dependency
+// in Rxn — the constructor parameter is `object`, validated
+// structurally):
+$pipeline->add(new Idempotency(
+    new Psr16IdempotencyStore($yourPsr16Cache),
+));
+```
+
+Five paths through the middleware:
+
+| Situation | Outcome |
+|---|---|
+| No header on request | Pass through; middleware does nothing |
+| GET / HEAD / OPTIONS (configurable) | Pass through; idempotency only applies to mutations |
+| Cold key | Process the request, store the response with TTL, return |
+| Replay (same key, same body) | Return stored response with `Idempotent-Replayed: true` header |
+| Replay (same key, **different** body) | 400 Problem Details — `idempotency_key_in_use_with_different_body` |
+| Concurrent retry while in-flight | 409 Conflict — `idempotency_key_in_use` |
+
+Defaults: `Idempotency-Key` header name, 24h response TTL, 30s
+lock TTL, applies to `POST` / `PUT` / `PATCH` / `DELETE`. All
+configurable via constructor args. 5xx responses are
+deliberately **not** cached so retries can hit a healthy backend
+once it recovers.
+
+To run a custom Redis client without the PSR-16 bridge,
+implement `Rxn\Framework\Http\Idempotency\IdempotencyStore`
+(four methods: `lock`, `release`, `get`, `put`). Backed by
+Redis's `SET key value NX EX ttl`, the lock acquisition becomes
+properly atomic.
+
+#### `Rxn\Framework\Http\Middleware\BearerAuth`
+
+Stateless `Authorization: Bearer <token>` enforcement. Wraps the
+existing `Service\Auth` resolver — keeps the actual lookup
+(database, JWT verify, OAuth introspect) in one place and lets
+the pipeline decide *where* the check fires. On a valid token,
+the resolved principal is exposed via `BearerAuth::current()`
+for downstream code; on a missing / malformed / unrecognised
+token, the middleware short-circuits to `401 unauthorized`
+Problem Details.
+
+```php
+use Rxn\Framework\Http\Middleware\BearerAuth;
+
+$auth->setResolver(fn (string $t) => $userRepo->findByToken($t));
+$pipeline->add(new BearerAuth($auth));
+
+// inside a controller:
+$user = BearerAuth::current();
+```
+
+`current()` is cleared in the middleware's `finally`, so a
+long-lived worker (RoadRunner / Swoole / FrankenPHP) can't leak
+the previous request's principal into the next.
+
+#### `Rxn\Framework\Http\Middleware\Pagination`
+
+Parse-and-emit pagination for list endpoints. Two responsibilities:
+
+```php
+use Rxn\Framework\Http\Middleware\Pagination;
+use Rxn\Framework\Http\Pagination\Pagination as Page;
+
+$pipeline->add(new Pagination(defaultLimit: 25, maxLimit: 100));
+
+// inside a controller:
+$p = Page::current();
+$rows  = $repo->fetch(limit: $p->limit, offset: $p->offset);
+$total = $repo->count();
+return [
+    'data' => $rows,
+    'meta' => ['total' => $total],   // ← middleware reads this
+];
+```
+
+The middleware parses `?limit=&offset=` *or* `?page=&per_page=`
+into a typed `Pagination` value object, clamps to
+`[1, maxLimit]`, and exposes via `Pagination::current()`. After
+the controller runs, if `meta.total` is set it emits
+`X-Total-Count` and a RFC 8288 `Link: rel=first|prev|next|last`
+header automatically. Controllers don't do pagination math.
+
+#### `Rxn\Framework\Http\Middleware\Transaction`
+
+Wraps mutating requests in a database transaction. Commits on
+2xx response, rolls back on 4xx / 5xx or any thrown exception.
+GET / HEAD / OPTIONS pass through untouched (no transaction
+overhead on read-only requests).
+
+```php
+use Rxn\Framework\Http\Middleware\Transaction;
+
+$pipeline->add(new Transaction($container->get(Database::class)));
+```
+
+Composes with handler-level `transactionOpen()` calls because
+`Database` supports nested begins via `transaction_depth`. Apps
+with multiple databases stack multiple Transaction instances —
+each makes the commit/rollback decision independently from the
+same response code. Re-thrown exceptions retain the original
+Throwable so the framework's exception envelope still fires
+upstream.
+
+## Health checks
+
+#### `Rxn\Framework\Http\Health\HealthCheck`
+
+Readiness / liveness route helper. Registers a closure-handler
+route on a `Router`, runs a list of named checks, returns a
+JSON envelope with per-check status:
+
+```php
+use Rxn\Framework\Http\Health\HealthCheck;
+
+HealthCheck::register($router, '/health', [
+    'database' => fn () => $db->getConnection() !== null,
+    'cache'    => fn () => $cache->ping(),
+    'queue'    => fn () => ['ok' => true, 'depth' => $q->depth()],
+]);
+```
+
+Each check returns:
+
+- `bool` — true = ok, false = fail
+- `array` — passes through as the check body; `status: fail`
+  marks the whole endpoint as failing, otherwise it's `ok`
+- thrown `Throwable` — captured as `{ status: fail, error: <msg> }`
+
+Returned body shape:
+
+```json
+{
+  "status": "ok",
+  "checks": {
+    "database": { "status": "ok" },
+    "cache":    { "status": "ok" },
+    "queue":    { "status": "ok", "ok": true, "depth": 17 }
+  },
+  "meta": { "status": 200 }
+}
+```
+
+`meta.status` reflects HTTP status (200 / 503) so a thin renderer
+adapter can pick it up. `register()` returns the underlying
+`Route`, so apps can chain `->name()` and `->middleware()` to
+require auth on the endpoint.
+
 ## PSR-7 / PSR-15 bridge
 
 `Rxn\Framework\Http\PsrAdapter` and `Psr15Pipeline` let apps opt

@@ -152,8 +152,15 @@ class Collector extends Service
      */
     public function getRequestUrlParams()
     {
+        // Always return an array — `$_GET` empty (bare `/`) used to
+        // produce null, which then made `array_key_exists` blow up
+        // with a TypeError downstream in `getParamFromGet`. A bare
+        // request with no params still flows through the same
+        // convention-router path; missing keys raise a clean
+        // "parameter not part of the GET request" exception that
+        // App::run captures and renders as Problem Details.
         if (!isset($_GET) || empty($_GET)) {
-            return null;
+            return [];
         }
 
         if (isset($_GET['params']) && !empty($_GET['params'])) {
@@ -245,11 +252,10 @@ class Collector extends Service
      */
     public function getParamFromGet($parameter)
     {
-        if (array_key_exists($parameter, $this->get)) {
+        if (is_array($this->get) && array_key_exists($parameter, $this->get)) {
             return $this->get[$parameter];
         }
         throw new \Exception("Parameter '$parameter' is not part of the GET request");
-
     }
 
     /**

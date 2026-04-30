@@ -34,6 +34,34 @@ final class Router
     /** @var Route[] */
     private array $routes = [];
 
+    /**
+     * Routes bucketed by accepted HTTP method. A route registered
+     * for ['GET', 'HEAD'] lands in both buckets so `match()` can
+     * skip straight to the verb-relevant slice without scanning
+     * every entry. Built as `add()` runs; the linear `$routes`
+     * list is still authoritative for `hasMethodMismatch()` and
+     * `indexNames()`, where ordering across verbs matters.
+     *
+     * Bucket only contains routes with placeholders — fully static
+     * routes are dispatched via the O(1) `$staticRoutes` hashmap
+     * below and are deliberately excluded from the bucket walk.
+     *
+     * @var array<string, Route[]>
+     */
+    private array $routesByMethod = [];
+
+    /**
+     * O(1) dispatch table for routes with no placeholders, keyed by
+     * `$method => $normalizedPath => Route`. Built at registration
+     * so `match()` can return on a hashmap lookup before falling
+     * through to regex matching for placeholder routes. This is the
+     * same trick FastRoute / Symfony's CompiledUrlMatcher use for
+     * the static-path common case.
+     *
+     * @var array<string, array<string, Route>>
+     */
+    private array $staticRoutes = [];
+
     /** @var array<string, Route> */
     private array $named = [];
 
@@ -54,7 +82,46 @@ final class Router
         [$regex, $params] = $this->compile($pattern);
         $route = new Route($normalized, $regex, $params, $handler, $pattern);
         $this->routes[] = $route;
+        $isStatic   = $params === [];
+        $staticPath = $isStatic ? $this->normalizePathRaw($pattern) : null;
+        foreach ($normalized as $m) {
+            if ($isStatic) {
+                // Registration-order semantics: if an earlier
+                // placeholder route in this verb bucket already
+                // matches $staticPath, the linear scan would have
+                // returned that placeholder first. Skip hashmap
+                // insertion so the slow-path bucket walk preserves
+                // that behaviour. (The static still lives in
+                // $this->routes; the placeholder will win on match.)
+                if ($this->isShadowedByPlaceholder($m, $staticPath)) {
+                    continue;
+                }
+                // First-registered wins on duplicate ($method, $path)
+                // pairs, matching the previous linear-scan behaviour.
+                if (!isset($this->staticRoutes[$m][$staticPath])) {
+                    $this->staticRoutes[$m][$staticPath] = $route;
+                }
+            } else {
+                $this->routesByMethod[$m][] = $route;
+            }
+        }
         return $route;
+    }
+
+    /**
+     * True when an earlier placeholder route registered for $method
+     * already matches $path. Used to keep the static-hashmap path
+     * faithful to registration-order semantics.
+     */
+    private function isShadowedByPlaceholder(string $method, string $path): bool
+    {
+        $bucket = $this->routesByMethod[$method] ?? [];
+        foreach ($bucket as $route) {
+            if (preg_match($route->regex, $path)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public function get(string $pattern, mixed $handler): Route     { return $this->add('GET', $pattern, $handler); }
@@ -124,11 +191,25 @@ final class Router
         if ($path === null) {
             return null;
         }
-        foreach ($this->routes as $route) {
+        // Static-path fast path: O(1) hashmap. The bench's "many"
+        // cases plus the typical real-world common case (most routes
+        // are static) skip the regex walk entirely.
+        $staticHit = $this->staticRoutes[$method][$path] ?? null;
+        if ($staticHit !== null) {
+            return [
+                'handler'     => $staticHit->handler,
+                'params'      => [],
+                'pattern'     => $staticHit->pattern,
+                'name'        => $staticHit->getName(),
+                'middlewares' => $staticHit->getMiddlewares(),
+            ];
+        }
+        // Walk only the routes that accept $method. Static routes
+        // have already been served above, so the bucket here only
+        // holds placeholder routes.
+        $bucket = $this->routesByMethod[$method] ?? [];
+        foreach ($bucket as $route) {
             if (!preg_match($route->regex, $path, $matches)) {
-                continue;
-            }
-            if (!in_array($method, $route->methods, true)) {
                 continue;
             }
             $params = [];
@@ -194,6 +275,20 @@ final class Router
             $path = rtrim($path, '/');
         }
         return $path;
+    }
+
+    /**
+     * Pattern-side variant of normalizePath() — same trim/anchor
+     * rules, no parse_url() (registration-time inputs are already
+     * paths, not URLs). Used to key the static-route hashmap.
+     */
+    private function normalizePathRaw(string $pattern): string
+    {
+        $pattern = '/' . ltrim($pattern, '/');
+        if ($pattern !== '/') {
+            $pattern = rtrim($pattern, '/');
+        }
+        return $pattern;
     }
 
     /**

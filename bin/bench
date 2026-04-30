@@ -15,11 +15,19 @@ namespace Rxn\Framework\Bench;
  *
  *   php bin/bench              # run everything
  *   php bin/bench router       # filter by substring
+ *   php bin/bench --json       # JSON array, one object per case
+ *   php bin/bench --json router
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use Rxn\Framework\Container;
+use Rxn\Framework\Http\Attribute\InSet;
+use Rxn\Framework\Http\Attribute\Length;
+use Rxn\Framework\Http\Attribute\Min;
+use Rxn\Framework\Http\Attribute\Required;
+use Rxn\Framework\Http\Binding\Binder;
+use Rxn\Framework\Http\Binding\RequestDto;
 use Rxn\Framework\Http\Middleware;
 use Rxn\Framework\Http\Pipeline;
 use Rxn\Framework\Http\PsrAdapter;
@@ -34,7 +42,15 @@ use Rxn\Orm\Builder\Query;
 use Rxn\Orm\Builder\Raw;
 use Rxn\Orm\Builder\Update;
 
-$filter = $argv[1] ?? null;
+// Argv parsing: positional substring filter + optional --json flag.
+// Stays minimal; the driver in bench/ab.php is the consumer of --json.
+$asJson = false;
+$filter = null;
+foreach (array_slice($argv, 1) as $arg) {
+    if ($arg === '--json') { $asJson = true; continue; }
+    if (str_starts_with($arg, '--')) { continue; } // ignore unknown flags
+    if ($filter === null) { $filter = $arg; }
+}
 
 $cases = [];
 
@@ -57,6 +73,34 @@ $cases['router.match.multi_param'] = function () use ($router) {
 };
 $cases['router.match.miss'] = function () use ($router) {
     return $router->match('GET', '/no/such/route');
+};
+
+// "Realistic" many-route table: 5 routes per HTTP verb across
+// GET/POST/PUT/DELETE = 20 routes total. The cases below probe
+// the verb-bucket optimization opportunity — a request whose verb
+// only matches a small slice of the table shouldn't pay to walk
+// all 20 routes on every miss.
+$big = new Router();
+foreach (['GET', 'POST', 'PUT', 'DELETE'] as $verb) {
+    $lower = strtolower($verb);
+    for ($i = 0; $i < 5; $i++) {
+        $big->add($verb, "/$lower/path/$i", "h-$verb-$i");
+    }
+}
+
+$cases['router.match.many.first_verb_hit'] = function () use ($big) {
+    // GET /get/path/0 — best case, hits the very first registered route
+    return $big->match('GET', '/get/path/0');
+};
+$cases['router.match.many.last_verb_hit'] = function () use ($big) {
+    // DELETE /delete/path/4 — last verb, last route in its bucket;
+    // a verb-bucketed router only walks 5, a linear router walks 20
+    return $big->match('DELETE', '/delete/path/4');
+};
+$cases['router.match.many.miss'] = function () use ($big) {
+    // Walks the entire table on a linear matcher; with verb buckets
+    // it only walks the routes for GET (5).
+    return $big->match('GET', '/no/such/route');
 };
 
 // Pipeline: 3-layer pass-through
@@ -90,6 +134,10 @@ $rules = [
 ];
 $cases['validator.check.clean'] = function () use ($payload, $rules) {
     return Validator::check($payload, $rules);
+};
+$compiledCheck = Validator::compile($rules);
+$cases['validator.check.compiled'] = function () use ($payload, $compiledCheck) {
+    return $compiledCheck($payload);
 };
 
 // Container: autowire a simple chain A -> B -> C
@@ -183,6 +231,40 @@ $cases['psr7.from_globals'] = function () {
 };
 // leave $_SERVER modified for the run; restore at end.
 
+// Binder: realistic 5-field DTO with mixed validation attributes
+class BenchProductBindDto implements RequestDto
+{
+    #[Required]
+    #[Length(min: 1, max: 100)]
+    public string $name;
+
+    #[Required]
+    #[Min(0)]
+    public int $price;
+
+    public bool $active = true;
+
+    #[Length(max: 500)]
+    public ?string $description = null;
+
+    #[InSet(['draft', 'published', 'archived'])]
+    public string $status = 'draft';
+}
+$bindBag = [
+    'name'        => 'Widget',
+    'price'       => '9',
+    'active'      => 'true',
+    'description' => 'A nice widget',
+    'status'      => 'published',
+];
+$cases['binder.bind.runtime'] = function () use ($bindBag) {
+    return Binder::bind(BenchProductBindDto::class, $bindBag);
+};
+$compiledBinder = Binder::compileFor(BenchProductBindDto::class);
+$cases['binder.bind.compiled'] = function () use ($bindBag, $compiledBinder) {
+    return $compiledBinder($bindBag);
+};
+
 function run_case(callable $fn, float $warmup_s = 0.05, float $run_s = 0.25): array
 {
     // warmup
@@ -207,20 +289,37 @@ function run_case(callable $fn, float $warmup_s = 0.05, float $run_s = 0.25): ar
     ];
 }
 
-printf("%-30s %14s %14s\n", 'case', 'ops/sec', 'ns/op');
-printf("%-30s %14s %14s\n", str_repeat('-', 30), str_repeat('-', 14), str_repeat('-', 14));
-
-foreach ($cases as $name => $fn) {
-    if ($filter !== null && !str_contains($name, $filter)) {
-        continue;
+if ($asJson) {
+    $rows = [];
+    foreach ($cases as $name => $fn) {
+        if ($filter !== null && !str_contains($name, $filter)) {
+            continue;
+        }
+        $r = run_case($fn);
+        $rows[] = [
+            'case'   => $name,
+            'iter'   => $r['iter'],
+            'ops_s'  => $r['ops_s'],
+            'ns_op'  => $r['ns_op'],
+        ];
     }
-    $r = run_case($fn);
-    printf(
-        "%-30s %14s %14s\n",
-        $name,
-        number_format($r['ops_s'], 0),
-        number_format($r['ns_op'], 0)
-    );
+    fwrite(STDOUT, json_encode($rows, JSON_PRETTY_PRINT) . "\n");
+} else {
+    printf("%-30s %14s %14s\n", 'case', 'ops/sec', 'ns/op');
+    printf("%-30s %14s %14s\n", str_repeat('-', 30), str_repeat('-', 14), str_repeat('-', 14));
+
+    foreach ($cases as $name => $fn) {
+        if ($filter !== null && !str_contains($name, $filter)) {
+            continue;
+        }
+        $r = run_case($fn);
+        printf(
+            "%-30s %14s %14s\n",
+            $name,
+            number_format($r['ops_s'], 0),
+            number_format($r['ns_op'], 0)
+        );
+    }
 }
 
 $_SERVER = $originalServer;
