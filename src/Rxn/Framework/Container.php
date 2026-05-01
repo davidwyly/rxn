@@ -2,9 +2,11 @@
 
 namespace Rxn\Framework;
 
+use \Psr\Container\ContainerInterface;
 use \Rxn\Framework\Error\ContainerException;
+use \Rxn\Framework\Error\ContainerNotFoundException;
 
-class Container
+class Container implements ContainerInterface
 {
     /**
      * @var array $instances
@@ -113,13 +115,28 @@ class Container
     }
 
     /**
-     * @param string $class_name
-     * @param array  $parameters
+     * Resolve and return an entry from the container.
      *
-     * @return object
+     * PSR-11 conformance: signature `get(string $id): mixed`
+     * accepts any string id and returns whatever the entry
+     * resolves to — which for Rxn is always an object, since
+     * autowiring is class-driven. Throws
+     * `ContainerNotFoundException` (PSR-11
+     * `NotFoundExceptionInterface`) when the id doesn't resolve
+     * to a known entry, and the broader `ContainerException`
+     * (PSR-11 `ContainerExceptionInterface`) for other resolution
+     * failures (circular dependency, malformed binding,
+     * unconstrained constructor parameter).
+     *
+     * The optional `$parameters` array is non-PSR — Rxn-specific
+     * sugar for "construct with these constructor args, but
+     * autowire anything I didn't supply." Third-party PSR-11
+     * consumers won't pass it.
+     *
+     * @return mixed
      * @throws ContainerException
      */
-    public function get($class_name, array $parameters = [])
+    public function get(string $class_name, array $parameters = []): mixed
     {
         // change every namespace to be absolute
         $class_name = $this->parseClassName($class_name);
@@ -148,12 +165,19 @@ class Container
         }
 
         if (!class_exists($class_name)) {
-            throw new ContainerException("$class_name is not a valid class name");
+            // PSR-11 distinguishes "no such entry" from other
+            // resolution failures. Subclass of ContainerException
+            // so existing code that catches the broader type
+            // continues to work.
+            throw new ContainerNotFoundException("$class_name is not a valid class name");
         }
 
-        // if we already stored an instance of a statically-bound service class, return it
+        // if we already stored an instance of a statically-bound service class, return it.
+        // Direct isset rather than has() — PSR-11 has() now reports
+        // "constructible" (class_exists), which is a different thing
+        // from "have we cached an instance".
         if (self::isService($class_name)
-            && self::has($class_name)
+            && isset($this->instances[$class_name])
         ) {
             return $this->instances[$class_name];
         }
@@ -359,16 +383,32 @@ class Container
     }
 
     /**
-     * @param $class_name
+     * PSR-11 `has()`: return true iff `get($id)` would resolve
+     * without throwing.
      *
-     * @return bool
+     * Rxn's container autowires any constructible class, so for a
+     * class-string identifier this is equivalent to "class exists
+     * and isn't already failing as a binding." We also short-circuit
+     * on the self-lookup key, declared bindings, and the instance
+     * cache so the lookup is O(1) for the hot paths.
+     *
+     * Doesn't catch circular-dependency failures — those are
+     * detectable only at construction time. PSR-11 explicitly
+     * permits this.
      */
-    public function has($class_name)
+    public function has(string $id): bool
     {
+        $class_name = $this->parseClassName($id);
+        if ($class_name === self::SELF_KEY) {
+            return true;
+        }
+        if (isset($this->bindings[$class_name])) {
+            return true;
+        }
         if (isset($this->instances[$class_name])) {
             return true;
         }
-        return false;
+        return class_exists($class_name);
     }
 
     private function parseClassName($class_name)

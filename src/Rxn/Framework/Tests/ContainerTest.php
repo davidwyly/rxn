@@ -79,4 +79,57 @@ final class ContainerTest extends TestCase
         $c = new Container();
         $this->assertSame($c, $c->bind(Clock::class, SystemClock::class));
     }
+
+    public function testImplementsPsr11ContainerInterface(): void
+    {
+        $this->assertInstanceOf(\Psr\Container\ContainerInterface::class, new Container());
+    }
+
+    public function testHasReturnsTrueForConstructibleClass(): void
+    {
+        // PSR-11: has() returns true iff get() would succeed. Rxn
+        // autowires any constructible class, so any class-string
+        // that the autoloader can find should report true even
+        // before the first get() call.
+        $c = new Container();
+        $this->assertTrue($c->has(SystemClock::class));
+        $this->assertTrue($c->has(\Rxn\Framework\Container::class));
+    }
+
+    public function testHasReturnsTrueForBoundAbstract(): void
+    {
+        $c = new Container();
+        $c->bind(Clock::class, SystemClock::class);
+        $this->assertTrue($c->has(Clock::class));
+    }
+
+    public function testHasReturnsFalseForUnknownClass(): void
+    {
+        $c = new Container();
+        $this->assertFalse($c->has('Definitely\\Not\\A\\Real\\ClassName'));
+    }
+
+    public function testGetThrowsPsr11NotFoundExceptionForMissingClass(): void
+    {
+        $c = new Container();
+        try {
+            $c->get('Definitely\\Not\\A\\Real\\ClassName');
+            $this->fail('expected NotFoundExceptionInterface');
+        } catch (\Psr\Container\NotFoundExceptionInterface $e) {
+            // PSR-11 consumers catch the standard interface; a
+            // missing-entry case must satisfy that contract or
+            // libraries that catch only NotFoundExceptionInterface
+            // (and not the broader ContainerExceptionInterface)
+            // will leak an unintended exception.
+            $this->assertInstanceOf(ContainerException::class, $e);
+        }
+    }
+
+    public function testContainerExceptionImplementsPsr11Interface(): void
+    {
+        $this->assertInstanceOf(
+            \Psr\Container\ContainerExceptionInterface::class,
+            new ContainerException('test')
+        );
+    }
 }
