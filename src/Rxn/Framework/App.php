@@ -83,8 +83,152 @@ class App
     }
 
     /**
-     * Resolve the request, dispatch to the controller, render the
-     * JSON envelope.
+     * PSR-7/15-native entry point — the recommended shape for new
+     * apps. Builds a `ServerRequestInterface` from globals, runs
+     * it through the route's middleware `Pipeline`, invokes the
+     * matched handler, and emits a `ResponseInterface`.
+     *
+     *   $router = new Router();
+     *   $router->get('/products/{id:int}', [ProductController::class, 'show']);
+     *   App::serve($router);
+     *
+     * Handler return shapes accepted by the default invoker:
+     *
+     *  - `ResponseInterface` — returned as-is
+     *  - `array` — wrapped as `{data, meta}` JSON envelope, status
+     *    from `meta.status` (defaults to 200)
+     *  - anything else — wrapped as `{data: <value>}` envelope
+     *
+     * Apps that need a custom invoker (e.g. to autowire DTO
+     * parameters via `Binder::bindRequest`) pass it as the second
+     * argument:
+     *
+     *   App::serve($router, function (array $hit, ServerRequestInterface $req) use ($container): ResponseInterface { ... });
+     *
+     * **Static and boot-free.** Doesn't require a Startup-loaded
+     * `App` instance, doesn't read env constants, doesn't touch
+     * the convention-router service graph. Apps that opted into
+     * the explicit Router can run on a minimal `composer require
+     * rxn` install with no boot configuration. Existing apps
+     * using convention routing keep using `App::run()` — `serve()`
+     * doesn't replace it.
+     *
+     * @param callable(array, \Psr\Http\Message\ServerRequestInterface): \Psr\Http\Message\ResponseInterface|null $invoker
+     */
+    public static function serve(\Rxn\Framework\Http\Router $router, ?callable $invoker = null): void
+    {
+        $request = \Rxn\Framework\Http\PsrAdapter::serverRequestFromGlobals();
+        $method  = $request->getMethod();
+        $path    = $request->getUri()->getPath();
+
+        $hit = $router->match($method, $path);
+        if ($hit === null) {
+            $status = $router->hasMethodMismatch($method, $path) ? 405 : 404;
+            \Rxn\Framework\Http\PsrAdapter::emit(self::psrProblem($status));
+            return;
+        }
+
+        $pipeline = new \Rxn\Framework\Http\Pipeline();
+        foreach ($hit['middlewares'] as $mw) {
+            $pipeline->add($mw);
+        }
+
+        $invoker ??= self::defaultHandlerInvoker(...);
+
+        $terminal = new class($hit, $invoker) implements \Psr\Http\Server\RequestHandlerInterface {
+            /** @param callable(array, \Psr\Http\Message\ServerRequestInterface): \Psr\Http\Message\ResponseInterface $invoker */
+            public function __construct(private array $hit, private $invoker) {}
+
+            public function handle(\Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
+            {
+                return ($this->invoker)($this->hit, $request);
+            }
+        };
+
+        \Rxn\Framework\Http\PsrAdapter::emit($pipeline->run($request, $terminal));
+    }
+
+    /**
+     * Default handler-invoker for `serve()`. Calls
+     * `$hit['handler']` with `(params, request)` and converts the
+     * return value into a `ResponseInterface`. Apps with more
+     * exotic handler shapes pass their own invoker.
+     */
+    private static function defaultHandlerInvoker(array $hit, \Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
+    {
+        $handler = $hit['handler'];
+        if (!is_callable($handler)) {
+            return self::psrProblem(500, 'Handler is not invokable');
+        }
+        $result = $handler($hit['params'] ?? [], $request);
+        if ($result instanceof \Psr\Http\Message\ResponseInterface) {
+            return $result;
+        }
+        return self::arrayToPsrResponse(is_array($result) ? $result : ['data' => $result]);
+    }
+
+    /**
+     * Serialise a handler's array return as a JSON-envelope PSR-7
+     * response. Mirrors the convention-router envelope so existing
+     * controllers and the new PSR-7 path produce wire-identical
+     * output. `meta.status` (when set) selects the HTTP status;
+     * 4xx / 5xx codes get `application/problem+json`, everything
+     * else gets `application/json`.
+     *
+     * @param array<string, mixed> $body
+     */
+    public static function arrayToPsrResponse(array $body): \Psr\Http\Message\ResponseInterface
+    {
+        $status      = (int) ($body['meta']['status'] ?? 200);
+        $isFailure   = $status >= 400;
+        $contentType = $isFailure ? 'application/problem+json' : 'application/json';
+
+        $payload = $isFailure
+            ? array_filter([
+                'type'   => $body['meta']['type']   ?? 'about:blank',
+                'title'  => $body['meta']['title']  ?? '',
+                'status' => $status,
+                'errors' => $body['meta']['errors'] ?? null,
+            ], static fn ($v) => $v !== null)
+            : array_filter(
+                ['data' => $body['data'] ?? null, 'meta' => $body['meta'] ?? null],
+                static fn ($v) => $v !== null,
+            );
+
+        return new \Nyholm\Psr7\Response(
+            $status,
+            ['Content-Type' => $contentType],
+            json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        );
+    }
+
+    /**
+     * Build a Problem Details PSR-7 response. Used by `serve()`
+     * for routes that don't match (404 / 405) and exposed for
+     * apps that want a quick 4xx without going through
+     * `Response::problem` + the convention-router renderer.
+     */
+    public static function psrProblem(int $status, ?string $title = null): \Psr\Http\Message\ResponseInterface
+    {
+        return new \Nyholm\Psr7\Response(
+            $status,
+            ['Content-Type' => 'application/problem+json'],
+            json_encode([
+                'type'   => 'about:blank',
+                'title'  => $title ?? Response::getResponseCodeResult($status),
+                'status' => $status,
+            ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        );
+    }
+
+    /**
+     * Convention-router entry point. Resolves the request via
+     * `Service\Api::findController`, dispatches to the matching
+     * controller's versioned action, renders the JSON envelope
+     * with `App::render`. Older apps (and the framework's own
+     * `Tests/Http/Controller`-shaped fixtures) live here.
+     *
+     * For new apps, `serve(Router)` is the recommended shape.
      */
     public function run(): void
     {

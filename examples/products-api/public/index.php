@@ -42,10 +42,8 @@ spl_autoload_register(static function (string $class): void {
 
 use Example\Products\Dto\CreateProduct;
 use Example\Products\Repo\ProductRepo;
-use Nyholm\Psr7\Response as Psr7Response;
-use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Rxn\Framework\App;
 use Rxn\Framework\Http\Binding\Binder;
 use Rxn\Framework\Http\Binding\ValidationException;
 use Rxn\Framework\Http\Health\HealthCheck;
@@ -54,8 +52,6 @@ use Rxn\Framework\Http\Middleware\BearerAuth;
 use Rxn\Framework\Http\Middleware\Idempotency;
 use Rxn\Framework\Http\Middleware\Pagination as PaginationMiddleware;
 use Rxn\Framework\Http\Pagination\Pagination;
-use Rxn\Framework\Http\Pipeline;
-use Rxn\Framework\Http\PsrAdapter;
 use Rxn\Framework\Http\Router;
 use Rxn\Framework\Service\Auth;
 
@@ -144,84 +140,21 @@ $router->post('/products', function (array $params, ServerRequestInterface $requ
 
 // ---- dispatch -------------------------------------------------------
 
-$request = PsrAdapter::serverRequestFromGlobals();
-$method  = $request->getMethod();
-$path    = $request->getUri()->getPath();
+// `App::serve()` builds the PSR-7 ServerRequest from globals, runs
+// it through the route's middleware Pipeline, invokes the matched
+// handler via the framework's default invoker, and emits a PSR-7
+// response. The `(array $hit, ServerRequestInterface $req)` invoker
+// signature lets handlers receive the request without further
+// indirection — handlers in this app return arrays which `App::serve`
+// wraps in the standard `{data, meta}` envelope.
+//
+// Apps that prefer the explicit wire-up (the shape of this file
+// before this commit) can still call `PsrAdapter::serverRequestFromGlobals()`
+// + `Pipeline::run()` + `PsrAdapter::emit()` directly — `App::serve`
+// is sugar, not magic.
+//
+// Apps using convention routing (/v{N}/{controller}/{action})
+// instead of explicit Router stay on `App::run()` — `serve()`
+// does not replace it.
 
-$hit = $router->match($method, $path);
-if ($hit === null) {
-    PsrAdapter::emit(problem(404, 'Not Found'));
-    return;
-}
-
-$pipeline = new Pipeline();
-foreach ($hit['middlewares'] as $mw) {
-    $pipeline->add($mw);
-}
-
-$terminal = new class($hit) implements RequestHandlerInterface {
-    public function __construct(private array $hit) {}
-
-    public function handle(ServerRequestInterface $request): ResponseInterface
-    {
-        $handler = $this->hit['handler'];
-        $body    = is_callable($handler) ? $handler($this->hit['params'], $request) : [];
-        return arrayToPsrResponse(is_array($body) ? $body : []);
-    }
-};
-
-PsrAdapter::emit($pipeline->run($request, $terminal));
-
-// ---- helpers --------------------------------------------------------
-
-/**
- * Convert the example's array-returning handler shape to a PSR-7
- * response. Status defaults to 200, or to `meta.status` when the
- * handler set one — middleware can still further mutate the
- * response on the way out (Pagination headers, ETag, etc.).
- *
- * Failure shapes (4xx / 5xx) get `application/problem+json`;
- * successes get `application/json` with the framework's
- * `{data, meta}` envelope.
- */
-function arrayToPsrResponse(array $body): ResponseInterface
-{
-    $status      = (int) ($body['meta']['status'] ?? 200);
-    $isFailure   = $status >= 400;
-    $contentType = $isFailure ? 'application/problem+json' : 'application/json';
-
-    $payload = $isFailure
-        ? [
-            'type'   => $body['meta']['type']   ?? 'about:blank',
-            'title'  => $body['meta']['title']  ?? '',
-            'status' => $status,
-            'errors' => $body['meta']['errors'] ?? null,
-        ]
-        : array_filter(
-            ['data' => $body['data'] ?? null, 'meta' => $body['meta'] ?? null],
-            static fn ($v) => $v !== null,
-        );
-
-    if ($isFailure && $payload['errors'] === null) {
-        unset($payload['errors']);
-    }
-
-    return new Psr7Response(
-        $status,
-        ['Content-Type' => $contentType],
-        json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-    );
-}
-
-function problem(int $status, string $title): ResponseInterface
-{
-    return new Psr7Response(
-        $status,
-        ['Content-Type' => 'application/problem+json'],
-        json_encode([
-            'type'   => 'about:blank',
-            'title'  => $title,
-            'status' => $status,
-        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-    );
-}
+App::serve($router);
