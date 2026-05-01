@@ -29,15 +29,16 @@ final class Load
      *   headers: array<int, string>
      * } $request
      * @return array{
-     *   count:    int,
-     *   errors:   int,
-     *   non_2xx:  int,
-     *   elapsed:  float,
-     *   rps:      float,
-     *   p50_ms:   float,
-     *   p99_ms:   float,
-     *   max_ms:   float,
-     *   status_breakdown: array<int, int>
+     *   count:               int,
+     *   errors:              int,
+     *   non_2xx:             int,
+     *   elapsed:             float,
+     *   rps:                 float,
+     *   rps_median_window:   float,
+     *   p50_ms:              float,
+     *   p99_ms:              float,
+     *   max_ms:              float,
+     *   status_breakdown:    array<int, int>
      * }
      */
     public static function run(array $request, int $concurrency, float $duration): array
@@ -73,8 +74,18 @@ final class Load
         $errors         = 0;
         $non2xx         = 0;
         $statusCounts   = [];
-        $deadline       = microtime(true) + $duration;
+        $runStart       = microtime(true);
+        $deadline       = $runStart + $duration;
         $running        = $concurrency;
+        // Bin completions into 100ms windows so we can report the
+        // median windowed rps in addition to the simple count/duration
+        // value. The simple rps is sensitive to brief stalls (a 1s
+        // stall in a 7s run costs 14% rps); the median windowed rps
+        // is robust to short bursts and tells you "what was the rate
+        // a typical 100ms slice of this run saw" — closer to what
+        // you'd see at steady state on a clean rig.
+        $windowMs       = 100;
+        $windowCounts   = [];
 
         while (true) {
             do {
@@ -88,6 +99,9 @@ final class Load
                 $end  = microtime(true);
                 $start = $slots[$hid] ?? $end;
                 $latencies[] = ($end - $start) * 1000.0; // ms
+
+                $bin = (int) (($end - $runStart) * 1000 / $windowMs);
+                $windowCounts[$bin] = ($windowCounts[$bin] ?? 0) + 1;
 
                 if ($info['result'] !== CURLE_OK) {
                     $errors++;
@@ -141,18 +155,33 @@ final class Load
         $p99 = self::percentile($latencies, 0.99);
         $max = $latencies !== [] ? end($latencies) : 0.0;
 
+        // Median windowed rps: drop the first and last bins (partially
+        // populated at run boundaries — first bin starts mid-warmup,
+        // last bin ends mid-tick) and take the median of the rest.
+        // Multiplied to req/sec from req/100ms.
+        $rpsMedianWindow = 0.0;
+        if (count($windowCounts) > 2) {
+            ksort($windowCounts);
+            $bins = array_values($windowCounts);
+            $bins = array_slice($bins, 1, -1);
+            sort($bins);
+            $mid = $bins[(int) (count($bins) / 2)];
+            $rpsMedianWindow = $mid * (1000.0 / $windowMs);
+        }
+
         ksort($statusCounts);
 
         return [
-            'count'            => $count,
-            'errors'           => $errors,
-            'non_2xx'          => $non2xx,
-            'elapsed'          => $elapsed,
-            'rps'              => $elapsed > 0 ? $count / $elapsed : 0.0,
-            'p50_ms'           => $p50,
-            'p99_ms'           => $p99,
-            'max_ms'           => $max,
-            'status_breakdown' => $statusCounts,
+            'count'             => $count,
+            'errors'            => $errors,
+            'non_2xx'           => $non2xx,
+            'elapsed'           => $elapsed,
+            'rps'               => $elapsed > 0 ? $count / $elapsed : 0.0,
+            'rps_median_window' => $rpsMedianWindow,
+            'p50_ms'            => $p50,
+            'p99_ms'            => $p99,
+            'max_ms'            => $max,
+            'status_breakdown'  => $statusCounts,
         ];
     }
 

@@ -178,8 +178,9 @@ foreach ($opts['frameworks'] as $name) {
             // worker pool and time out spuriously.
             usleep(250_000);
             fwrite(STDERR, sprintf(
-                "%8s rps (p50 %5.2f ms / p99 %6.2f ms)\n",
+                "%8s rps (median-window %s) (p50 %5.2f ms / p99 %6.2f ms)\n",
                 number_format($r['rps'], 0),
+                number_format($r['rps_median_window'], 0),
                 $r['p50_ms'],
                 $r['p99_ms']
             ));
@@ -350,7 +351,7 @@ function render_markdown(array $results, array $opts): string
         $opts['host']
     );
     $lines[] = '';
-    $lines[] = '## Throughput (req/s — higher is better)';
+    $lines[] = '## Throughput — count / duration (req/s — higher is better)';
     $lines[] = '';
     $lines[] = '| Framework | ' . implode(' | ', $routeNames) . ' |';
     $lines[] = '|---|' . str_repeat('---:|', count($routeNames));
@@ -362,6 +363,23 @@ function render_markdown(array $results, array $opts): string
                 $cells[] = $r['error'] ?? '—';
             } else {
                 $cells[] = number_format($r['rps'], 0);
+            }
+        }
+        $lines[] = '| `' . $fw . '` | ' . implode(' | ', $cells) . ' |';
+    }
+    $lines[] = '';
+    $lines[] = '## Throughput — median 100ms-window (req/s — robust to brief stalls, use this for A/B)';
+    $lines[] = '';
+    $lines[] = '| Framework | ' . implode(' | ', $routeNames) . ' |';
+    $lines[] = '|---|' . str_repeat('---:|', count($routeNames));
+    foreach ($results as $fw => $perRoute) {
+        $cells = [];
+        foreach ($routeNames as $rn) {
+            $r = $perRoute[$rn] ?? null;
+            if (!is_array($r) || isset($r['error'])) {
+                $cells[] = $r['error'] ?? '—';
+            } else {
+                $cells[] = number_format($r['rps_median_window'], 0);
             }
         }
         $lines[] = '| `' . $fw . '` | ' . implode(' | ', $cells) . ' |';
