@@ -38,7 +38,13 @@ const FRAMEWORKS = [
         'public'    => __DIR__ . '/apps/rxn/public',
         'composer'  => null,                          // uses repo-root vendor
         'workers'   => 4,
-        'description' => 'Rxn (Router + Binder)',
+        'description' => 'Rxn (Router + Binder, native ingress)',
+    ],
+    'rxn-psr7' => [
+        'public'    => __DIR__ . '/apps/rxn-psr7/public',
+        'composer'  => null,                          // uses repo-root vendor
+        'workers'   => 4,
+        'description' => 'Rxn (Router + Binder, PSR-7/15 ingress)',
     ],
     'slim'    => [
         'public'    => __DIR__ . '/apps/slim/public',
