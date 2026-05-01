@@ -188,7 +188,7 @@ class App
         }
         $response = new Response(null);
         $response->getFailure(new AppException('Environment errors on startup'));
-        $response->meta['startup_errors'] = self::$environment_errors;
+        $response->addMetaField('startup_errors', self::$environment_errors);
         self::render($response);
     }
 

@@ -13,9 +13,9 @@ final class ResponseTest extends TestCase
         $returned = $response->getSuccess(['order_id' => 42]);
 
         $this->assertSame($response, $returned, 'getSuccess returns $this for chaining');
-        $this->assertSame(['order_id' => 42], $response->data);
-        $this->assertSame(200, $response->meta['code']);
-        $this->assertTrue($response->meta['success']);
+        $this->assertSame(['order_id' => 42], $response->getData());
+        $this->assertSame(200, $response->getMeta()['code']);
+        $this->assertTrue($response->getMeta()['success']);
         $this->assertTrue($response->isRendered());
         $this->assertSame(Response::DEFAULT_SUCCESS_CODE, $response->getCode());
     }
@@ -24,7 +24,7 @@ final class ResponseTest extends TestCase
     {
         $response = new Response();
         $response->getSuccess();
-        $this->assertSame('OK', $response->data);
+        $this->assertSame('OK', $response->getData());
     }
 
     public function testGetFailurePopulatesErrorFieldsAndCode(): void
@@ -34,10 +34,10 @@ final class ResponseTest extends TestCase
         $response->getFailure($exception);
 
         $this->assertSame(422, $response->getCode());
-        $this->assertSame(422, $response->meta['code']);
-        $this->assertFalse($response->meta['success']);
-        $this->assertSame('Unprocessable Entity', $response->errors['type']);
-        $this->assertSame('something broke', $response->errors['message']);
+        $this->assertSame(422, $response->getMeta()['code']);
+        $this->assertFalse($response->getMeta()['success']);
+        $this->assertSame('Unprocessable Entity', $response->getErrors()['type']);
+        $this->assertSame('something broke', $response->getErrors()['message']);
     }
 
     public function testGetFailureDefaultsToInternalServerErrorOnUnknownCode(): void
@@ -54,9 +54,9 @@ final class ResponseTest extends TestCase
         try {
             $response = new Response();
             $response->getFailure(new \Exception('bang', 500));
-            $this->assertArrayNotHasKey('file', $response->errors);
-            $this->assertArrayNotHasKey('line', $response->errors);
-            $this->assertArrayNotHasKey('trace', $response->errors);
+            $this->assertArrayNotHasKey('file', $response->getErrors());
+            $this->assertArrayNotHasKey('line', $response->getErrors());
+            $this->assertArrayNotHasKey('trace', $response->getErrors());
         } finally {
             putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
         }
@@ -69,9 +69,9 @@ final class ResponseTest extends TestCase
         try {
             $response = new Response();
             $response->getFailure(new \Exception('bang', 500));
-            $this->assertArrayHasKey('file', $response->errors);
-            $this->assertArrayHasKey('line', $response->errors);
-            $this->assertArrayHasKey('trace', $response->errors);
+            $this->assertArrayHasKey('file', $response->getErrors());
+            $this->assertArrayHasKey('line', $response->getErrors());
+            $this->assertArrayHasKey('trace', $response->getErrors());
         } finally {
             putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
         }
@@ -135,7 +135,7 @@ final class ResponseTest extends TestCase
         $r = Response::notModified();
         $this->assertSame(304, $r->getCode());
         $this->assertTrue($r->isRendered());
-        $this->assertNull($r->data);
+        $this->assertNull($r->getData());
     }
 
     public function testToJsonRoundTripsEnvelope(): void
