@@ -2,15 +2,24 @@
 
 namespace Rxn\Framework\Utility;
 
+use Psr\Log\LoggerInterface;
+use Psr\Log\LoggerTrait;
+
 /**
- * Minimal append-only JSON-lines logger. One line per event: ISO-8601
- * UTC timestamp, level, message, and an optional context array. No
- * dependency on psr/log; wrap or replace in app code if a full PSR-3
- * logger is needed.
+ * Minimal append-only JSON-lines logger. One line per event:
+ * ISO-8601 UTC timestamp, level, message, and an optional context
+ * array. Implements PSR-3 `LoggerInterface` so it drops into any
+ * library that type-hints the standard interface — Monolog
+ * adapters, framework integrations, etc. — without an adapter.
+ *
+ * The PSR-3 level-specific methods (info, error, warning, …)
+ * come from `LoggerTrait`; this class only owns `log()`.
  */
-class Logger
+class Logger implements LoggerInterface
 {
-    const LEVELS = ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'];
+    use LoggerTrait;
+
+    public const LEVELS = ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'];
 
     private string $path;
 
@@ -23,16 +32,24 @@ class Logger
         $this->path = $path;
     }
 
-    public function log(string $level, string $message, array $context = []): void
+    /**
+     * PSR-3 `log()`. `$level` is `mixed` per the interface, but in
+     * practice should be one of the `Psr\Log\LogLevel` constants
+     * (which are exactly our `LEVELS`); anything else throws.
+     * `$message` may be a `string` or `\Stringable`.
+     *
+     * @param array<string, mixed> $context
+     */
+    public function log($level, string|\Stringable $message, array $context = []): void
     {
-        if (!in_array($level, self::LEVELS, true)) {
-            throw new \InvalidArgumentException("Unknown log level '$level'");
+        if (!is_string($level) || !in_array($level, self::LEVELS, true)) {
+            throw new \InvalidArgumentException("Unknown log level '" . (is_scalar($level) ? (string)$level : get_debug_type($level)) . "'");
         }
         $line = json_encode(
             [
                 'ts'      => gmdate('Y-m-d\TH:i:s\Z'),
                 'level'   => $level,
-                'message' => $message,
+                'message' => (string)$message,
                 'context' => $context,
             ],
             JSON_UNESCAPED_SLASHES
@@ -42,13 +59,4 @@ class Logger
         }
         file_put_contents($this->path, $line . "\n", FILE_APPEND | LOCK_EX);
     }
-
-    public function debug(string $message, array $context = []): void     { $this->log('debug', $message, $context); }
-    public function info(string $message, array $context = []): void      { $this->log('info', $message, $context); }
-    public function notice(string $message, array $context = []): void    { $this->log('notice', $message, $context); }
-    public function warning(string $message, array $context = []): void   { $this->log('warning', $message, $context); }
-    public function error(string $message, array $context = []): void     { $this->log('error', $message, $context); }
-    public function critical(string $message, array $context = []): void  { $this->log('critical', $message, $context); }
-    public function alert(string $message, array $context = []): void     { $this->log('alert', $message, $context); }
-    public function emergency(string $message, array $context = []): void { $this->log('emergency', $message, $context); }
 }
