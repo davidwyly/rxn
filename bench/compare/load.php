@@ -44,7 +44,24 @@ final class Load
     {
         $multi = curl_multi_init();
 
-        // Slot table: [handle => start_time] for the in-flight handles.
+        // Pre-allocate one handle per slot and reuse it for the whole
+        // run. The earlier shape closed-and-recreated a handle per
+        // request, which destroyed curl's connection cache and forced
+        // a fresh TCP socket per request — at 17k rps × concurrency
+        // that depletes the ephemeral port pool (~28k ports, TIME_WAIT
+        // holds them) within seconds and the bench windows hit
+        // periodic port-pressure stalls.
+        //
+        // **Caveat for `php -S`**: the built-in CLI server always
+        // emits `Connection: close`, so even with handle reuse the
+        // server tears down the TCP socket after every response.
+        // Real connection reuse only happens for the small fraction
+        // of requests where curl re-arms before the kernel has
+        // observed FIN. Under `php -S` this fix mitigates but does
+        // not eliminate the port-pressure stall pattern. Under any
+        // server with HTTP/1.1 keep-alive (FrankenPHP, RoadRunner,
+        // PHP-FPM behind nginx) the fix is fully effective and pins
+        // open-socket count at ~$concurrency for the whole run.
         $slots = [];
         for ($i = 0; $i < $concurrency; $i++) {
             $h = self::makeHandle($request);
@@ -86,16 +103,19 @@ final class Load
                     }
                 }
 
+                // Remove the handle from the multi, but don't close
+                // it — re-arm and re-add so the next request reuses
+                // the underlying TCP connection. The handle keeps
+                // its options (URL, method, body, headers) across
+                // remove/add cycles.
                 curl_multi_remove_handle($multi, $h);
-                curl_close($h);
-                unset($slots[$hid]);
-
-                // Refill the slot if we still have time on the clock.
                 if (microtime(true) < $deadline) {
-                    $newH = self::makeHandle($request);
-                    curl_multi_add_handle($multi, $newH);
-                    $slots[(int) $newH] = microtime(true);
+                    $slots[$hid] = microtime(true);
+                    curl_multi_add_handle($multi, $h);
                     $running++;
+                } else {
+                    curl_close($h);
+                    unset($slots[$hid]);
                 }
             }
 
@@ -108,6 +128,9 @@ final class Load
             curl_multi_select($multi, 0.05);
         }
 
+        // All handles get closed in the else-branch above as they
+        // complete past the deadline; $running can't reach 0 until
+        // every active handle has been removed and closed.
         curl_multi_close($multi);
 
         $count   = count($latencies);
