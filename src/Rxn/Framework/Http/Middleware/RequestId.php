@@ -34,6 +34,11 @@ final class RequestId implements Middleware
         return $next($request);
     }
 
+    /**
+     * The correlation id for the current request, or null when the
+     * middleware never ran. Sync-only by design — see the matching
+     * note on `BearerAuth::current()`.
+     */
     public static function current(): ?string
     {
         return self::$current;

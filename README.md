@@ -30,19 +30,20 @@ in automatically via Composer.
 ```mermaid
 flowchart TB
     Req["HTTP request"] --> Index["public/index.php"]
-    Index --> App["App::run"]
-    App --> Boot["Startup<br/>.env + autoload + DBs"]
-    App --> Dispatch{"route?"}
-    Dispatch -->|convention| ConvCtrl["Versioned controller"]
-    Dispatch -->|explicit| Router["Http/Router"]
+    Index --> Router["Http/Router<br/>(explicit or attribute-driven)"]
     Router --> Pipeline["Middleware pipeline"]
-    Pipeline --> ExplCtrl["Route handler"]
-    ConvCtrl --> Resp["Response"]
-    ExplCtrl --> Resp
+    Pipeline --> Handler["Route handler<br/>+ DTO bind/validate"]
+    Handler --> Resp["Response"]
     Resp -->|success| OK["application/json<br/>{data, meta}"]
     Resp -. uncaught exception .-> Fail["Response::getFailure"]
     Fail --> PD["application/problem+json<br/>RFC 7807"]
 ```
+
+The recommended dispatch shape is the explicit `Http\Router` — driven
+directly, or populated from `#[Route]` attributes via
+`Http\Attribute\Scanner`. A legacy convention router
+(`App::run` matching `/v{N}/{controller}/{action}/...`) is still
+shipped for older apps; see [`docs/routing.md`](docs/routing.md).
 
 See [`docs/index.md`](docs/index.md) for the full request sequence
 and per-subsystem deep dives.
@@ -287,6 +288,7 @@ methodology is in
 | Scaffolded CRUD | [`docs/scaffolding.md`](docs/scaffolding.md) |
 | Error handling | [`docs/error-handling.md`](docs/error-handling.md) |
 | Building blocks (Logger, RateLimiter, Scheduler, Auth, Pipeline, Router, Validator, Migration, Chain, query cache, PSR-7 bridge) | [`docs/building-blocks.md`](docs/building-blocks.md) |
+| PSR-7 / PSR-15 interop — why the framework is bridged not native, and when each stack applies | [`docs/psr-7-interop.md`](docs/psr-7-interop.md) |
 | CLI (`bin/rxn`) | [`docs/cli.md`](docs/cli.md) |
 | Benchmarks (`bin/bench`) | [`docs/benchmarks.md`](docs/benchmarks.md) |
 | Cross-framework comparison (Slim / Symfony / raw) | [`bench/compare/README.md`](bench/compare/README.md) |
@@ -335,17 +337,23 @@ methodology is in
          members
 - [X] Versioning (versioned controllers + actions)
 - [X] Scaffolding (version-less CRUD against a live schema)
-- [X] URI Routing
-   - [X] Convention-based (`/v{N}/{controller}/{action}/key/value/...`)
-   - [X] Explicit pattern routing (`Rxn\Framework\Http\Router`)
-   - [X] Typed route constraints (`{id:int}`, `{slug:slug}`,
-         `{id:uuid}`, custom) — a non-matching URL just falls
-         through to 404 instead of bubbling up as a controller-level
-         validation error
+- [X] URI Routing — **explicit `Http\Router` is the recommended
+      surface**, driven directly or populated from `#[Route]`
+      attributes
    - [X] Attribute-based routing — `#[Route('GET', '/products/{id:int}')]`
          + `#[Middleware(Auth::class)]` directly on controller methods
          via `Rxn\Framework\Http\Attribute\Scanner`; no separate
          route table
+   - [X] Explicit pattern routing (`Rxn\Framework\Http\Router`) when
+         attributes don't fit (programmatic groups, route generation
+         from data, etc.)
+   - [X] Typed route constraints (`{id:int}`, `{slug:slug}`,
+         `{id:uuid}`, custom) — a non-matching URL just falls
+         through to 404 instead of bubbling up as a controller-level
+         validation error
+   - [X] Convention-based (`/v{N}/{controller}/{action}/key/value/...`)
+         — legacy path retained for older apps; new code should use
+         attribute or explicit routing
    - [X] Apache 2 (.htaccess)
    - [X] NGINX (see `docker/nginx`)
 - [X] Dependency Injection container

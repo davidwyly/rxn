@@ -63,6 +63,15 @@ final class BearerAuth implements Middleware
      * `finally` so a long-lived worker doesn't leak the previous
      * request's principal into the next.
      *
+     * Sync-only by design: the framework targets PHP-FPM's
+     * process-per-request model (see README, "we deliberately don't
+     * chase async"). The clear-in-`finally` pattern is correct under
+     * any sync dispatch — including Swoole's default I/O-hooked
+     * fibers, where request handlers don't `Fiber::suspend()`
+     * between set and clear. If you have a handler that explicitly
+     * suspends a fiber while holding state, propagate the principal
+     * yourself; don't rely on this static.
+     *
      * @return array<string, mixed>|null
      */
     public static function current(): ?array
@@ -72,16 +81,14 @@ final class BearerAuth implements Middleware
 
     private function renderUnauthorized(): Response
     {
-        $r = (new \ReflectionClass(Response::class))->newInstanceWithoutConstructor();
-        $r->setRendered(false);
-        $r->meta = [
-            'type'   => 'unauthorized',
-            'title'  => 'Authentication required',
-            'status' => 401,
-        ];
-        $codeProp = (new \ReflectionClass(Response::class))->getProperty('code');
-        $codeProp->setAccessible(true);
-        $codeProp->setValue($r, 401);
-        return $r;
+        // Goes through the public Problem Details factory so the
+        // 401 lands as `application/problem+json` (matching the
+        // framework's RFC 7807 commitment), instead of leaking
+        // through as an envelope-shaped 401.
+        return Response::problem(
+            code:   401,
+            title:  'Unauthorized',
+            detail: 'Authentication required',
+        );
     }
 }

@@ -316,6 +316,98 @@ final class RouterTest extends TestCase
         $this->assertNotNull($r->match('GET', '/anything/whatever-123'));
     }
 
+    /**
+     * Adversarial inputs for the route compiler. Each pattern is
+     * something a fuzz test or hostile input could land on. We
+     * assert that compile + match either succeeds (the pattern is
+     * legitimately accepted) or throws a clean
+     * InvalidArgumentException — never a PHP warning, never a
+     * RuntimeException, never an "unintended match."
+     */
+    public static function adversarialPatterns(): iterable
+    {
+        // Format: [pattern, valid_url_to_match_or_null, invalid_url, throws_on_register]
+        yield 'placeholder name has digit prefix'          => ['/{1bad:int}', null, null, true];
+        yield 'placeholder name has hyphen'                => ['/{na-me:int}', null, null, true];
+        yield 'placeholder type unknown'                   => ['/{x:never_heard_of_it}', null, null, true];
+        yield 'literal regex chars in segment are quoted'  => ['/foo.bar/{id:int}', '/foo.bar/42', '/foo_bar/42', false];
+        yield 'literal regex anchor in segment quoted'     => ['/^weird$/{id:int}', '/^weird$/7', '/zweirdz/7', false];
+        yield 'two placeholders in adjacent segments'      => ['/u/{a:int}/p/{b:slug}', '/u/1/p/x-y', '/u/abc/p/x', false];
+        yield 'uuid constraint rejects shortened uuid'     => ['/s/{id:uuid}', '/s/550e8400-e29b-41d4-a716-446655440000', '/s/550e8400-e29b-41d4-a716-44665544000', false];
+        yield 'multi-segment value rejected by single-seg' => ['/u/{id:int}', '/u/42', '/u/42/extra', false];
+        yield 'empty placeholder name'                     => ['/u/{:int}', null, null, true];
+    }
+
+    /** @dataProvider adversarialPatterns */
+    public function testRouteCompilerHandlesAdversarialPatterns(
+        string $pattern,
+        ?string $shouldMatch,
+        ?string $shouldNotMatch,
+        bool $throwsOnRegister,
+    ): void {
+        $r = new Router();
+        if ($throwsOnRegister) {
+            $this->expectException(\InvalidArgumentException::class);
+            $r->get($pattern, 'h');
+            return;
+        }
+        $r->get($pattern, 'h');
+        if ($shouldMatch !== null) {
+            $this->assertNotNull(
+                $r->match('GET', $shouldMatch),
+                "expected '$pattern' to match '$shouldMatch'"
+            );
+        }
+        if ($shouldNotMatch !== null) {
+            $this->assertNull(
+                $r->match('GET', $shouldNotMatch),
+                "expected '$pattern' to NOT match '$shouldNotMatch'"
+            );
+        }
+    }
+
+    public function testTrailingSlashIsNormalised(): void
+    {
+        $r = new Router();
+        $r->get('/products/{id:int}', 'h');
+        $this->assertNotNull($r->match('GET', '/products/42'));
+        $this->assertNotNull($r->match('GET', '/products/42/'));
+    }
+
+    public function testQueryStringIsStrippedBeforeMatch(): void
+    {
+        $r = new Router();
+        $r->get('/products/{id:int}', 'h');
+        // parse_url should drop ?foo=bar before regex matching.
+        $this->assertNotNull($r->match('GET', '/products/42?foo=bar'));
+    }
+
+    public function testStaticHashmapDoesNotShadowEarlierPlaceholderRoute(): void
+    {
+        // Registration order: placeholder first, static second. The
+        // placeholder must still win (it would have under the old
+        // linear walk).
+        $r = new Router();
+        $r->get('/items/{id}', 'placeholder');
+        $r->get('/items/special', 'static');
+
+        $hit = $r->match('GET', '/items/special');
+        $this->assertNotNull($hit);
+        $this->assertSame('placeholder', $hit['handler']);
+    }
+
+    public function testStaticHashmapServesStaticWhenNoShadow(): void
+    {
+        $r = new Router();
+        $r->get('/items/special', 'static');
+        $r->get('/items/{id:int}', 'by-id');
+
+        $a = $r->match('GET', '/items/special');
+        $b = $r->match('GET', '/items/42');
+        $this->assertSame('static', $a['handler']);
+        $this->assertSame('by-id', $b['handler']);
+    }
+
     private function passthrough(): Middleware
     {
         return new class implements Middleware {

@@ -65,7 +65,14 @@ final class BearerAuthTest extends TestCase
             ->handle($this->bareRequest(), fn () => $this->okResponse());
 
         $this->assertSame(401, $response->getCode());
-        $this->assertSame('unauthorized', $response->meta['type']);
+        // Must be a real error response so App::render emits
+        // application/problem+json — anything less and the framework
+        // silently violates its RFC 7807 commitment for auth failures.
+        $this->assertTrue($response->isError());
+        $problem = $response->toProblemDetails('/test');
+        $this->assertSame(401, $problem['status']);
+        $this->assertSame('Unauthorized', $problem['title']);
+        $this->assertSame('Authentication required', $problem['detail']);
     }
 
     public function testMalformedHeaderReturns401(): void

@@ -339,6 +339,45 @@ class Response
     }
 
     /**
+     * Build an RFC 7807 Problem Details response without going
+     * through an exception. Use this in middleware that needs to
+     * short-circuit with a structured failure (auth, rate limit,
+     * idempotency conflict) — the renderer sees `isError()` is
+     * true, picks the `application/problem+json` content type, and
+     * emits the same shape an uncaught exception would have.
+     *
+     * `$title` defaults to the standard reason phrase for `$code`;
+     * `$detail` defaults to empty. Pass per-field validation errors
+     * via `$validationErrors` if you want a 422-shaped `errors[]`
+     * extension member.
+     *
+     * @param list<array{field: string, message: string}>|null $validationErrors
+     */
+    public static function problem(
+        int $code,
+        ?string $title = null,
+        ?string $detail = null,
+        ?array $validationErrors = null,
+    ): self {
+        $r = (new \ReflectionClass(self::class))->newInstanceWithoutConstructor();
+        $r->rendered = true;
+        $r->code     = $code;
+        $r->errors   = [
+            'type'    => $title ?? self::getResponseCodeResult($code),
+            'message' => $detail ?? '',
+        ];
+        if ($validationErrors !== null) {
+            $r->validation_errors = $validationErrors;
+        }
+        $r->meta = [
+            'success'    => false,
+            'code'       => $code,
+            'elapsed_ms' => App::getElapsedMs(),
+        ];
+        return $r;
+    }
+
+    /**
      * True when this response represents a rendered failure — i.e.
      * `getFailure()` has populated `$this->errors`.
      */

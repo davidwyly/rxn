@@ -71,13 +71,25 @@ final class PsrAdapter
 
         // ServerRequest's constructor sets method, uri, headers,
         // queryParams (via parse_str on uri.query), protocol, and
-        // serverParams. Body stays deferred until getBody() — same
-        // lazy-stream behaviour as the default builder.
+        // serverParams. Body wraps php://input — Nyholm's default
+        // ServerRequestCreator::fromGlobals does the same — so
+        // request bodies are actually visible to anything that
+        // calls getBody(). Without this, Nyholm's MessageTrait
+        // initialises the stream to an empty in-memory string on
+        // first read, which silently strips POST / PUT / PATCH
+        // payloads — the JSON body never reaches a downstream
+        // middleware or handler.
+        //
+        // fopen('php://input') itself is a cheap descriptor
+        // allocation; the actual read cost lives in
+        // getBody()->getContents() and is paid only when (and if)
+        // something asks for it.
+        $body = \fopen('php://input', 'r') ?: null;
         $request = new ServerRequest(
             $method,
             new Uri($uriString),
             $headers,
-            null,
+            $body,
             $protocol,
             $server,
         );
