@@ -217,14 +217,20 @@ class Response
 
     /**
      * @param \Exception $exception
+     * Map an exception's `code` to an HTTP error status. Only
+     * 4xx / 5xx codes are honoured — anything outside that range
+     * (the default `code = 0`, an arbitrary integer like `12345`,
+     * a 2xx misuse) falls back to 500.
      *
-     * @return int|mixed|string
+     * Without the allow-list, `throw new Foo("x", 12345)` would
+     * emit `12345` as the HTTP status line, which is malformed
+     * and will trip up any well-behaved client / proxy.
      */
-    public static function getErrorCode(\Exception $exception)
+    public static function getErrorCode(\Exception $exception): int
     {
         $code = $exception->getCode();
-        if (empty($code)) {
-            $code = '500';
+        if (!is_int($code) || $code < 400 || $code > 599) {
+            return 500;
         }
         return $code;
     }

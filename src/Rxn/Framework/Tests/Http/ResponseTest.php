@@ -145,4 +145,36 @@ final class ResponseTest extends TestCase
         $this->assertSame(['id' => 7], $decoded['data']);
         $this->assertTrue($decoded['meta']['success']);
     }
+
+    public static function badExceptionCodes(): iterable
+    {
+        // Exception codes that previously leaked straight to
+        // http_response_code() and produced malformed status lines.
+        // After the allow-list these all collapse to 500.
+        yield 'default zero'      => [0];
+        yield 'arbitrary integer' => [12345];
+        yield 'too small'         => [-1];
+        yield 'success-range 200' => [200]; // 2xx through getErrorCode is itself a misuse
+        yield 'too large'         => [600];
+    }
+
+    /** @dataProvider badExceptionCodes */
+    public function testGetErrorCodeRejectsCodesOutsideHttpErrorRange(int $code): void
+    {
+        $exception = new \RuntimeException('whatever', $code);
+        $this->assertSame(500, Response::getErrorCode($exception));
+    }
+
+    public function testGetErrorCodeAcceptsValidHttpErrorCodes(): void
+    {
+        // 4xx / 5xx codes are honoured. Sample the boundaries plus
+        // a few common values in between.
+        foreach ([400, 401, 404, 422, 499, 500, 502, 503, 599] as $code) {
+            $this->assertSame(
+                $code,
+                Response::getErrorCode(new \RuntimeException('x', $code)),
+                "expected $code to pass through unchanged"
+            );
+        }
+    }
 }
