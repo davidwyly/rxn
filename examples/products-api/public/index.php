@@ -14,18 +14,21 @@
  *
  *   1. Convention-free explicit Router with typed `{id:int}` constraint
  *   2. `Binder::bind(CreateProduct::class, $body)` for input validation
- *   3. `Pipeline` of middlewares — RequestId, BearerAuth, Idempotency,
- *      Pagination, Transaction
+ *   3. PSR-15 `Pipeline` of middlewares — RequestId, BearerAuth,
+ *      Idempotency, Pagination, Transaction
  *   4. RFC 7807 Problem Details for every failure mode
  *   5. `HealthCheck::register` for the readiness endpoint
+ *
+ * The whole front controller is plain PSR-7/15: ServerRequest in
+ * via `PsrAdapter::serverRequestFromGlobals`, threaded through a
+ * PSR-15 `Pipeline`, ResponseInterface out via `PsrAdapter::emit`.
+ * No reflection-stubbed Request/Response objects, no side-channel
+ * `header()` calls — every middleware modifies the response on the
+ * way out via PSR-7's `withHeader`.
  */
 
-// Use the framework's own vendor — keeps the example self-contained
-// in this monorepo without a second `composer install`.
 require __DIR__ . '/../../../vendor/autoload.php';
 
-// Hand-register the example's PSR-4 prefix so we don't need a
-// separate composer.json autoloader either.
 spl_autoload_register(static function (string $class): void {
     $prefix = 'Example\\Products\\';
     if (str_starts_with($class, $prefix)) {
@@ -39,6 +42,10 @@ spl_autoload_register(static function (string $class): void {
 
 use Example\Products\Dto\CreateProduct;
 use Example\Products\Repo\ProductRepo;
+use Nyholm\Psr7\Response as Psr7Response;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Http\Binding\Binder;
 use Rxn\Framework\Http\Binding\ValidationException;
 use Rxn\Framework\Http\Health\HealthCheck;
@@ -47,6 +54,8 @@ use Rxn\Framework\Http\Middleware\BearerAuth;
 use Rxn\Framework\Http\Middleware\Idempotency;
 use Rxn\Framework\Http\Middleware\Pagination as PaginationMiddleware;
 use Rxn\Framework\Http\Pagination\Pagination;
+use Rxn\Framework\Http\Pipeline;
+use Rxn\Framework\Http\PsrAdapter;
 use Rxn\Framework\Http\Router;
 use Rxn\Framework\Service\Auth;
 
@@ -104,9 +113,9 @@ $router->get('/products/{id:int}', function (array $params) use ($repo) {
     return ['data' => $row];
 });
 
-$router->post('/products', function () use ($repo) {
-    $raw  = file_get_contents('php://input') ?: 'null';
-    $body = json_decode($raw, true);
+$router->post('/products', function (array $params, ServerRequestInterface $request) use ($repo) {
+    $raw  = (string) $request->getBody();
+    $body = json_decode($raw === '' ? 'null' : $raw, true);
     $body = is_array($body) ? $body : [];
     try {
         /** @var CreateProduct $dto */
@@ -135,62 +144,84 @@ $router->post('/products', function () use ($repo) {
 
 // ---- dispatch -------------------------------------------------------
 
-$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-$path   = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$request = PsrAdapter::serverRequestFromGlobals();
+$method  = $request->getMethod();
+$path    = $request->getUri()->getPath();
 
 $hit = $router->match($method, $path);
 if ($hit === null) {
-    http_response_code(404);
-    header('Content-Type: application/problem+json');
-    echo json_encode([
-        'type'   => 'not_found',
-        'title'  => 'Not Found',
-        'status' => 404,
-    ], JSON_UNESCAPED_SLASHES);
+    PsrAdapter::emit(problem(404, 'Not Found'));
     return;
 }
 
-// Build the pipeline. Tiny inline runner — production apps lean on
-// App::run() or Psr15Pipeline; this example keeps the dispatcher in
-// view to show how the pieces fit. The chain deals only in Response
-// objects: the terminal wraps the handler's array result once, then
-// every middleware gets and returns a Response.
-$middlewares = $hit['middlewares'];
-
-$arrayToResponse = static function (array $body): \Rxn\Framework\Http\Response {
-    $r = (new \ReflectionClass(\Rxn\Framework\Http\Response::class))->newInstanceWithoutConstructor();
-    $r->data = $body['data'] ?? null;
-    $r->meta = $body['meta'] ?? null;
-    $codeProp = (new \ReflectionClass(\Rxn\Framework\Http\Response::class))->getProperty('code');
-    $codeProp->setAccessible(true);
-    $codeProp->setValue($r, (int) ($body['meta']['status'] ?? 200));
-    return $r;
-};
-
-$terminal = static function () use ($hit, $arrayToResponse): \Rxn\Framework\Http\Response {
-    $handler = $hit['handler'];
-    $body    = is_callable($handler) ? $handler($hit['params']) : null;
-    return $arrayToResponse(is_array($body) ? $body : []);
-};
-
-$next = $terminal;
-for ($i = count($middlewares) - 1; $i >= 0; $i--) {
-    $mw = $middlewares[$i];
-    $next = static function () use ($mw, $next): \Rxn\Framework\Http\Response {
-        $stub = (new \ReflectionClass(\Rxn\Framework\Http\Request::class))->newInstanceWithoutConstructor();
-        return $mw->handle($stub, static fn () => $next());
-    };
+$pipeline = new Pipeline();
+foreach ($hit['middlewares'] as $mw) {
+    $pipeline->add($mw);
 }
 
-/** @var \Rxn\Framework\Http\Response $response */
-$response = $next();
+$terminal = new class($hit) implements RequestHandlerInterface {
+    public function __construct(private array $hit) {}
 
-// Render — status + content-type + JSON body.
-$status = $response->getCode();
-http_response_code($status);
-$contentType = $status >= 400 ? 'application/problem+json' : 'application/json';
-header('Content-Type: ' . $contentType);
-echo json_encode(
-    array_filter(['data' => $response->data, 'meta' => $response->meta], static fn ($v) => $v !== null),
-    JSON_UNESCAPED_SLASHES,
-);
+    public function handle(ServerRequestInterface $request): ResponseInterface
+    {
+        $handler = $this->hit['handler'];
+        $body    = is_callable($handler) ? $handler($this->hit['params'], $request) : [];
+        return arrayToPsrResponse(is_array($body) ? $body : []);
+    }
+};
+
+PsrAdapter::emit($pipeline->run($request, $terminal));
+
+// ---- helpers --------------------------------------------------------
+
+/**
+ * Convert the example's array-returning handler shape to a PSR-7
+ * response. Status defaults to 200, or to `meta.status` when the
+ * handler set one — middleware can still further mutate the
+ * response on the way out (Pagination headers, ETag, etc.).
+ *
+ * Failure shapes (4xx / 5xx) get `application/problem+json`;
+ * successes get `application/json` with the framework's
+ * `{data, meta}` envelope.
+ */
+function arrayToPsrResponse(array $body): ResponseInterface
+{
+    $status      = (int) ($body['meta']['status'] ?? 200);
+    $isFailure   = $status >= 400;
+    $contentType = $isFailure ? 'application/problem+json' : 'application/json';
+
+    $payload = $isFailure
+        ? [
+            'type'   => $body['meta']['type']   ?? 'about:blank',
+            'title'  => $body['meta']['title']  ?? '',
+            'status' => $status,
+            'errors' => $body['meta']['errors'] ?? null,
+        ]
+        : array_filter(
+            ['data' => $body['data'] ?? null, 'meta' => $body['meta'] ?? null],
+            static fn ($v) => $v !== null,
+        );
+
+    if ($isFailure && $payload['errors'] === null) {
+        unset($payload['errors']);
+    }
+
+    return new Psr7Response(
+        $status,
+        ['Content-Type' => $contentType],
+        json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+    );
+}
+
+function problem(int $status, string $title): ResponseInterface
+{
+    return new Psr7Response(
+        $status,
+        ['Content-Type' => 'application/problem+json'],
+        json_encode([
+            'type'   => 'about:blank',
+            'title'  => $title,
+            'status' => $status,
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+    );
+}
