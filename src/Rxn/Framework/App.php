@@ -21,14 +21,22 @@ use \Rxn\Framework\Error\AppException;
  */
 class App
 {
-    /** @var Container */
-    private $container;
+    private Container $container;
 
-    /** @var Api */
-    public $api;
+    /**
+     * Convention-router state. Used internally by `dispatch()` to
+     * route the incoming request to a controller; no external
+     * consumer should reach in. Exposed via `api()` for the rare
+     * test that needs to peek.
+     */
+    private Api $api;
 
-    /** @var Service\Stats|null */
-    public $stats;
+    /**
+     * Boot-time stats. Null when the Stats service couldn't load
+     * (e.g. the app's Stats binding fails); environment errors
+     * collect on `self::$environment_errors` in that case.
+     */
+    private ?Service\Stats $stats = null;
 
     /** @var \Exception[] */
     private static $environment_errors = [];
@@ -58,6 +66,20 @@ class App
     public function container(): Container
     {
         return $this->container;
+    }
+
+    /**
+     * Read access to the convention-router state. Mostly useful
+     * for tests that need to inspect the resolved controller.
+     */
+    public function api(): Api
+    {
+        return $this->api;
+    }
+
+    public function stats(): ?Service\Stats
+    {
+        return $this->stats;
     }
 
     /**
