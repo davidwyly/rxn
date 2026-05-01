@@ -341,9 +341,21 @@ final class Router
                     throw new \InvalidArgumentException("Unknown route constraint type '$type'");
                 }
                 $parts[] = '(' . $this->constraints[$type] . ')';
-            } else {
-                $parts[] = preg_quote($segment, '#');
+                continue;
             }
+            // Anything that *looks* like a placeholder (`{...}`) but
+            // doesn't conform to the strict placeholder grammar must
+            // fail loudly — silently quoting it as a literal segment
+            // means a typo like `{1bad:int}` or `{:int}` becomes an
+            // unmatchable static route the user never intended.
+            if (str_starts_with($segment, '{') && str_ends_with($segment, '}')) {
+                throw new \InvalidArgumentException(
+                    "Malformed route placeholder '$segment' in pattern '$pattern' "
+                    . "(expected '{name}' or '{name:type}' with name "
+                    . "matching [a-zA-Z_][a-zA-Z0-9_]*)"
+                );
+            }
+            $parts[] = preg_quote($segment, '#');
         }
         return ['#^/' . implode('/', $parts) . '$#', $params];
     }
