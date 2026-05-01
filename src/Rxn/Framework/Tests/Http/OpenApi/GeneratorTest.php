@@ -10,6 +10,62 @@ use Rxn\Framework\Tests\Http\OpenApi\Fixture\v2\OrderItemsController;
 
 final class GeneratorTest extends TestCase
 {
+    public function testGeneratedSpecMatchesPinnedShape(): void
+    {
+        // Snapshot the cross-controller spec so that any structural
+        // change to the OpenAPI generator becomes a deliberate diff
+        // — DTO attributes round-trip to JSON Schema (Min → minimum,
+        // Length → minLength/maxLength, InSet → enum) and the
+        // framework promises that mapping doesn't drift. The exact
+        // shape lives in Generator.php; this test is the spec-level
+        // contract.
+        $spec = (new Generator(
+            info: ['title' => 'Pinned', 'version' => '1.0.0'],
+            controllers: [
+                ProductsController::class,
+                WidgetsController::class,
+                OrderItemsController::class,
+            ],
+        ))->generate();
+
+        // Top-level shape.
+        $this->assertSame('3.0.3', $spec['openapi']);
+        $this->assertSame('Pinned', $spec['info']['title']);
+        $this->assertArrayHasKey('paths', $spec);
+        $this->assertArrayHasKey('components', $spec);
+
+        // Every action shows up at the convention path with the
+        // versioned operation id and a tag derived from controller.
+        $expectedPaths = [
+            '/v1.1/products/show',
+            '/v1.1/widgets/list',
+            '/v1.1/widgets/create',
+            '/v2.3/order_items/ship',
+        ];
+        foreach ($expectedPaths as $path) {
+            $this->assertArrayHasKey(
+                $path,
+                $spec['paths'],
+                "OpenAPI snapshot drift: missing path '$path'"
+            );
+        }
+
+        // The non-negotiable Problem Details schema is always present
+        // and carries the RFC 7807 fields. If any of these disappear,
+        // the framework's RFC compliance has silently regressed.
+        $pd = $spec['components']['schemas']['ProblemDetails']['properties'];
+        foreach (['type', 'title', 'status', 'detail', 'instance'] as $f) {
+            $this->assertArrayHasKey($f, $pd);
+        }
+
+        // Spec must be JSON-encodable (the bin/rxn openapi command
+        // emits this; it can never carry a non-encodable value).
+        $json = json_encode($spec, JSON_THROW_ON_ERROR);
+        $this->assertIsString($json);
+        $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame($spec, $decoded);
+    }
+
     public function testGenerateProducesBasicEnvelope(): void
     {
         $spec = (new Generator(
