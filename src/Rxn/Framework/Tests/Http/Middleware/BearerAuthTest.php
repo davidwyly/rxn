@@ -2,24 +2,32 @@
 
 namespace Rxn\Framework\Tests\Http\Middleware;
 
+use Nyholm\Psr7\Response as Psr7Response;
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Http\Middleware\BearerAuth;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
 use Rxn\Framework\Service\Auth;
 
 final class BearerAuthTest extends TestCase
 {
-    private array $serverBackup;
-
-    protected function setUp(): void
+    private function request(array $headers = []): ServerRequestInterface
     {
-        $this->serverBackup = $_SERVER;
+        return new ServerRequest('GET', 'http://test.local/', $headers);
     }
 
-    protected function tearDown(): void
+    private function terminal(?\Closure $cb = null): RequestHandlerInterface
     {
-        $_SERVER = $this->serverBackup;
+        $cb ??= fn () => new Psr7Response(200, ['Content-Type' => 'application/json'], '{"ok":true}');
+        return new class($cb) implements RequestHandlerInterface {
+            public function __construct(private \Closure $cb) {}
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                return ($this->cb)($request);
+            }
+        };
     }
 
     public function testValidTokenAttachesPrincipalAndCallsNext(): void
@@ -27,17 +35,17 @@ final class BearerAuthTest extends TestCase
         $auth = $this->makeAuth();
         $auth->setResolver(fn (string $t) => $t === 'good' ? ['id' => 7, 'name' => 'Alice'] : null);
 
-        $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer good';
-
-        $mw = new BearerAuth($auth);
         $captured = null;
-        $response = $mw->handle($this->bareRequest(), function () use (&$captured): Response {
-            $captured = BearerAuth::current();
-            return $this->okResponse();
-        });
+        $response = (new BearerAuth($auth))->process(
+            $this->request(['Authorization' => 'Bearer good']),
+            $this->terminal(function () use (&$captured) {
+                $captured = BearerAuth::current();
+                return new Psr7Response(200, [], '{"ok":true}');
+            }),
+        );
 
         $this->assertSame(['id' => 7, 'name' => 'Alice'], $captured);
-        $this->assertSame(200, $response->getCode());
+        $this->assertSame(200, $response->getStatusCode());
     }
 
     public function testCurrentClearedAfterRequest(): void
@@ -45,10 +53,10 @@ final class BearerAuthTest extends TestCase
         $auth = $this->makeAuth();
         $auth->setResolver(fn () => ['id' => 1]);
 
-        $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ok';
-
-        $mw = new BearerAuth($auth);
-        $mw->handle($this->bareRequest(), fn () => $this->okResponse());
+        (new BearerAuth($auth))->process(
+            $this->request(['Authorization' => 'Bearer ok']),
+            $this->terminal(),
+        );
 
         // Crucial for long-lived workers: principal must not leak
         // into the next request.
@@ -57,82 +65,72 @@ final class BearerAuthTest extends TestCase
 
     public function testMissingHeaderReturns401(): void
     {
-        unset($_SERVER['HTTP_AUTHORIZATION']);
         $auth = $this->makeAuth();
         $auth->setResolver(fn () => ['id' => 1]);
 
-        $response = (new BearerAuth($auth))
-            ->handle($this->bareRequest(), fn () => $this->okResponse());
+        $response = (new BearerAuth($auth))->process(
+            $this->request(),
+            $this->terminal(),
+        );
 
-        $this->assertSame(401, $response->getCode());
-        // Must be a real error response so App::render emits
-        // application/problem+json — anything less and the framework
-        // silently violates its RFC 7807 commitment for auth failures.
-        $this->assertTrue($response->isError());
-        $problem = $response->toProblemDetails('/test');
-        $this->assertSame(401, $problem['status']);
-        $this->assertSame('Unauthorized', $problem['title']);
-        $this->assertSame('Authentication required', $problem['detail']);
+        $this->assertSame(401, $response->getStatusCode());
+        // Must be a Problem Details response so the wire shape
+        // matches every other failure path the framework emits —
+        // anything less silently violates the RFC 7807 commitment
+        // for auth failures.
+        $this->assertSame('application/problem+json', $response->getHeaderLine('Content-Type'));
+        $body = json_decode((string)$response->getBody(), true);
+        $this->assertSame(401, $body['status']);
+        $this->assertSame('Unauthorized', $body['title']);
+        $this->assertSame('Authentication required', $body['detail']);
     }
 
     public function testMalformedHeaderReturns401(): void
     {
-        $_SERVER['HTTP_AUTHORIZATION'] = 'Basic dXNlcjpwYXNz';
         $auth = $this->makeAuth();
         $auth->setResolver(fn () => ['id' => 1]);
 
-        $response = (new BearerAuth($auth))
-            ->handle($this->bareRequest(), fn () => $this->okResponse());
+        $response = (new BearerAuth($auth))->process(
+            $this->request(['Authorization' => 'Basic dXNlcjpwYXNz']),
+            $this->terminal(),
+        );
 
-        $this->assertSame(401, $response->getCode());
+        $this->assertSame(401, $response->getStatusCode());
     }
 
     public function testRejectedTokenReturns401(): void
     {
-        $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer wrong';
         $auth = $this->makeAuth();
         $auth->setResolver(fn () => null);  // resolver always rejects
 
         $terminalCalled = false;
-        $response = (new BearerAuth($auth))
-            ->handle($this->bareRequest(), function () use (&$terminalCalled): Response {
+        $response = (new BearerAuth($auth))->process(
+            $this->request(['Authorization' => 'Bearer wrong']),
+            $this->terminal(function () use (&$terminalCalled) {
                 $terminalCalled = true;
-                return $this->okResponse();
-            });
+                return new Psr7Response(200);
+            }),
+        );
 
         $this->assertFalse($terminalCalled, 'terminal must not run when auth fails');
-        $this->assertSame(401, $response->getCode());
+        $this->assertSame(401, $response->getStatusCode());
     }
 
     public function testCustomHeaderName(): void
     {
-        $_SERVER['HTTP_X_AUTH_TOKEN'] = 'Bearer xyz';
         $auth = $this->makeAuth();
         $auth->setResolver(fn (string $t) => ['token' => $t]);
 
-        $response = (new BearerAuth($auth, headerName: 'X-Auth-Token'))
-            ->handle($this->bareRequest(), fn () => $this->okResponse());
+        $response = (new BearerAuth($auth, headerName: 'X-Auth-Token'))->process(
+            $this->request(['X-Auth-Token' => 'Bearer xyz']),
+            $this->terminal(),
+        );
 
-        $this->assertSame(200, $response->getCode());
+        $this->assertSame(200, $response->getStatusCode());
     }
 
     private function makeAuth(): Auth
     {
         return (new \ReflectionClass(Auth::class))->newInstanceWithoutConstructor();
-    }
-
-    private function bareRequest(): Request
-    {
-        return (new \ReflectionClass(Request::class))->newInstanceWithoutConstructor();
-    }
-
-    private function okResponse(): Response
-    {
-        $r = (new \ReflectionClass(Response::class))->newInstanceWithoutConstructor();
-        $r->data = ['ok' => true];
-        $codeProp = (new \ReflectionClass(Response::class))->getProperty('code');
-        $codeProp->setAccessible(true);
-        $codeProp->setValue($r, 200);
-        return $r;
     }
 }

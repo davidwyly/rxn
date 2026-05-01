@@ -3,9 +3,10 @@
 namespace Rxn\Framework\Tests\Http;
 
 use PHPUnit\Framework\TestCase;
-use Rxn\Framework\Http\Middleware;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Http\Route;
 
 /**
@@ -68,12 +69,14 @@ final class RouteTest extends TestCase
         $this->assertSame($route, $route->middleware($this->passthrough()));
     }
 
-    private function passthrough(): Middleware
+    private function passthrough(): MiddlewareInterface
     {
-        return new class implements Middleware {
-            public function handle(Request $request, callable $next): Response
-            {
-                return $next($request);
+        return new class implements MiddlewareInterface {
+            public function process(
+                ServerRequestInterface $request,
+                RequestHandlerInterface $handler,
+            ): ResponseInterface {
+                return $handler->handle($request);
             }
         };
     }

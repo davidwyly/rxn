@@ -2,37 +2,51 @@
 
 namespace Rxn\Framework\Http;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+
 /**
- * Runs a Request through an ordered stack of Middleware and lands
- * on a terminal callable that produces the Response.
+ * PSR-15 middleware pipeline. Accepts PSR-15 middlewares and a
+ * terminal `RequestHandlerInterface`; runs the request through the
+ * stack inside-out and returns the response from whichever step
+ * handles it (or the terminal, if none short-circuit).
  *
  *   $pipeline = (new Pipeline())
  *       ->add($cors)
  *       ->add($rateLimit)
  *       ->add($auth);
  *
- *   $response = $pipeline->handle(
- *       $request,
- *       fn (Request $req) => $controller->dispatch($req)
- *   );
+ *   $response = $pipeline->run($request, $controllerHandler);
  *
- * Middleware may short-circuit by returning a Response without
- * calling `$next`, may inspect the Response returned by downstream
- * middleware, or may wrap the terminal handler entirely.
+ * Middleware may short-circuit by returning their own
+ * `ResponseInterface` without calling `$handler->handle($request)`,
+ * may inspect the response returned by downstream middleware, or
+ * may wrap the terminal handler entirely.
+ *
+ * Pipeline implements `RequestHandlerInterface` so it can itself be
+ * used as the inner handler in a larger composition (a pipeline of
+ * pipelines, or a route-level pipeline plugged into an app-level
+ * one).
  */
-final class Pipeline
+final class Pipeline implements RequestHandlerInterface
 {
-    /** @var Middleware[] */
+    /** @var MiddlewareInterface[] */
     private array $middlewares = [];
 
-    public function add(Middleware $middleware): self
+    private ?RequestHandlerInterface $terminal = null;
+
+    private int $index = 0;
+
+    public function add(MiddlewareInterface $middleware): self
     {
         $this->middlewares[] = $middleware;
         return $this;
     }
 
     /**
-     * @return Middleware[]
+     * @return MiddlewareInterface[]
      */
     public function middlewares(): array
     {
@@ -40,22 +54,29 @@ final class Pipeline
     }
 
     /**
-     * Execute the pipeline. $terminal is the innermost handler —
-     * typically a controller dispatcher — receiving the Request that
-     * has been threaded through every middleware.
-     *
-     * @param callable(Request): Response $terminal
+     * Run the pipeline against $request, landing on $terminal.
      */
-    public function handle(Request $request, callable $terminal): Response
+    public function run(ServerRequestInterface $request, RequestHandlerInterface $terminal): ResponseInterface
     {
-        // Build the chain from the inside out: the innermost call is
-        // $terminal, and each middleware wraps the next step.
-        $next = $terminal;
-        foreach (array_reverse($this->middlewares) as $middleware) {
-            $next = static function (Request $req) use ($middleware, $next): Response {
-                return $middleware->handle($req, $next);
-            };
+        $this->terminal = $terminal;
+        $this->index    = 0;
+        return $this->handle($request);
+    }
+
+    /**
+     * PSR-15 RequestHandlerInterface implementation. Advances the
+     * middleware index on each call; exhausting the middleware
+     * list falls through to the terminal handler.
+     */
+    public function handle(ServerRequestInterface $request): ResponseInterface
+    {
+        if ($this->terminal === null) {
+            throw new \LogicException('Pipeline::handle called without a terminal handler; use run().');
         }
-        return $next($request);
+        if ($this->index >= count($this->middlewares)) {
+            return $this->terminal->handle($request);
+        }
+        $middleware = $this->middlewares[$this->index++];
+        return $middleware->process($request, $this);
     }
 }

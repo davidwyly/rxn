@@ -2,11 +2,13 @@
 
 namespace Rxn\Framework\Http\Middleware;
 
+use Nyholm\Psr7\Response as Psr7Response;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Http\Idempotency\IdempotencyStore;
 use Rxn\Framework\Http\Idempotency\StoredResponse;
-use Rxn\Framework\Http\Middleware;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
 
 /**
  * Stripe-style idempotency middleware.
@@ -46,14 +48,8 @@ use Rxn\Framework\Http\Response;
  * / APCu) wire it up via `Psr16IdempotencyStore` — see that
  * class's docblock for the zero-dependency story.
  */
-final class Idempotency implements Middleware
+final class Idempotency implements MiddlewareInterface
 {
-    /** @var callable(string): void */
-    private $emitHeader;
-
-    /** @var callable(): string Read the raw request body (for fingerprinting) */
-    private $readBody;
-
     public function __construct(
         private readonly IdempotencyStore $store,
         private readonly string $headerName     = 'Idempotency-Key',
@@ -61,44 +57,40 @@ final class Idempotency implements Middleware
         private readonly int    $lockTtlSeconds = 30,
         /** @var list<string> */
         private readonly array  $methods        = ['POST', 'PUT', 'PATCH', 'DELETE'],
-        ?callable $emitHeader = null,
-        ?callable $readBody   = null,
-    ) {
-        $this->emitHeader = $emitHeader ?? static fn (string $h) => header($h);
-        $this->readBody   = $readBody   ?? static fn (): string => (string)file_get_contents('php://input');
-    }
+    ) {}
 
-    public function handle(Request $request, callable $next): Response
-    {
-        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+    ): ResponseInterface {
+        $method = strtoupper($request->getMethod());
         if (!in_array($method, $this->methods, true)) {
-            return $next($request);
+            return $handler->handle($request);
         }
-        $key = $this->incomingKey();
+        $key = $this->incomingKey($request);
         if ($key === null) {
-            return $next($request);
+            return $handler->handle($request);
         }
 
-        $fingerprint = $this->fingerprint($method);
+        $fingerprint = $this->fingerprint($method, $request);
 
         // Replay path — cache hit.
         $stored = $this->store->get($key);
         if ($stored !== null) {
             if ($stored->fingerprint !== $fingerprint) {
                 // Same key, different request shape → client bug.
-                return $this->renderProblem(
+                return self::renderProblem(
                     400,
                     'idempotency_key_in_use_with_different_body',
                     'Idempotency-Key was reused with a different request body.',
                 );
             }
-            ($this->emitHeader)('Idempotent-Replayed: true');
-            return $this->renderStored($stored, $request);
+            return $this->renderStored($stored);
         }
 
         // Cold path — acquire lock, process, store.
         if (!$this->store->lock($key, $this->lockTtlSeconds)) {
-            return $this->renderProblem(
+            return self::renderProblem(
                 409,
                 'idempotency_key_in_use',
                 'A request with this Idempotency-Key is already being processed.',
@@ -106,17 +98,22 @@ final class Idempotency implements Middleware
         }
 
         try {
-            $response = $next($request);
+            $response = $handler->handle($request);
             // Only persist successful + 4xx responses (including
             // validation failures — clients retrying a 422 should
             // get the same 422 back). Skip 5xx so transient server
             // errors don't get cached as the canonical answer.
-            if ($response->getCode() < 500) {
+            if ($response->getStatusCode() < 500) {
+                $body = (string)$response->getBody();
+                if ($response->getBody()->isSeekable()) {
+                    $response->getBody()->rewind();
+                }
                 $this->store->put(
                     $key,
                     new StoredResponse(
-                        statusCode:  $response->getCode(),
-                        body:        $response->stripEmptyParams(),
+                        statusCode:  $response->getStatusCode(),
+                        headers:     $response->getHeaders(),
+                        body:        $body,
                         fingerprint: $fingerprint,
                         createdAt:   time(),
                     ),
@@ -129,17 +126,10 @@ final class Idempotency implements Middleware
         }
     }
 
-    /**
-     * The configured header name, normalised across PHP's various
-     * accessor casings (Idempotency-Key, IDEMPOTENCY-KEY,
-     * idempotency-key all map to the same logical header). PHP
-     * exposes inbound headers as $_SERVER['HTTP_<UPPER_UNDERSCORED>'].
-     */
-    private function incomingKey(): ?string
+    private function incomingKey(ServerRequestInterface $request): ?string
     {
-        $serverKey = 'HTTP_' . strtoupper(strtr($this->headerName, '-', '_'));
-        $value = $_SERVER[$serverKey] ?? null;
-        if (!is_string($value) || $value === '') {
+        $value = $request->getHeaderLine($this->headerName);
+        if ($value === '') {
             return null;
         }
         // Stripe's recommendation: cap at 255 chars to bound storage
@@ -157,47 +147,38 @@ final class Idempotency implements Middleware
      * + raw request body. Query params are part of the URI and so
      * captured automatically.
      */
-    private function fingerprint(string $method): string
+    private function fingerprint(string $method, ServerRequestInterface $request): string
     {
-        $uri  = $_SERVER['REQUEST_URI'] ?? '/';
-        $body = ($this->readBody)();
+        $uri  = (string)$request->getUri();
+        $body = (string)$request->getBody();
+        if ($request->getBody()->isSeekable()) {
+            $request->getBody()->rewind();
+        }
         return hash('sha256', $method . "\n" . $uri . "\n" . $body);
     }
 
-    private function renderStored(StoredResponse $stored, Request $request): Response
+    private function renderStored(StoredResponse $stored): ResponseInterface
     {
-        // Reconstruct without invoking the (heavyweight) Response
-        // constructor — same trick `Response::notModified()` uses
-        // internally.
-        $r = (new \ReflectionClass(Response::class))->newInstanceWithoutConstructor();
-        $r->setRendered(false);
-        $r->meta              = $stored->body['meta']              ?? null;
-        $r->data              = $stored->body['data']              ?? null;
-        $r->errors            = $stored->body['errors']            ?? null;
-        $r->validation_errors = $stored->body['validation_errors'] ?? null;
-        $r->request           = $request;
-        // `code` is private on Response; the public accessor is
-        // getCode(). The renderer reads it through the same public
-        // surface, so set it via reflection on our local instance —
-        // this is consistent with how `notModified()` does it.
-        $codeProp = (new \ReflectionClass(Response::class))->getProperty('code');
-        $codeProp->setAccessible(true);
-        $codeProp->setValue($r, $stored->statusCode);
-        return $r;
+        $response = new Psr7Response(
+            $stored->statusCode,
+            $stored->headers,
+            $stored->body,
+        );
+        return $response->withHeader('Idempotent-Replayed', 'true');
     }
 
-    private function renderProblem(int $status, string $type, string $detail): Response
+    private static function renderProblem(int $status, string $type, string $detail): ResponseInterface
     {
-        $r = (new \ReflectionClass(Response::class))->newInstanceWithoutConstructor();
-        $r->setRendered(false);
-        $r->meta = [
+        $body = json_encode([
             'type'   => $type,
             'title'  => $detail,
             'status' => $status,
-        ];
-        $codeProp = (new \ReflectionClass(Response::class))->getProperty('code');
-        $codeProp->setAccessible(true);
-        $codeProp->setValue($r, $status);
-        return $r;
+            'detail' => $detail,
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        return new Psr7Response(
+            $status,
+            ['Content-Type' => 'application/problem+json'],
+            $body,
+        );
     }
 }

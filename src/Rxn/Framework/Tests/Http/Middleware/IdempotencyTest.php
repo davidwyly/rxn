@@ -2,19 +2,22 @@
 
 namespace Rxn\Framework\Tests\Http\Middleware;
 
+use Nyholm\Psr7\Response as Psr7Response;
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Http\Idempotency\FileIdempotencyStore;
 use Rxn\Framework\Http\Idempotency\IdempotencyStore;
 use Rxn\Framework\Http\Idempotency\Psr16IdempotencyStore;
 use Rxn\Framework\Http\Idempotency\StoredResponse;
 use Rxn\Framework\Http\Middleware\Idempotency;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
 
 /**
  * Covers the five paths through the Idempotency middleware against
  * each shipped backend (FileIdempotencyStore, in-memory test
- * double, Psr16IdempotencyStore via a duck-typed cache).
+ * double, Psr16IdempotencyStore via PSR-16-shaped cache).
  */
 final class IdempotencyTest extends TestCase
 {
@@ -28,29 +31,25 @@ final class IdempotencyTest extends TestCase
 
     protected function tearDown(): void
     {
-        // Clean up tmp dir
         foreach ((array) glob($this->tmpDir . '/*') as $f) {
             @unlink($f);
         }
         @rmdir($this->tmpDir);
     }
 
-    /** @return list<IdempotencyStore> */
-    public static function backends(): array
-    {
-        // Provider runs once per test; build a fresh backend each
-        // time inside the test methods (depends on per-test tmp dir).
-        return [];
-    }
-
     public function testNoHeaderPassesThrough(): void
     {
         $store = $this->makeFileStore();
-        $headers = [];
-        $body    = ''; // raw body
-        $response = $this->runMiddleware($store, $headers, body: $body, method: 'POST', terminal: $this->terminalReturning(201, ['ok' => true]));
-        $this->assertSame(201, $response->getCode());
-        $this->assertSame(['ok' => true], $response->data);
+        $response = $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: [],
+            body: '',
+            terminal: $this->jsonTerminal(201, ['ok' => true]),
+        );
+        $this->assertSame(201, $response->getStatusCode());
+        $body = json_decode((string)$response->getBody(), true);
+        $this->assertSame(['ok' => true], $body['data']);
     }
 
     public function testGetRequestsBypassRegardlessOfHeader(): void
@@ -58,83 +57,112 @@ final class IdempotencyTest extends TestCase
         $store = $this->makeFileStore();
         $response = $this->runMiddleware(
             $store,
-            ['HTTP_IDEMPOTENCY_KEY' => 'k-1'],
-            body: '',
             method: 'GET',
-            terminal: $this->terminalReturning(200, ['greeting' => 'hi']),
+            headers: ['Idempotency-Key' => 'k-1'],
+            body: '',
+            terminal: $this->jsonTerminal(200, ['greeting' => 'hi']),
         );
-        $this->assertSame(['greeting' => 'hi'], $response->data);
+        $body = json_decode((string)$response->getBody(), true);
+        $this->assertSame(['greeting' => 'hi'], $body['data']);
         $this->assertNull($store->get('k-1'), 'GET should not have been recorded');
     }
 
     public function testColdKeyStoresResponse(): void
     {
         $store = $this->makeFileStore();
-        $headers = ['HTTP_IDEMPOTENCY_KEY' => 'k-cold'];
-        $response = $this->runMiddleware($store, $headers, body: '{"a":1}', method: 'POST', terminal: $this->terminalReturning(201, ['id' => 42]));
-        $this->assertSame(201, $response->getCode());
+        $response = $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: ['Idempotency-Key' => 'k-cold'],
+            body: '{"a":1}',
+            terminal: $this->jsonTerminal(201, ['id' => 42]),
+        );
+        $this->assertSame(201, $response->getStatusCode());
 
         $stored = $store->get('k-cold');
         $this->assertInstanceOf(StoredResponse::class, $stored);
         $this->assertSame(201, $stored->statusCode);
-        $this->assertSame(['id' => 42], $stored->body['data'] ?? null);
+        $body = json_decode($stored->body, true);
+        $this->assertSame(['id' => 42], $body['data']);
     }
 
     public function testReplayReturnsStoredResponse(): void
     {
         $store = $this->makeFileStore();
-        $headers = ['HTTP_IDEMPOTENCY_KEY' => 'k-replay'];
 
         // First call — terminal counts invocations.
         $callCount = 0;
-        $terminal = function () use (&$callCount): Response {
+        $terminal = function () use (&$callCount): ResponseInterface {
             $callCount++;
-            return $this->terminalReturning(201, ['id' => 7])($this->bareRequest());
+            return $this->jsonResponse(201, ['id' => 7]);
         };
-        $first = $this->runMiddleware($store, $headers, body: '{"a":1}', method: 'POST', terminal: $terminal);
-        $this->assertSame(201, $first->getCode());
+        $first = $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: ['Idempotency-Key' => 'k-replay'],
+            body: '{"a":1}',
+            terminal: $terminal,
+        );
+        $this->assertSame(201, $first->getStatusCode());
         $this->assertSame(1, $callCount);
 
         // Second call — same key, same body. Terminal MUST NOT run.
-        $emittedHeaders = [];
         $second = $this->runMiddleware(
             $store,
-            $headers,
-            body: '{"a":1}',
             method: 'POST',
+            headers: ['Idempotency-Key' => 'k-replay'],
+            body: '{"a":1}',
             terminal: $terminal,
-            emitHeader: function (string $h) use (&$emittedHeaders) { $emittedHeaders[] = $h; },
         );
         $this->assertSame(1, $callCount, 'replay must not re-run the terminal');
-        $this->assertSame(201, $second->getCode());
-        $this->assertSame(['id' => 7], $second->data);
-        $this->assertContains('Idempotent-Replayed: true', $emittedHeaders);
+        $this->assertSame(201, $second->getStatusCode());
+        $body = json_decode((string)$second->getBody(), true);
+        $this->assertSame(['id' => 7], $body['data']);
+        $this->assertSame('true', $second->getHeaderLine('Idempotent-Replayed'));
     }
 
     public function testFingerprintMismatchReturns400(): void
     {
         $store = $this->makeFileStore();
-        $headers = ['HTTP_IDEMPOTENCY_KEY' => 'k-mismatch'];
 
-        $this->runMiddleware($store, $headers, body: '{"a":1}', method: 'POST', terminal: $this->terminalReturning(201, ['ok' => true]));
+        $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: ['Idempotency-Key' => 'k-mismatch'],
+            body: '{"a":1}',
+            terminal: $this->jsonTerminal(201, ['ok' => true]),
+        );
 
         // Same key, different body → 400 problem details.
-        $response = $this->runMiddleware($store, $headers, body: '{"a":2}', method: 'POST', terminal: $this->terminalReturning(201, ['ok' => true]));
-        $this->assertSame(400, $response->getCode());
-        $this->assertSame('idempotency_key_in_use_with_different_body', $response->meta['type']);
+        $response = $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: ['Idempotency-Key' => 'k-mismatch'],
+            body: '{"a":2}',
+            terminal: $this->jsonTerminal(201, ['ok' => true]),
+        );
+        $this->assertSame(400, $response->getStatusCode());
+        $problem = json_decode((string)$response->getBody(), true);
+        $this->assertSame('idempotency_key_in_use_with_different_body', $problem['type']);
     }
 
     public function testConcurrentRetryReturns409(): void
     {
         $store = $this->makeFileStore();
-        $headers = ['HTTP_IDEMPOTENCY_KEY' => 'k-conflict'];
 
         // Acquire the lock manually to simulate "request in-flight".
         $this->assertTrue($store->lock('k-conflict', 30));
 
-        $response = $this->runMiddleware($store, $headers, body: '{"a":1}', method: 'POST', terminal: $this->terminalReturning(201, ['ok' => true]));
-        $this->assertSame(409, $response->getCode());
-        $this->assertSame('idempotency_key_in_use', $response->meta['type']);
+        $response = $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: ['Idempotency-Key' => 'k-conflict'],
+            body: '{"a":1}',
+            terminal: $this->jsonTerminal(201, ['ok' => true]),
+        );
+        $this->assertSame(409, $response->getStatusCode());
+        $problem = json_decode((string)$response->getBody(), true);
+        $this->assertSame('idempotency_key_in_use', $problem['type']);
 
         $store->release('k-conflict');
     }
@@ -142,14 +170,13 @@ final class IdempotencyTest extends TestCase
     public function test5xxResponsesAreNotCached(): void
     {
         $store = $this->makeFileStore();
-        $headers = ['HTTP_IDEMPOTENCY_KEY' => 'k-5xx'];
 
         $this->runMiddleware(
             $store,
-            $headers,
-            body: '{"a":1}',
             method: 'POST',
-            terminal: $this->terminalReturning(503, ['error' => 'down']),
+            headers: ['Idempotency-Key' => 'k-5xx'],
+            body: '{"a":1}',
+            terminal: $this->jsonTerminal(503, ['error' => 'down']),
         );
         $this->assertNull($store->get('k-5xx'),
             '5xx responses should not be cached so retries can hit a healthy backend');
@@ -160,7 +187,8 @@ final class IdempotencyTest extends TestCase
         $store = $this->makeFileStore();
         $store->put('k-old', new StoredResponse(
             statusCode:  201,
-            body:        ['data' => ['ok' => true]],
+            headers:     ['Content-Type' => ['application/json']],
+            body:        '{"data":{"ok":true}}',
             fingerprint: 'abc',
             createdAt:   time() - 100,
         ), ttlSeconds: -1); // already expired
@@ -168,12 +196,6 @@ final class IdempotencyTest extends TestCase
     }
 
     // -------- Psr16 bridge --------
-    //
-    // The bridge declares a nominal `\Psr\SimpleCache\CacheInterface`
-    // type-hint. PSR-16 isn't a hard dependency of the framework
-    // (it's `suggest`-only), so these tests load a stub interface
-    // when the real package isn't installed — see
-    // `tests/Fixture/Psr16Stub.php`.
 
     protected function loadPsr16Stub(): void
     {
@@ -183,8 +205,6 @@ final class IdempotencyTest extends TestCase
     public function testPsr16BridgeRejectsNonCacheInterface(): void
     {
         $this->loadPsr16Stub();
-        // PHP's nominal type system enforces the interface — nothing
-        // for `Psr16IdempotencyStore` itself to validate.
         $this->expectException(\TypeError::class);
         /** @phpstan-ignore-next-line — intentional misuse */
         new Psr16IdempotencyStore(new \stdClass());
@@ -197,7 +217,13 @@ final class IdempotencyTest extends TestCase
         $store = new Psr16IdempotencyStore($cache);
 
         $this->assertNull($store->get('foo'));
-        $store->put('foo', new StoredResponse(201, ['data' => ['x' => 1]], 'fp', time()), 60);
+        $store->put('foo', new StoredResponse(
+            statusCode: 201,
+            headers:    ['Content-Type' => ['application/json']],
+            body:       '{"data":{"x":1}}',
+            fingerprint: 'fp',
+            createdAt:  time(),
+        ), 60);
         $stored = $store->get('foo');
         $this->assertNotNull($stored);
         $this->assertSame(201, $stored->statusCode);
@@ -215,12 +241,6 @@ final class IdempotencyTest extends TestCase
         $this->assertTrue($store->lock('k', 30), 'lock should be acquirable after release');
     }
 
-    /**
-     * In-memory PSR-16 implementation for the bridge tests. Built
-     * via eval inside the test to keep the `implements` clause off
-     * the file's parse path — that way running this test file
-     * doesn't require the PSR-16 stub to be loaded yet.
-     */
     private function makePsr16Cache(): object
     {
         return eval(<<<'PHP'
@@ -239,13 +259,10 @@ final class IdempotencyTest extends TestCase
         PHP);
     }
 
-    // -------- File store specific --------
-
     public function testFileStoreLockExpiresAfterTtl(): void
     {
         $store = $this->makeFileStore();
         $this->assertTrue($store->lock('k-stale', ttlSeconds: 1));
-        // Backdate the lock file to simulate elapsed TTL.
         $lockPath = $this->tmpDir . '/' . hash('sha256', 'k-stale') . '.lock';
         $this->assertFileExists($lockPath);
         touch($lockPath, time() - 60);
@@ -267,50 +284,39 @@ final class IdempotencyTest extends TestCase
     }
 
     /**
-     * @param array<string, string> $serverHeaders Map of $_SERVER-style header keys
+     * @param array<string, string> $headers PSR-7 header name => value
      */
     private function runMiddleware(
         IdempotencyStore $store,
-        array $serverHeaders,
-        string $body,
         string $method,
+        array $headers,
+        string $body,
         callable $terminal,
-        ?callable $emitHeader = null,
-    ): Response {
-        // Stash + restore $_SERVER so test isolation is real.
-        $prevServer = $_SERVER;
-        $_SERVER['REQUEST_METHOD'] = $method;
-        $_SERVER['REQUEST_URI']    = '/test';
-        foreach ($serverHeaders as $k => $v) {
-            $_SERVER[$k] = $v;
-        }
-        try {
-            $mw = new Idempotency(
-                $store,
-                emitHeader: $emitHeader,
-                readBody:   static fn (): string => $body,
-            );
-            return $mw->handle($this->bareRequest(), $terminal);
-        } finally {
-            $_SERVER = $prevServer;
-        }
-    }
-
-    private function terminalReturning(int $code, array $data): callable
-    {
-        return function () use ($code, $data): Response {
-            $r = (new \ReflectionClass(Response::class))->newInstanceWithoutConstructor();
-            $r->data = $data;
-            $r->meta = ['code' => $code];
-            $codeProp = (new \ReflectionClass(Response::class))->getProperty('code');
-            $codeProp->setAccessible(true);
-            $codeProp->setValue($r, $code);
-            return $r;
+    ): ResponseInterface {
+        $request = new ServerRequest($method, 'http://test.local/test', $headers, $body);
+        $handler = new class($terminal) implements RequestHandlerInterface {
+            /** @var callable */
+            private $cb;
+            public function __construct(callable $cb) { $this->cb = $cb; }
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                return ($this->cb)($request);
+            }
         };
+        return (new Idempotency($store))->process($request, $handler);
     }
 
-    private function bareRequest(): Request
+    private function jsonTerminal(int $status, array $data): callable
     {
-        return (new \ReflectionClass(Request::class))->newInstanceWithoutConstructor();
+        return fn (): ResponseInterface => $this->jsonResponse($status, $data);
+    }
+
+    private function jsonResponse(int $status, array $data): ResponseInterface
+    {
+        $body = json_encode([
+            'data' => $data,
+            'meta' => ['code' => $status],
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        return new Psr7Response($status, ['Content-Type' => 'application/json'], $body);
     }
 }
