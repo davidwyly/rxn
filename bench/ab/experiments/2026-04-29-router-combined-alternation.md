@@ -112,6 +112,33 @@ the savings on the common case. The branch
 `bench/ab-router-combined-alternation` is preserved for the
 historical record.
 
+## Confirmation — different mechanism, same verdict (2026-05-01)
+
+A second attempt on `experiment/psr-7-refactor` tried the
+*numbered-marker-group* alternative to `(*MARK:rN)` — wrap each
+route in a unique numbered capture group, walk the per-route
+groups after match to identify the alternative that participated.
+Functionally equivalent to MARK; reached the same regression
+profile (medians of 5 runs, this rig):
+
+| case                            | linear ns/op | numbered ns/op |   Δ    | verdict     |
+|---------------------------------|-------------:|---------------:|-------:|-------------|
+| router.match.single_param       |          384 |            450 | +17%   | regression  |
+| router.match.bucket.first_hit   |          395 |            543 | +37%   | regression  |
+| router.match.bucket.last_hit    |          845 |            641 | −24%   | win         |
+| router.match.bucket.miss        |          653 |            261 | −60%   | win         |
+
+Same shape: early-hit regresses, late-hit and miss win. The
++37% on `bucket.first_hit` is even worse than April 29's
+−22.9%, probably because numbered-group bookkeeping is heavier
+than MARK in this PCRE build. Either mechanism trades the same
+fixed alternation overhead against the same per-route savings.
+
+Confirms: this is a property of PCRE alternation, not of any
+particular sentinel mechanism. Don't re-attempt with a third
+flavour (named subpatterns, `T*` lookaheads, etc.) unless one of
+the *Possible re-investigations* below is the actual lever.
+
 ## Possible re-investigations (not pursued)
 
 - **Trie-based prefix matching** before falling into a regex.
