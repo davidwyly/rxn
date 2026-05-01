@@ -30,7 +30,7 @@ shipped; build it yourself.
 | **DI — circular-dependency detection** | [X] | [~] | [X] | [ ] |
 | **In-process HTTP test client** (no web server, no curl) | [X] `Testing\TestClient` | [~] (build it on PSR-7) | [X] (`KernelBrowser`) | [ ] |
 | **Fluent response assertions** integrated with PHPUnit | [X] `TestResponse` | [ ] | [X] | [ ] |
-| **PSR-7 / PSR-15 bridge** so ecosystem middleware drops in | [X] `PsrAdapter` + `Psr15Pipeline` | [X] (PSR-7 native) | [~] PSR-7 bridge package | [ ] |
+| **PSR-7 / PSR-15 native** so ecosystem middleware drops in | [X] `PsrAdapter` + PSR-15 `Pipeline` | [X] (PSR-7 native) | [~] PSR-7 bridge package | [ ] |
 | **Query builder** (SELECT + JOIN + WHERE + subqueries + upsert) | [X] `davidwyly/rxn-orm` (auto-required) | [ ] | [~] doctrine/dbal | [ ] |
 | **ActiveRecord** (hydrate, hasMany / hasOne / belongsTo) | [X] | [ ] | [~] doctrine/orm | [ ] |
 | **Scaffolded CRUD against a live schema** | [X] `Record` + `CrudController` | [ ] | [~] api-platform | [ ] |

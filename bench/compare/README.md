@@ -26,7 +26,8 @@ and the same Binder — they differ only at ingress and egress.
 `rxn` reads `$_SERVER` / `php://input` directly and emits with
 `echo` + `header()`; `rxn-psr7` builds a PSR-7 ServerRequest via
 `PsrAdapter::serverRequestFromGlobals`, threads through
-`Psr15Pipeline`, and emits via `PsrAdapter::emit`. The pair
+`Pipeline` (PSR-15-native since the framework's middleware contract
+flipped to PSR-15), and emits via `PsrAdapter::emit`. The pair
 isolates the per-request cost of going PSR-7-native end-to-end —
 see `bench/ab/experiments/2026-05-01-psr7-end-to-end.md`.
 

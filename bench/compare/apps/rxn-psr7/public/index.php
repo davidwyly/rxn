@@ -14,7 +14,7 @@
  *
  * Same Router, same Binder as `apps/rxn/`. The *only* thing that
  * differs is ingress and egress: PSR-7 ServerRequest in via
- * PsrAdapter, Psr15Pipeline carries the request, PSR-7 Response
+ * PsrAdapter, Pipeline carries the request, PSR-7 Response
  * out via PsrAdapter::emit. That isolates "what does going
  * PSR-7-native end-to-end actually cost?" — the headline question
  * the framework's design philosophy claims is non-trivial.
@@ -32,8 +32,8 @@ use Rxn\Framework\Http\Attribute\Required;
 use Rxn\Framework\Http\Binding\Binder;
 use Rxn\Framework\Http\Binding\RequestDto;
 use Rxn\Framework\Http\Binding\ValidationException;
+use Rxn\Framework\Http\Pipeline;
 use Rxn\Framework\Http\PsrAdapter;
-use Rxn\Framework\Http\Psr15Pipeline;
 use Rxn\Framework\Http\Router;
 
 final class CreateProduct implements RequestDto
@@ -116,6 +116,6 @@ $terminal = new class ($router) implements RequestHandlerInterface {
 };
 
 $request  = PsrAdapter::serverRequestFromGlobals();
-$pipeline = new Psr15Pipeline();
+$pipeline = new Pipeline();
 $response = $pipeline->run($request, $terminal);
 PsrAdapter::emit($response);
