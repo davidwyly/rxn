@@ -11,6 +11,109 @@ read alongside the wins.
 
 ## Unreleased
 
+### Post-merge corrections
+
+Items landed after the optimisation branch merged to `master`:
+
+#### Fixed (early post-merge)
+
+- **Unrouteable URLs return 404, not 500.** When the convention
+  router resolved a URL to a class that didn't exist, the
+  `ContainerException` from `$container->get($controller_ref)`
+  bubbled up to the renderer as a 500. From the client's
+  perspective that's still "no such resource"; `App::dispatch`
+  now catches the resolution failure and rethrows as
+  `NotFoundException` (404).
+- **Convention router accepts `v1` (no trailing period).** The
+  shape was tightened in the optimisation branch in a way that
+  TypeError'd on the no-period form. Restored.
+- **Boot is database-free again.** `Service\Registry` used to be
+  eagerly resolved during `App::__construct`, forcing a MySQL
+  connection on every request — including 404s and `/health`
+  checks. Registry is now lazy: only the legacy `Model\Record` /
+  `Data\Map` consumers pull it, and only when actually used.
+
+#### Refactored (early post-merge)
+
+- **`davidwyly/rxn-orm` moved from `require` to `suggest`.** Apps
+  using Rxn purely for routing / DTO binding / middleware no
+  longer pull in the ORM. The framework's `Database::run()` and
+  `Model\ActiveRecord` type-hint `\Rxn\Orm\Builder\Buildable` /
+  `\Rxn\Orm\Builder\Query`, which (per principle 11) only resolve
+  when the methods are actually called — so the framework still
+  loads cleanly without rxn-orm installed.
+- **`Psr16IdempotencyStore` drops duck-typing.** Replaced the
+  `object` parameter + `method_exists` validation with a nominal
+  `\Psr\SimpleCache\CacheInterface` type-hint. PHP's lazy
+  autoload of typed parameters means the framework still loads
+  cleanly without `psr/simple-cache` installed; reviewers see a
+  normal type-hint, no docblock gymnastics.
+
+#### Added
+
+- **`Response::problem(int $code, ?string $title, ?string $detail,
+  ?array $validationErrors)`** — public factory for building an
+  RFC 7807 Problem Details response without going through an
+  exception. Used by middleware that needs to short-circuit with a
+  structured failure (auth, rate limit, idempotency conflict).
+- **`docs/psr-7-interop.md`** — owns the dual-stack story: why
+  the framework is PSR-15-bridged rather than PSR-7-native (the
+  Nyholm `with*()` clone-chain measurement, principle 4's "don't
+  import PHP overhead you can't compile away," JSON-only
+  narrowing) and when each stack is the right tool.
+
+#### Fixed
+
+- **`BearerAuth` 401 responses now actually emit
+  `application/problem+json`.** Pre-fix, the middleware reached
+  into `Response`'s private `$code` via reflection and populated
+  `meta` (not `errors`), so `App::render` saw `isError() === false`
+  and emitted a regular JSON envelope — silently violating the
+  framework's RFC 7807 commitment for the auth path. The
+  middleware now goes through `Response::problem()` and the wire
+  shape matches every other failure path.
+- **Malformed route placeholders fail at registration.** Patterns
+  like `/{1bad:int}`, `/{na-me:int}`, or `/u/{:int}` previously
+  fell through to `preg_quote` and silently became literal
+  segments — registering an unmatchable static route the user
+  never intended. Now `\InvalidArgumentException` is thrown with a
+  message explaining the expected `{name}` / `{name:type}` grammar.
+
+  *Breaking* for anyone whose codebase contains a typo of this
+  shape (the route never matched anything, but registration used
+  to succeed). Pre-1.0 so within the SemVer window.
+
+#### Test coverage
+
+- New parametric `BinderMatrixTest` runs 14 cells of
+  (type × required × default × nullable × attribute) through both
+  `Binder::bind` and `Binder::compileFor` and asserts identical
+  outcomes. Locks the runtime/compiled paths against drift.
+- New `RouterTest` adversarial-pattern data provider covers nine
+  malformed / edge-case patterns; this is what surfaced the
+  silent-literal-segment bug above.
+- `OpenApi\GeneratorTest` snapshot test pins three controller
+  paths and the Problem Details schema shape, so any drift in the
+  reflection-driven generator becomes a deliberate diff.
+- `BearerAuthTest::testMissingHeaderReturns401` updated to
+  validate the new `application/problem+json` shape end-to-end.
+
+#### Docs
+
+- `docs/design-philosophy.md` — corrected the "~3,000 LOC"
+  reference to "~10k LOC, ~3k LOC dispatch spine" (with the spine
+  enumerated). Added a "Per-request state is sync-only by design"
+  subsection making the framework's stated sync-first posture
+  explicit at the middleware-static layer.
+- `docs/psr-7-interop.md` — see *Added* above; documents the
+  dual-stack story.
+- README — promoted explicit / attribute routing as the
+  recommended surface in the dispatch diagram and Features list;
+  convention router still supported, demoted to a "legacy path"
+  note.
+
+### Optimisation branch (`claude/code-review-pDtRd`)
+
 This is the largest single span of work in the repo's history:
 27 merged commits across performance, framework breadth, and docs,
 all on `claude/code-review-pDtRd`. Headline items below; the full
@@ -62,11 +165,14 @@ state for long-lived workers).
     using atomic `fopen('xb')` lock + atomic rename writes; zero
     new dependencies
   - `Http\Idempotency\Psr16IdempotencyStore` — bridge to **any**
-    PSR-16-shaped cache **without** importing PSR-16. Constructor
-    parameter declared `object`, validated structurally via
-    `method_exists`. Apps already running Redis through
-    `symfony/cache` / `cache/redis-adapter` / etc. drop their
-    cache in directly with one line and no adapter to write.
+    PSR-16-shaped cache. Constructor type-hints
+    `\Psr\SimpleCache\CacheInterface` directly; PHP's lazy autoload
+    of typed parameters means the framework still loads cleanly
+    when `psr/simple-cache` isn't installed (the file sits inert
+    until something actually instantiates it). See "principle 11"
+    in `docs/design-philosophy.md` for the pattern. Apps already
+    running Redis through `symfony/cache` /
+    `cache/redis-adapter` / etc. drop their cache in directly.
 - **`Http\Middleware\Pagination`** — parses `?limit=&offset=` or
   `?page=&per_page=` into a typed `Pagination` value object;
   emits `X-Total-Count` and RFC 8288 `Link: rel=...` headers

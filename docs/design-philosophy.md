@@ -113,25 +113,37 @@ Articulated as a rule: **schema-compile what's in PHP; never
 try to outrun a C extension from PHP.** That rule is what saved
 us from spending more time chasing a CompiledJson v2.
 
-## 5. Convention defaults; explicit escape hatches
+## 5. Common case at zero cost; explicit escape hatches
+
+The shape: pick the path that needs the *least* configuration for
+the most common job, and provide an escape hatch when the
+defaults stop fitting.
+
+For routing, that has shifted with the framework's identity. The
+modern default — and what the README and `examples/products-api`
+lead with — is **explicit `Http\Router`**, populated either
+programmatically or from `#[Route]` attributes via
+`Http\Attribute\Scanner`. The headline "FastAPI-class DTO +
+attribute routing + reflection-driven OpenAPI" pitch wants the
+attribute path front and centre:
 
 ```php
-// Convention routing — zero config:
-//   GET /v1/user/show  →  app/Http/Controller/v1/UserController::show_v1()
-
-// Explicit Router — when you outgrow the convention:
-$router = new Router();
-$router->get('/products/{id:int}', ProductController::class . '::show')
-       ->name('products.show')
-       ->middleware($auth);
+final class ProductController {
+    #[Route('GET', '/products/{id:int}')]
+    #[Middleware(BearerAuth::class)]
+    public function show(int $id): array { ... }
+}
 ```
 
-Convention covers the common case at zero cost — no router config,
-no DSL to learn. The explicit `Router` is there when you need
-named routes, middleware groups, custom URL generation. **You
-don't pay for the explicit router until you need it.**
+A **convention router** also ships (`/v{N}/{controller}/{action}/...`
+parsed from `$_GET` into `App::run`). It's older than the
+explicit Router and is preserved for apps that already depend on
+it, but it isn't the recommended path for new code — attribute /
+explicit routing matches the framework's marketing identity and
+the example app.
 
-The same pattern shows up everywhere:
+The same "common case at zero cost" pattern shows up across the
+framework:
 
 - **Container** — autowiring is the default; `bind($abstract, $concrete)`
   is the escape hatch for interfaces / factories.
@@ -139,8 +151,9 @@ The same pattern shows up everywhere:
   (`fn ($v, $f): ?string`) cover the rest.
 - **Binder** — public typed properties + `#[Required]` cover most
   DTOs; custom `Validates` attributes cover the rest.
-- **Pipeline** — `add($middleware)` is the API; building your own
-  PSR-15-compatible runner is the escape hatch (`Psr15Pipeline`).
+- **Pipeline** — `add($middleware)` is the API; the PSR-15 stack
+  (`Psr15Pipeline`) is the escape hatch when you need ecosystem
+  middleware (see [`psr-7-interop.md`](psr-7-interop.md)).
 
 **Ergonomics for the common case, escape hatches for the rare.**
 
@@ -212,7 +225,11 @@ to read is slow to *develop in*. Time-to-first-bug-fixed is a
 real metric.
 
 Rxn fits in your head:
-- The whole framework is ~3,000 LOC of PHP excluding tests.
+- The framework is ~10k LOC of PHP excluding tests; the dispatch
+  spine — Container, Router, Pipeline, Binder, Validator,
+  Request, Response — is ~3k of that, readable in one sitting.
+  Middlewares, OpenAPI, scaffolding, and the legacy ActiveRecord
+  layer make up the rest and don't sit on the hot path.
 - One mental model (request → router → pipeline → controller →
   response) covers the request lifecycle.
 - One error envelope (RFC 7807) covers every failure mode.
@@ -339,10 +356,34 @@ principles are how we keep the substrate healthy.
 | 5 — convention + escape hatch | `App::run` convention router → `Http\Router` explicit; `Container` autowire → `bind()` |
 | 6 — measure to commit | `bench/ab.php` driver, 16 experiment writeups, 4 negative-result branches preserved on origin |
 | 7 — transparent vs visible opt-in | Container's 5 stacked caches: zero API change. `Validator::compile`: visible because of the FPM tradeoff |
-| 8 — smallness as constraint | ~3,000 LOC of framework code; whole framework readable in an afternoon |
+| 8 — smallness as constraint | ~10k LOC framework, ~3k LOC dispatch spine (Container, Router, Pipeline, Binder, Validator, Request, Response) — readable in one sitting; the rest is opt-in subsystems |
 | 9 — ergonomics are performance | `bin/preload.php`, `bench/ab/CONSOLIDATION.md`, `docs/index.md`'s topic table |
 | 10 — honesty | "alpha" status in README, `App::run` open-bugs note in `docs/benchmarks.md`, the long-lived-worker caveat in every compile-path docstring |
 | 11 — optional deps via lazy autoload | `Psr16IdempotencyStore` (typehints `\Psr\SimpleCache\CacheInterface`) and `Database::run()` / `ActiveRecord` (typehint `\Rxn\Orm\Builder\Buildable` / `Query`); both packages live in `composer.json`'s `suggest` block, framework loads cleanly without them |
+
+## Per-request state is sync-only by design
+
+`BearerAuth::current()` and `RequestId::current()` publish state
+through a `private static ?T $current` slot, set on `handle()`
+entry and cleared in `finally`. This is correct under any
+**synchronous** dispatch — including Swoole's default I/O-hooked
+fibers, where request handlers don't `Fiber::suspend()` between
+the set and the clear, so the static is observed only by the
+running request's own downstream code.
+
+The shape is deliberate. The README's stated position is *"sync-
+first, process-per-request, predictable. We deliberately don't
+chase async."* Adding a per-fiber context map (one of the
+"obvious" robustness changes) would import shape the framework
+explicitly opts out of, for a hazard that only triggers when a
+handler holds principal across an explicit `Fiber::suspend()` —
+not a usage pattern the framework endorses or supports.
+
+If you have a handler that explicitly suspends a fiber while
+holding state, propagate that state yourself; don't rely on
+`current()`. This is the same boundary `rxn-orm` draws with
+`Record::clearConnections()` for fiber-isolated connection
+binding.
 
 ## Anti-patterns we deliberately avoid
 
