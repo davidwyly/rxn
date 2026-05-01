@@ -22,6 +22,7 @@
     "nyholm/psr7": "^1.8",
     "nyholm/psr7-server": "^1.1",
     "psr/container": "^2.0",
+    "psr/event-dispatcher": "^1.0",
     "psr/http-server-middleware": "^1.0",
     "psr/log": "^3.0"
   },

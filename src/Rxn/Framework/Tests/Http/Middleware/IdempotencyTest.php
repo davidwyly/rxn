@@ -5,9 +5,14 @@ namespace Rxn\Framework\Tests\Http\Middleware;
 use Nyholm\Psr7\Response as Psr7Response;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Rxn\Framework\Event\EventDispatcher;
+use Rxn\Framework\Event\ListenerProvider;
+use Rxn\Framework\Http\Idempotency\Event\IdempotencyHit;
+use Rxn\Framework\Http\Idempotency\Event\IdempotencyMiss;
 use Rxn\Framework\Http\Idempotency\FileIdempotencyStore;
 use Rxn\Framework\Http\Idempotency\IdempotencyStore;
 use Rxn\Framework\Http\Idempotency\Psr16IdempotencyStore;
@@ -182,6 +187,79 @@ final class IdempotencyTest extends TestCase
             '5xx responses should not be cached so retries can hit a healthy backend');
     }
 
+    public function testColdPathEmitsMissEventWhenDispatcherProvided(): void
+    {
+        $store    = $this->makeFileStore();
+        $captured = [];
+        $provider = new ListenerProvider();
+        $provider->listen(IdempotencyMiss::class, function ($e) use (&$captured): void { $captured[] = $e; });
+
+        $this->runMiddleware(
+            $store,
+            method:   'POST',
+            headers:  ['Idempotency-Key' => 'k-miss'],
+            body:     '{"a":1}',
+            terminal: $this->jsonTerminal(201, ['ok' => true]),
+            events:   new EventDispatcher($provider),
+        );
+
+        $this->assertCount(1, $captured);
+        $this->assertInstanceOf(IdempotencyMiss::class, $captured[0]);
+        $this->assertSame('k-miss', $captured[0]->key);
+    }
+
+    public function testReplayPathEmitsHitEventWhenDispatcherProvided(): void
+    {
+        $store    = $this->makeFileStore();
+        $captured = [];
+        $provider = new ListenerProvider();
+        $provider->listen(IdempotencyHit::class, function ($e) use (&$captured): void { $captured[] = $e; });
+        $events   = new EventDispatcher($provider);
+
+        // Cold call seeds the store. Pass dispatcher so the miss
+        // event fires too — this test only listens for hits, so
+        // the miss is silently ignored by the listener provider.
+        $this->runMiddleware(
+            $store,
+            method:   'POST',
+            headers:  ['Idempotency-Key' => 'k-hit'],
+            body:     '{"a":1}',
+            terminal: $this->jsonTerminal(201, ['id' => 7]),
+            events:   $events,
+        );
+
+        // Replay — should fire IdempotencyHit.
+        $this->runMiddleware(
+            $store,
+            method:   'POST',
+            headers:  ['Idempotency-Key' => 'k-hit'],
+            body:     '{"a":1}',
+            terminal: $this->jsonTerminal(500, ['this' => 'must not run']),
+            events:   $events,
+        );
+
+        $this->assertCount(1, $captured, 'exactly one hit event for the replay');
+        $this->assertSame('k-hit', $captured[0]->key);
+        $this->assertSame(201, $captured[0]->replayedStatus);
+    }
+
+    public function testNoDispatcherIsSilent(): void
+    {
+        // Belt-and-braces: when no dispatcher is wired, the
+        // middleware must work end-to-end without trying to call
+        // anything event-shaped. (The conditional null-safe call
+        // guarantees this; the test pins it down.)
+        $store    = $this->makeFileStore();
+        $response = $this->runMiddleware(
+            $store,
+            method:   'POST',
+            headers:  ['Idempotency-Key' => 'k-noevents'],
+            body:     '{"a":1}',
+            terminal: $this->jsonTerminal(201, ['ok' => true]),
+        );
+        $this->assertSame(201, $response->getStatusCode());
+    }
+
     public function testTtlExpiry(): void
     {
         $store = $this->makeFileStore();
@@ -292,6 +370,7 @@ final class IdempotencyTest extends TestCase
         array $headers,
         string $body,
         callable $terminal,
+        ?EventDispatcherInterface $events = null,
     ): ResponseInterface {
         $request = new ServerRequest($method, 'http://test.local/test', $headers, $body);
         $handler = new class($terminal) implements RequestHandlerInterface {
@@ -303,7 +382,10 @@ final class IdempotencyTest extends TestCase
                 return ($this->cb)($request);
             }
         };
-        return (new Idempotency($store))->process($request, $handler);
+        return (new Idempotency(
+            store: $store,
+            events: $events,
+        ))->process($request, $handler);
     }
 
     private function jsonTerminal(int $status, array $data): callable

@@ -3,10 +3,13 @@
 namespace Rxn\Framework\Http\Middleware;
 
 use Nyholm\Psr7\Response as Psr7Response;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Rxn\Framework\Http\Idempotency\Event\IdempotencyHit;
+use Rxn\Framework\Http\Idempotency\Event\IdempotencyMiss;
 use Rxn\Framework\Http\Idempotency\IdempotencyStore;
 use Rxn\Framework\Http\Idempotency\StoredResponse;
 
@@ -57,6 +60,10 @@ final class Idempotency implements MiddlewareInterface
         private readonly int    $lockTtlSeconds = 30,
         /** @var list<string> */
         private readonly array  $methods        = ['POST', 'PUT', 'PATCH', 'DELETE'],
+        // Optional PSR-14 dispatcher. When provided, the middleware
+        // emits `IdempotencyHit` on replay and `IdempotencyMiss`
+        // when the cold path runs. Null → no allocation, no dispatch.
+        private readonly ?EventDispatcherInterface $events = null,
     ) {}
 
     public function process(
@@ -85,8 +92,11 @@ final class Idempotency implements MiddlewareInterface
                     'Idempotency-Key was reused with a different request body.',
                 );
             }
+            $this->events?->dispatch(new IdempotencyHit($key, $stored->statusCode, $fingerprint));
             return $this->renderStored($stored);
         }
+
+        $this->events?->dispatch(new IdempotencyMiss($key, $fingerprint));
 
         // Cold path — acquire lock, process, store.
         if (!$this->store->lock($key, $this->lockTtlSeconds)) {
