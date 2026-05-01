@@ -35,6 +35,26 @@ use Rxn\Framework\Http\Attribute\Uuid;
 final class Binder
 {
     /**
+     * Bind a DTO from a PSR-7 `ServerRequestInterface`. Pulls
+     * query params + parsed body (or, when no parsed body is set,
+     * decodes a JSON body inline) — so callers don't need the
+     * JsonBody middleware to have mutated `$_POST` first.
+     *
+     * Prefer this over `bind()` in PSR-15 / PSR-7 code paths;
+     * `bind()` is retained for back-compat with the convention-
+     * router controllers that still rely on the global `$_GET +
+     * $_POST` merge.
+     *
+     * @template T of RequestDto
+     * @param class-string<T> $class
+     * @return T
+     */
+    public static function bindRequest(string $class, \Psr\Http\Message\ServerRequestInterface $request): RequestDto
+    {
+        return self::bind($class, self::gatherFromRequest($request));
+    }
+
+    /**
      * @template T of RequestDto
      * @param class-string<T> $class
      * @param array<string, mixed>|null $source override for the
@@ -535,5 +555,40 @@ final class Binder
     private static function gatherBag(): array
     {
         return array_merge($_GET ?? [], $_POST ?? []);
+    }
+
+    /**
+     * Build a bag from a PSR-7 ServerRequest. Query params first
+     * (so body keys win on collision, matching gatherBag's
+     * GET → POST precedence). Body is taken from `getParsedBody()`
+     * when middleware has populated it; otherwise we JSON-decode
+     * the raw body inline when Content-Type is application/json.
+     *
+     * @return array<string, mixed>
+     */
+    public static function gatherFromRequest(\Psr\Http\Message\ServerRequestInterface $request): array
+    {
+        $query  = $request->getQueryParams();
+        $parsed = $request->getParsedBody();
+        if (is_array($parsed)) {
+            return array_merge($query, $parsed);
+        }
+        // No parsed body — JSON decode inline if the content type
+        // says so. Mirrors the JsonBody middleware's eligibility
+        // check; not running that middleware is now non-fatal.
+        $contentType = strtolower(trim(explode(';', $request->getHeaderLine('Content-Type'), 2)[0]));
+        if ($contentType === 'application/json') {
+            $raw = (string)$request->getBody();
+            if ($request->getBody()->isSeekable()) {
+                $request->getBody()->rewind();
+            }
+            if ($raw !== '') {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    return array_merge($query, $decoded);
+                }
+            }
+        }
+        return $query;
     }
 }

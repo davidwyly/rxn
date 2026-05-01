@@ -114,12 +114,12 @@ $router->get('/products/{id:int}', function (array $params) use ($repo) {
 });
 
 $router->post('/products', function (array $params, ServerRequestInterface $request) use ($repo) {
-    $raw  = (string) $request->getBody();
-    $body = json_decode($raw === '' ? 'null' : $raw, true);
-    $body = is_array($body) ? $body : [];
     try {
+        // bindRequest reads ?query + parsedBody (or decodes a JSON
+        // body inline) — no dependency on JsonBody middleware
+        // having mutated $_POST first.
         /** @var CreateProduct $dto */
-        $dto = Binder::bind(CreateProduct::class, $body);
+        $dto = Binder::bindRequest(CreateProduct::class, $request);
     } catch (ValidationException $e) {
         return [
             'meta' => [

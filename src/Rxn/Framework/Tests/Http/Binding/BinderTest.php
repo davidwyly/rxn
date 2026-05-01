@@ -274,4 +274,72 @@ final class BinderTest extends TestCase
         $b = Binder::compileFor(CreateProduct::class);
         $this->assertSame($a, $b);
     }
+
+    public function testBindRequestUsesParsedBodyWhenSet(): void
+    {
+        // JsonBody middleware (or any PSR-15 body parser) sets
+        // parsedBody on the request. bindRequest must read from
+        // there — no globals in play.
+        $request = (new \Nyholm\Psr7\ServerRequest('POST', 'http://test.local/?foo=bar'))
+            ->withQueryParams(['foo' => 'bar'])
+            ->withParsedBody(['name' => 'widget', 'price' => 999]);
+
+        $dto = Binder::bindRequest(CreateProduct::class, $request);
+        $this->assertSame('widget', $dto->name);
+        $this->assertSame(999, $dto->price);
+    }
+
+    public function testBindRequestDecodesJsonBodyInlineWhenNoMiddleware(): void
+    {
+        // No JsonBody middleware ran → parsedBody is null.
+        // bindRequest must still bind by decoding the raw body
+        // when Content-Type says application/json. Closes the
+        // implicit dependency on JsonBody having run.
+        $body = json_encode(['name' => 'inline', 'price' => 500]);
+        $request = new \Nyholm\Psr7\ServerRequest(
+            'POST',
+            'http://test.local/',
+            ['Content-Type' => 'application/json'],
+            $body,
+        );
+
+        $dto = Binder::bindRequest(CreateProduct::class, $request);
+        $this->assertSame('inline', $dto->name);
+        $this->assertSame(500, $dto->price);
+    }
+
+    public function testBindRequestQueryParamsAreOverriddenByBody(): void
+    {
+        // Match gatherBag's existing precedence (GET → POST, body wins).
+        $request = (new \Nyholm\Psr7\ServerRequest('POST', 'http://test.local/?name=fromQuery'))
+            ->withQueryParams(['name' => 'fromQuery'])
+            ->withParsedBody(['name' => 'fromBody', 'price' => 1]);
+
+        $dto = Binder::bindRequest(CreateProduct::class, $request);
+        $this->assertSame('fromBody', $dto->name);
+    }
+
+    public function testGatherFromRequestEmptyBodyReturnsQueryOnly(): void
+    {
+        $request = (new \Nyholm\Psr7\ServerRequest('GET', 'http://test.local/?a=1&b=two'))
+            ->withQueryParams(['a' => '1', 'b' => 'two']);
+
+        $bag = Binder::gatherFromRequest($request);
+        $this->assertSame(['a' => '1', 'b' => 'two'], $bag);
+    }
+
+    public function testGatherFromRequestIgnoresNonJsonBody(): void
+    {
+        // Form-encoded body without parsedBody set → not the
+        // binder's problem. Returns just the query bag.
+        $request = (new \Nyholm\Psr7\ServerRequest(
+            'POST',
+            'http://test.local/?q=1',
+            ['Content-Type' => 'application/x-www-form-urlencoded'],
+            'name=ada',
+        ))->withQueryParams(['q' => '1']);
+
+        $bag = Binder::gatherFromRequest($request);
+        $this->assertSame(['q' => '1'], $bag);
+    }
 }
