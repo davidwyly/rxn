@@ -132,4 +132,139 @@ final class ContainerTest extends TestCase
             new ContainerException('test')
         );
     }
+
+    // -------- factory-cache dump (Tier A: eval → require) --------
+
+    /**
+     * Per-test dump dir. setUp() creates one; tearDown() clears
+     * it and unsets the static cacheDir so other tests don't
+     * inherit dump-dir state.
+     */
+    private string $dumpDir = '';
+
+    protected function setUp(): void
+    {
+        $this->dumpDir = sys_get_temp_dir() . '/rxn-container-cache-' . bin2hex(random_bytes(4));
+        @mkdir($this->dumpDir, 0770, true);
+    }
+
+    protected function tearDown(): void
+    {
+        Container::useCacheDir(null);
+        Container::clearCache();
+        if ($this->dumpDir !== '' && is_dir($this->dumpDir)) {
+            foreach (glob($this->dumpDir . '/*') ?: [] as $f) {
+                @unlink($f);
+            }
+            @rmdir($this->dumpDir);
+        }
+    }
+
+    public function testCacheDirDefaultsToNull(): void
+    {
+        Container::useCacheDir(null);
+        $this->assertNull(Container::cacheDir());
+    }
+
+    public function testUseCacheDirRejectsMissingPath(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        Container::useCacheDir('/definitely/not/a/real/path/' . bin2hex(random_bytes(4)));
+    }
+
+    public function testFactoryDumpsToFileWhenCacheDirSet(): void
+    {
+        Container::useCacheDir($this->dumpDir);
+        Container::clearCache();
+
+        $c = new Container();
+        $c->bind(Clock::class, SystemClock::class);
+        $stamper = $c->get(Timestamper::class);
+
+        $this->assertInstanceOf(Timestamper::class, $stamper);
+        $files = glob($this->dumpDir . '/*.php') ?: [];
+        $this->assertNotEmpty($files, 'factory should have been dumped to disk');
+
+        $contents = file_get_contents($files[0]);
+        $this->assertStringContainsString('Timestamper', $contents);
+        $this->assertStringStartsWith("<?php\n", $contents);
+    }
+
+    public function testCacheFileIsContentAddressedAndIdempotent(): void
+    {
+        Container::useCacheDir($this->dumpDir);
+        Container::clearCache();
+
+        $c1 = new Container();
+        $c1->bind(Clock::class, SystemClock::class);
+        $c1->get(Timestamper::class);
+
+        $files1 = glob($this->dumpDir . '/*.php') ?: [];
+        $this->assertCount(1, $files1);
+        $mtime1 = filemtime($files1[0]);
+
+        // Wipe in-memory cache only — file on disk stays. A second
+        // container should reuse the existing file (no re-write).
+        $reflection  = new \ReflectionClass(Container::class);
+        $factoryProp = $reflection->getProperty('factoryCache');
+        $factoryProp->setAccessible(true);
+        $factoryProp->setValue(null, []);
+
+        clearstatcache();
+        $c2 = new Container();
+        $c2->bind(Clock::class, SystemClock::class);
+        $c2->get(Timestamper::class);
+
+        $files2 = glob($this->dumpDir . '/*.php') ?: [];
+        $this->assertSame($files1, $files2, 'no new file should appear');
+        clearstatcache();
+        $this->assertSame($mtime1, filemtime($files2[0]), 'existing file must not be rewritten');
+    }
+
+    public function testFallsBackToEvalWhenCacheDirNotSet(): void
+    {
+        Container::useCacheDir(null);
+        Container::clearCache();
+
+        $c = new Container();
+        $c->bind(Clock::class, SystemClock::class);
+        $stamper = $c->get(Timestamper::class);
+
+        $this->assertInstanceOf(Timestamper::class, $stamper);
+        $this->assertEmpty(
+            glob($this->dumpDir . '/*.php') ?: [],
+            'no files should land in the dump dir when useCacheDir is null',
+        );
+    }
+
+    public function testClearCacheRemovesDumpedFiles(): void
+    {
+        Container::useCacheDir($this->dumpDir);
+        Container::clearCache();
+
+        $c = new Container();
+        $c->bind(Clock::class, SystemClock::class);
+        $c->get(Timestamper::class);
+
+        $this->assertNotEmpty(glob($this->dumpDir . '/*.php'));
+
+        Container::clearCache();
+        $this->assertSame([], glob($this->dumpDir . '/*.php'));
+    }
+
+    public function testDumpedFactoryProducesCorrectInstance(): void
+    {
+        Container::useCacheDir($this->dumpDir);
+        Container::clearCache();
+
+        $c = new Container();
+        $c->bind(Clock::class, SystemClock::class);
+
+        $stamper = $c->get(Timestamper::class);
+        $this->assertInstanceOf(Timestamper::class, $stamper);
+        // The Clock dep arrives via the dumped factory's
+        // $c->get(Clock::class) call — exercise it through the
+        // public method to confirm the factory wired it up.
+        $this->assertStringStartsWith('hello@', $stamper->stamp('hello'));
+    }
 }
