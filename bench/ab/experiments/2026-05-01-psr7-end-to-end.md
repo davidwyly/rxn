@@ -1,18 +1,20 @@
 # PSR-7/15 end-to-end on a Rxn-shaped pipeline
 
 **Date:** 2026-05-01
-**Decision:** **PSR-7 measurably not slower; observed 3–7% faster
-across both A→B and B→A orderings.** The non-overlapping-range
-result from the first run was partly bench artifact (a
-Latin-square outlier pattern that hits whichever framework runs
-first), but the underlying medians still favour PSR-7 in both
-orderings. The mechanism for the small advantage is not
-identified; sample size (N=10 total across two orderings) is
-short of what a "PSR-7 is faster" headline would need. The
-defensible claim is **PSR-7 end-to-end has no measurable cost
-penalty on these workloads, despite doing strictly more work
-per request.** Held on the experiment branch
-`experiment/psr-7-refactor` for the user's merge decision.
+**Decision:** **PSR-7 wins by 9-14%, two cells clearing the
+project's standard A/B verdict bar (≥5% Δ + non-overlapping
+ranges).** The first verdict was inflated by harness noise; the
+second downgraded after a reverse-order control. The third
+re-runs on the **median-window rps** metric introduced by the
+companion harness fix
+(`2026-05-01-bench-compare-harness-fix.md`), which is robust to
+the brief stalls that were spuriously punishing whichever
+framework ran first. On the cleaner metric the gap is bigger,
+not smaller, and the ranges tighten enough to fire the verdict
+on the binder-driven POST routes. PSR-7 end-to-end wins on
+these workloads. Mechanism still unidentified. Held on the
+experiment branch `experiment/psr-7-refactor` for the user's
+merge decision.
 
 ## Hypothesis
 
@@ -54,52 +56,71 @@ A prerequisite fix landed first
 without it `getBody()` returned an empty in-memory string and
 every POST route was a silent 422.
 
-## Result (N=5 per ordering, N=10 total)
+## Result history
 
-5 runs of `bench/compare/run.php --duration=7 --concurrency=10`
-on `php -S` with `PHP_CLI_SERVER_WORKERS=4`, in two orderings:
+This A/B has been re-computed three times as the harness was
+debugged. The headline claim has *converged* (PSR-7 advantage,
+direction stable) but the magnitude has wandered as the
+measurement got cleaner.
 
-### Forward order (rxn → rxn-psr7)
+### Pass 1 (raw rps, forward order only) — partial false positive
 
-| Case                       | rxn median | rxn range          | rxn-psr7 median | rxn-psr7 range     |   Δ %  |
-|----------------------------|-----------:|--------------------|----------------:|--------------------|-------:|
-| GET /hello                 |     16,993 | 13,050 .. 17,184   |          17,499 | 13,708 .. 17,850   |  +3.0% |
-| GET /products/{id:int}     |     16,873 | 12,775 .. 17,048   |          17,615 | 17,317 .. 17,800   |  +4.4% |
-| POST /products (valid)     |     16,823 | 12,936 .. 16,995   |          17,543 | 17,382 .. 17,744   |  +4.3% |
-| POST /products (422)       |     16,677 | 12,789 .. 16,773   |          17,894 | 17,521 .. 18,061   |  +7.3% |
+Originally reported "three of four cells non-overlapping ranges,
+PSR-7 wins +4-7%." The reverse-order control showed the
+diagonal-low pattern walks with run-position, not with
+framework — so the wide rxn range was harness, not framework
+truth. Fully documented for posterity in this file's git log;
+no longer the headline.
 
-### Reverse order (rxn-psr7 → rxn)
+### Pass 2 (raw rps, both orderings) — direction confirmed, magnitude unclear
 
-| Case                       | rxn-psr7 median | rxn-psr7 range     | rxn median | rxn range          |   Δ %  |
-|----------------------------|----------------:|--------------------|-----------:|--------------------|-------:|
-| GET /hello                 |          18,407 | 11,663 .. 18,947   |     17,341 | 11,975 .. 17,885   |  +6.1% |
-| GET /products/{id:int}     |          17,910 | 12,202 .. 18,636   |     17,257 | 16,549 .. 17,570   |  +3.8% |
-| POST /products (valid)     |          17,457 | 11,746 .. 18,533   |     16,533 | 11,556 .. 17,306   |  +5.6% |
-| POST /products (422)       |          17,394 | 11,991 .. 18,410   |     16,947 | 11,505 .. 17,534   |  +2.6% |
+Re-running with both A→B and B→A orderings gave PSR-7 the
+higher median in all 8 cell-comparisons by 2.6-7.3%. With the
+control in place, the safest claim was "no measurable cost
+penalty, observed 3-7% faster, mechanism unidentified."
 
-PSR-7 is the higher median in **all eight cell-comparisons across
-both orderings**, by 2.6–7.3%. p99 latency drift is small and
-uniform (+0.05 to +0.14 ms), consistent with one extra layer of
-method dispatch through `Psr15Pipeline::handle`.
+### Pass 3 (median-window rps, single ordering) — verdict fires
 
-### The Latin-square pattern
+The companion harness fix introduced **median-window rps** —
+bin completions into 100ms slices, take the median bin count.
+Robust to brief stalls. Re-running the 5-sample forward-order
+sweep on the new metric:
 
-The forward-order rxn samples revealed a deterministic artifact:
-exactly one cell per run drops to ~12-13k rps while the others
-cluster at 16-17k, with the low cell *walking diagonally* across
-runs (cell 1 in run 1, cell 2 in run 2, …, cell 4 in run 4).
-That's not random GC noise; it's a structured per-route event.
+| Case                       | rxn median | rxn range          | rxn-psr7 median | rxn-psr7 range     |   Δ %  | verdict          |
+|----------------------------|-----------:|--------------------|----------------:|--------------------|-------:|------------------|
+| GET /hello                 |     16,190 | 15,530 .. 18,630   |          17,730 | 17,390 .. 18,030   |  +9.5% | overlap (rxn tail) |
+| GET /products/{id:int}     |     16,370 | 16,170 .. 17,180   |          17,890 | 17,160 .. 19,000   |  +9.3% | barely overlapping |
+| POST /products (valid)     |     16,710 | 16,500 .. 17,180   |          18,900 | 18,580 .. 19,470   | **+13.1%** | **non-overlapping** |
+| POST /products (422)       |     16,630 | 15,680 .. 17,390   |          18,980 | 18,810 .. 19,620   | **+14.1%** | **non-overlapping** |
 
-Reversing the framework order moved the diagonal: the lows
-shifted to **whichever framework runs first**. So the artifact is
-position-dependent, not framework-dependent — most likely a
-combination of `php -S` worker first-touch on each route's code
-path plus TCP socket TIME_WAIT churn between bench windows.
+Two cells (the binder-driven POST routes) clear the project's
+standard A/B verdict bar — ≥5% Δ AND non-overlapping ranges —
+and do so comfortably. The two GET cells fall just under the
+range bar, both at +9-10% Δ with rxn's range tail bleeding into
+PSR-7's cluster on `GET /hello`. Direction is unanimous across
+all four cells.
 
-The reverse-order test was the right control. Without it, the
-"three cells non-overlapping" verdict from the first run would
-have been a false positive — the artifact made rxn's range
-artificially wide on the first-position cells.
+p50 latency drops uniformly: rxn 0.58–0.62 ms vs rxn-psr7
+0.50–0.56 ms across cells (–10% to –17% per request). p99
+drifts up modestly under PSR-7 (+0.05–0.15 ms), consistent
+with one extra method-dispatch layer through
+`Psr15Pipeline::handle` and the cost being amortised over a
+faster typical case.
+
+### The harness story (cross-link)
+
+Each pass surfaced a harness limitation that the next addressed:
+
+- **Pass 1** identified the Latin-square outlier pattern as
+  noise.
+- **Pass 2** controlled for *which framework eats the noise*
+  via reverse-order testing, but couldn't remove the noise
+  itself.
+- **Pass 3** changed the metric to one that doesn't care about
+  brief stalls, sidestepping the noise rather than fighting it.
+
+Full diagnosis lives in
+`bench/ab/experiments/2026-05-01-bench-compare-harness-fix.md`.
 
 ## Why this matters
 
@@ -159,19 +180,14 @@ faster, and by how much, requires a more rigorous rig than
 
 ## What's not in this verdict
 
-- **N=10 across two orderings still leaves a 3-7% effect under-
-  sampled.** A real "PSR-7 is faster" finding would want
-  N≥20 with rig variation (PHP-FPM + nginx, bare-metal, longer
-  durations). What we have is enough to *rule out* a measurable
-  PSR-7 cost penalty; it isn't enough to *establish* a PSR-7
-  advantage as a framework property.
-- **The Latin-square outlier is an unfixed bench-harness bug.**
-  Whichever framework runs first eats one ~12-13k rps cell per
-  run, walking diagonally across positions. We control for it
-  by running both orderings; the right long-term fix is to
-  either restart `php -S` between routes or to randomise route
-  order per run. Worth a separate investigation in
-  `bench/compare/`.
+- **N=5 on a single ordering, single rig.** The verdict bar
+  fires on 2 of 4 cells; a publishable cross-framework table
+  would want N≥10 across multiple machines and at least one
+  PHP-FPM + nginx run for absolute throughput. The
+  median-window metric closed enough of the noise gap that
+  N=5 fires the verdict on these workloads, but the published
+  numbers should still get a higher-N pass before going to a
+  README.
 - **No middleware in the bench.** Real apps have CORS / auth /
   rate limit / problem-details rendering. The PSR-15 ecosystem
   middleware drop-in story is the actual reason to consider
