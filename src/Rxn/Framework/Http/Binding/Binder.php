@@ -171,6 +171,18 @@ final class Binder
     }
 
     /**
+     * Drop the in-memory compiled-binder cache and any dumped
+     * `*.php` files in the configured cache dir. Mirror of
+     * `Container::clearCache()` — both share the dump cache, so
+     * either entrypoint clears the same files.
+     */
+    public static function clearCache(): void
+    {
+        self::$compiledCache = [];
+        \Rxn\Framework\Codegen\DumpCache::purgeFiles();
+    }
+
+    /**
      * @template T of RequestDto
      * @param class-string<T> $class
      * @return \Closure(array): T
@@ -182,28 +194,51 @@ final class Binder
             throw new \InvalidArgumentException("$class must implement " . RequestDto::class);
         }
 
-        // Side-table for non-inlinable validators: pre-instantiated
-        // at compile time, dispatched by index from the closure's
-        // `use ($validators)`.
-        $validators = [];
+        // Two parallel side-tables for non-inlinable validators:
+        //   $validators     — pre-instantiated objects, used by the
+        //                     eval path via the closure's
+        //                     `use ($validators)` capture.
+        //   $validatorExprs — `'new \\Foo\\Bar(arg, ...)'` strings,
+        //                     used by the dump path to reconstruct
+        //                     `$validators` at the top of the
+        //                     dumped file.
+        // Same index in both arrays refers to the same logical
+        // validator. eval path doesn't need the exprs; dump path
+        // doesn't need the instances. The runtime closure body is
+        // identical in both paths — it always references
+        // `$validators[$idx]`.
+        $validators     = [];
+        $validatorExprs = [];
+
         $body = "    \$errors = [];\n";
         $body .= "    \$dto = new \\" . ltrim($class, '\\') . "();\n";
         foreach ($reflection->getProperties(\ReflectionProperty::IS_PUBLIC) as $prop) {
             if ($prop->isStatic()) {
                 continue;
             }
-            $body .= self::compileProperty($prop, $validators);
+            $body .= self::compileProperty($prop, $validators, $validatorExprs);
         }
         $body .= "    if (\$errors !== []) {\n"
               .  "        throw new \\Rxn\\Framework\\Http\\Binding\\ValidationException(\$errors);\n"
               .  "    }\n"
               .  "    return \$dto;\n";
 
-        $code = "return static function (array \$bag) use (\$validators): \\" . ltrim($class, '\\')
-              . " {\n" . $body . "};";
+        $closureBody = "return static function (array \$bag) use (\$validators): \\" . ltrim($class, '\\')
+                     . " {\n" . $body . "};";
 
-        /** @var \Closure(array): RequestDto $closure */
-        $closure = eval($code);
+        if (\Rxn\Framework\Codegen\DumpCache::dir() !== null) {
+            // Dump path: prepend a literal `$validators = [...];`
+            // so the file is self-contained when `require`d. The
+            // closure's `use ($validators)` then captures the
+            // file-scope array at instantiation time, exactly as
+            // it does under eval.
+            $exprList   = '[' . implode(', ', $validatorExprs) . ']';
+            $dumpSource = "\$validators = $exprList;\n" . $closureBody;
+            $closure    = \Rxn\Framework\Codegen\DumpCache::load($dumpSource);
+        } else {
+            $closure = eval($closureBody);
+        }
+
         if (!$closure instanceof \Closure) {
             throw new \RuntimeException("Binder: failed to compile binder for $class");
         }
@@ -214,10 +249,14 @@ final class Binder
      * Generate the PHP fragment that hydrates and validates one
      * property of the DTO.
      *
-     * @param array<int, object> $validators side-table for non-inlinable validators
+     * @param array<int, object> $validators     instances side-table for the eval path
+     * @param array<int, string> $validatorExprs construction-expression side-table for the dump path
      */
-    private static function compileProperty(\ReflectionProperty $prop, array &$validators): string
-    {
+    private static function compileProperty(
+        \ReflectionProperty $prop,
+        array &$validators,
+        array &$validatorExprs,
+    ): string {
         $name   = $prop->getName();
         $nameQ  = self::quoteString($name);
         $type   = $prop->getType();
@@ -262,6 +301,7 @@ final class Binder
             if (is_subclass_of($attrName, Validates::class) || in_array(Validates::class, class_implements($attrName) ?: [], true)) {
                 $instance = $attr->newInstance();
                 $idx = array_push($validators, $instance) - 1;
+                $validatorExprs[$idx] = self::validatorConstructionExpr($attrName, $attr->getArguments());
                 $validateBlock .= "        \$msg = \$validators[$idx]->validate(\$cast);\n"
                                .  "        if (\$msg !== null) { \$errors[] = ['field' => $nameQ, 'message' => \$msg]; }\n";
             }
@@ -479,6 +519,33 @@ final class Binder
     private static function quoteString(string $s): string
     {
         return "'" . strtr($s, ["\\" => "\\\\", "'" => "\\'"]) . "'";
+    }
+
+    /**
+     * Render a `new \Foo\Bar(arg, ...)` expression for the dump
+     * path's `$validators = [...]` prelude. Attribute arguments
+     * are restricted by PHP to const expressions (scalars, enum
+     * cases, class constants, arrays of those), all of which
+     * `var_export` round-trips correctly.
+     *
+     * Handles three argument shapes:
+     *   - all positional: `new Foo('US', 1)`
+     *   - all named:      `new Foo(country: 'US', tier: 1)`
+     *   - mixed:          PHP iterates `getArguments()` in source
+     *                     order, named keys are strings, positional
+     *                     keys are ints — we render named with
+     *                     `name: value` and positional bare.
+     *
+     * @param array<int|string, mixed> $args from `ReflectionAttribute::getArguments()`
+     */
+    private static function validatorConstructionExpr(string $class, array $args): string
+    {
+        $parts = [];
+        foreach ($args as $key => $val) {
+            $literal = var_export($val, true);
+            $parts[] = is_string($key) ? "$key: $literal" : $literal;
+        }
+        return 'new \\' . ltrim($class, '\\') . '(' . implode(', ', $parts) . ')';
     }
 
     private static function ensureIdentifier(string $name): string

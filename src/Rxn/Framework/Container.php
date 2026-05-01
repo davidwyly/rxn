@@ -292,68 +292,31 @@ class Container implements ContainerInterface
     private static array $factoryCache = [];
 
     /**
-     * Optional on-disk dump directory for compiled factories. When
-     * set (`useCacheDir()`), factories are written as PHP files
-     * instead of `eval`'d, so they're picked up by opcache and can
-     * participate in `opcache.preload`. When `null`, factories are
-     * `eval`'d as before — cache is still populated, but only in
-     * the worker's own memory.
-     *
-     * The dumped files are content-addressed (filename is the
-     * sha1 of the generated factory source), which gives us free
-     * invalidation: a constructor signature change produces a new
-     * source string, hence a new file. Old files are left as
-     * orphans — clear the dir on deploy if you care.
-     */
-    private static ?string $cacheDir = null;
-
-    /**
-     * Enable on-disk dump for compiled factories. Call once at boot
-     * (typically in the front controller). Subsequent compilations
-     * write `static fn (Container $c) => new $class(...)` to a
-     * `<sha1>.php` file in `$dir` and `require` it instead of
-     * `eval`'ing the source. opcache picks up the file like any
-     * other PHP source — preload-friendly, shared across workers.
-     *
-     * Pass `null` to revert to in-memory eval (mostly useful for
-     * tests).
+     * Thin alias over `Rxn\Framework\Codegen\DumpCache::useDir()`.
+     * Kept for the focused "configure the container's dump cache"
+     * call site; apps configuring multiple components (Container
+     * + Binder) typically just call `DumpCache::useDir()` once.
      */
     public static function useCacheDir(?string $dir): void
     {
-        if ($dir === null) {
-            self::$cacheDir = null;
-            return;
-        }
-        if (!is_dir($dir)) {
-            throw new \InvalidArgumentException("Container cache dir does not exist: $dir");
-        }
-        if (!is_writable($dir)) {
-            throw new \InvalidArgumentException("Container cache dir is not writable: $dir");
-        }
-        self::$cacheDir = rtrim($dir, '/');
+        \Rxn\Framework\Codegen\DumpCache::useDir($dir);
     }
 
     public static function cacheDir(): ?string
     {
-        return self::$cacheDir;
+        return \Rxn\Framework\Codegen\DumpCache::dir();
     }
 
     /**
-     * Drop both the in-memory factory cache and any `*.php` files
-     * the dump dir holds. Useful for tests and for `bin/rxn
-     * cache:clear` style commands. Doesn't touch other state
-     * (`$constructorPlanCache`, `$reflectionCache`) — those are
-     * pure functions of the class graph and are safe to keep.
+     * Drop the in-memory factory cache plus every dumped `*.php`
+     * file. Other components sharing the same dump dir (Binder)
+     * have their files purged too — a single cache dir holds
+     * everything.
      */
     public static function clearCache(): void
     {
         self::$factoryCache = [];
-        if (self::$cacheDir === null) {
-            return;
-        }
-        foreach (glob(self::$cacheDir . '/*.php') ?: [] as $file) {
-            @unlink($file);
-        }
+        \Rxn\Framework\Codegen\DumpCache::purgeFiles();
     }
 
     /**
@@ -393,59 +356,12 @@ class Container implements ContainerInterface
         $literal = '\\' . ltrim($class_name, '\\');
         $body = "return static fn (\\Rxn\\Framework\\Container \$c) => new $literal($argList);";
 
-        $closure = self::$cacheDir === null
-            ? eval($body)
-            : self::loadFromCacheDir($body);
+        $closure = \Rxn\Framework\Codegen\DumpCache::load($body) ?? eval($body);
 
         if (!$closure instanceof \Closure) {
             throw new \RuntimeException("Container: failed to compile factory for $class_name");
         }
         return $closure;
-    }
-
-    /**
-     * Dump the factory source to `<cacheDir>/<sha1(source)>.php` if
-     * it doesn't already exist, then `require` the file and return
-     * the closure. Content-addressed naming means concurrent
-     * workers can race the write safely — the loser's rename either
-     * succeeds (atomic, identical content) or finds the final file
-     * already in place.
-     */
-    private static function loadFromCacheDir(string $body): \Closure
-    {
-        $hash = sha1($body);
-        $file = self::$cacheDir . '/' . $hash . '.php';
-        if (!is_file($file)) {
-            self::writeAtomic($file, "<?php\n" . $body . "\n");
-        }
-        /** @var \Closure $closure */
-        $closure = require $file;
-        return $closure;
-    }
-
-    /**
-     * Write `$content` to `$finalPath` atomically by writing to a
-     * unique temp file in the same directory and renaming it.
-     * POSIX `rename(2)` is atomic within a filesystem. If two
-     * workers race here, both temp files succeed, both renames
-     * succeed (the second silently overwrites the first), and the
-     * content is identical because filenames are content hashes.
-     */
-    private static function writeAtomic(string $finalPath, string $content): void
-    {
-        $tmp = $finalPath . '.' . getmypid() . '.' . bin2hex(random_bytes(4)) . '.tmp';
-        if (file_put_contents($tmp, $content, LOCK_EX) === false) {
-            throw new \RuntimeException("Container: failed to write cache file $tmp");
-        }
-        if (!@rename($tmp, $finalPath)) {
-            @unlink($tmp);
-            // A racing worker may have completed its rename first.
-            // Filenames are content hashes, so the file is correct
-            // either way — only fail if neither outcome held.
-            if (!is_file($finalPath)) {
-                throw new \RuntimeException("Container: failed to rename $tmp -> $finalPath");
-            }
-        }
     }
 
     private static function quoteString(string $s): string
