@@ -11,6 +11,128 @@ read alongside the wins.
 
 ## Unreleased
 
+### PSR refactor (`experiment/psr-7-refactor`)
+
+Five PSR specs landed end-to-end across the dispatch spine, plus
+two structural refactors and an opt-in on-disk dump cache. Every
+change is behaviour-equivalent (the test suite grew from 265 →
+483 / 586 → 1048 assertions, all green) and the example app's
+seven golden + edge paths verify clean end-to-end through the new
+stack.
+
+#### Added
+
+- **PSR-7 / PSR-15 ingress and middleware contract.** All eight
+  shipped middlewares (`BearerAuth`, `Cors`, `ETag`, `Idempotency`,
+  `JsonBody`, `Pagination`, `RequestId`, `Transaction`) now
+  implement `Psr\Http\Server\MiddlewareInterface`; the `Pipeline`
+  is PSR-15-native end-to-end. `PsrAdapter::serverRequestFromGlobals`
+  builds a `ServerRequestInterface` from PHP superglobals (with
+  `php://input` wrapped lazily); `PsrAdapter::emit` writes a
+  `ResponseInterface` to the SAPI. A/B benchmarks showed PSR-7
+  ingress winning **9–14% on binder-driven cells** vs the previous
+  superglobal path, so it ships as the default for new apps.
+- **`App::serve(Router $router, ?callable $invoker = null): void`**
+  — static, boot-free PSR-7/15 entry point. Builds the
+  `ServerRequest`, threads it through the route's middleware
+  pipeline, dispatches the matched handler via the default
+  invoker, emits a `ResponseInterface`. Drops the example app's
+  front controller from ~25 lines of explicit ingress/Pipeline/emit
+  wiring to one call. Convention router (`App::run`,
+  `Service\Api`, `/v{N}/{controller}/{action}`) is **fully
+  preserved** — `serve()` is a parallel entry point, not a
+  replacement.
+- **PSR-11 container.** `Rxn\Framework\Container` now `implements
+  \Psr\Container\ContainerInterface`; signatures match the spec
+  exactly (`get(string $id, array $parameters = []): mixed`,
+  `has(string $id): bool`). New `ContainerNotFoundException`
+  satisfies `Psr\Container\NotFoundExceptionInterface` for missing
+  entries; the broader `ContainerException` already satisfied
+  `ContainerExceptionInterface`. Third-party PSR-11 consumers can
+  inject the container without an adapter.
+- **PSR-3 logger.** `Rxn\Framework\Utility\Logger` now `implements
+  \Psr\Log\LoggerInterface` via `Psr\Log\LoggerTrait`; `log()`
+  signature widened to `mixed $level, string|\Stringable $message`.
+- **PSR-14 event dispatcher.**
+  `Rxn\Framework\Event\EventDispatcher` and `ListenerProvider`
+  implement the spec; the listener provider does class-hierarchy
+  lookup so listeners on parent classes / interfaces fire too.
+  Wired into `Idempotency` middleware as the first real consumer:
+  optional dispatcher constructor arg, emits
+  `IdempotencyHit` on replay and `IdempotencyMiss` on cold-path
+  entry. Null dispatcher → no-op via `?->dispatch()`, no overhead.
+- **`Rxn\Framework\Codegen\DumpCache`** — opt-in on-disk dump
+  cache for compiled PHP closures. Both `Container::compileFactory`
+  and `Binder::buildCompiled` go through it: when `DumpCache::useDir($path)`
+  is configured, eval'd source is written to `<sha1>.php` and
+  `require`'d back instead. opcache treats the files like any
+  other PHP source — preload-eligible, shared bytecode across
+  workers, shared JIT trace cache. Content-addressed filenames
+  give free invalidation; atomic temp-file + rename handles
+  concurrent cold-start races.
+- **`Binder::bindRequest(string $class, ServerRequestInterface
+  $request): RequestDto`** — reads `queryParams` + `parsedBody`
+  from PSR-7 directly, falls back to inline JSON-decode of the
+  body when `parsedBody` is empty. No dependency on the
+  `JsonBody` middleware having mutated `$_POST` first; the
+  example app's POST handler binds the DTO straight from the
+  request.
+- **`Response::problem(int $code, ?string $title, ?string $detail,
+  ?array $validationErrors)`** — public RFC 7807 factory used by
+  middleware short-circuits.
+
+#### Refactored
+
+- **`Response` is now a property bag.** All previously-public
+  fields are private; access is via `getData()`, `getMeta()`,
+  `getErrors()`, `getValidationErrors()`, `addMetaField()`. The
+  factory methods (`getSuccess`, `getFailure`) build state via
+  the accessors instead of populating typed properties via
+  reflection. `getErrorCode()` now allow-lists 4xx / 5xx codes
+  and returns `int`, not nullable mixed.
+- **`App` encapsulates `$api` and `$stats`.** Both are now
+  private with `api()` / `stats()` accessors; the constructor
+  no longer eagerly resolves `Service\Registry` (which forced a
+  database connection during boot — 404s and `/health` checks
+  used to depend on MySQL being reachable).
+- **`Idempotency::StoredResponse` is PSR-7-shaped.** Stores
+  `(status, headers array, body bytes, fingerprint, createdAt)`
+  instead of duplicating Rxn's internal Response.
+
+#### Bench harness fix
+
+- **`bench/compare/load.php` rps metric replaced.** The previous
+  `count / wall_clock` rps formula was sensitive to brief stalls
+  (any tail latency from `Connection: close` socket churn or
+  ephemeral port exhaustion under `php -S`) and produced
+  Latin-square-shaped outliers that looked like framework
+  regressions. Replaced with a median-window rps: bin completions
+  into 100ms windows, take the median bin's count. Robust to
+  tail-latency artefacts; the median window is what the
+  steady-state would converge to absent harness noise. Confirmed
+  by reverse-order control runs.
+
+#### Deferred (parts on the shelf, not pursued)
+
+- **Validator dump.** The public `Validator` API accepts callable
+  rules; closures can't be serialised to a PHP file, so the
+  `eval()` call in `Validator::compile` stays. Documented as the
+  explicit boundary.
+- **Router combined-regex chunking.** A second attempt
+  (numbered-marker groups instead of `(*MARK:rN)`) reproduced the
+  April 29 finding: PCRE alternation overhead regresses the
+  common case (early-bucket hit) regardless of sentinel mechanism.
+  Negative-result confirmation addendum on the existing writeup;
+  the bench rig (placeholder-bucket `first_hit` / `last_hit` /
+  `miss` cases in `bin/bench`) is kept for future genuine attempts
+  (trie, hybrid, JIT-on study).
+- **Routing `Binder::bind()` through `compileFor()`** — the
+  6.42× win is real but unattached to production code (no
+  internal caller of `compileFor`); behaviour parity is locked
+  by `BinderMatrixTest`. Held back: making `eval` mandatory for
+  binding is its own product decision and needs a constructor
+  edge-case fix first. The parts are on the shelf.
+
 ### Post-merge corrections
 
 Items landed after the optimisation branch merged to `master`:
