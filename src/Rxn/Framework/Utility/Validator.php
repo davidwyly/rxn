@@ -342,7 +342,7 @@ final class Validator
             $other[] = $rule;
         }
 
-        $src = "    // -- field: $field\n";
+        $src = "    /* field: " . self::quoteInlineComment($field) . " */\n";
         $src .= "    \$value = \$payload[$fieldQ] ?? null;\n";
         $src .= "    \$present = \\array_key_exists($fieldQ, \$payload) && \$value !== '' && \$value !== null;\n";
         $src .= "    if (!\$present) {\n";
@@ -516,6 +516,15 @@ final class Validator
         $patternQ = self::quoteString($arg);
         $msg     = self::quoteString("$field format is invalid");
         return "        if (!(\\is_string(\$value) && \\preg_match($patternQ, \$value) === 1)) { \$errors[$fieldQ][] = $msg; }\n";
+    }
+
+
+    /**
+     * Sanitize text embedded in generated one-line comments.
+     */
+    private static function quoteInlineComment(string $s): string
+    {
+        return str_replace(["\r", "\n", "*/"], [' ', ' ', '* /'], $s);
     }
 
     /**

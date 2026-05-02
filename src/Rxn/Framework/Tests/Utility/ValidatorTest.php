@@ -304,4 +304,19 @@ final class ValidatorTest extends TestCase
         $errors = Validator::check(['v' => '2026-04-29'], ['v' => ['date']]);
         $this->assertSame([], $errors);
     }
+    public function testCompileDoesNotExecuteInjectedFieldNameCode(): void
+    {
+        $tmp = sys_get_temp_dir() . '/rxn-validator-injection-' . uniqid('', true);
+        @unlink($tmp);
+
+        $field = "x\nfile_put_contents(" . var_export($tmp, true) . ", 'owned');\n//";
+        $rules = [$field => ['required']];
+
+        $check = Validator::compile($rules);
+        $errors = $check([]);
+
+        $this->assertArrayHasKey($field, $errors);
+        $this->assertFileDoesNotExist($tmp);
+    }
+
 }
