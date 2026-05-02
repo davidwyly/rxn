@@ -2,22 +2,23 @@
 
 namespace Rxn\Framework\Tests\Codegen;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Rxn\Framework\Codegen\JsValidatorEmitter;
 use Rxn\Framework\Codegen\Testing\ParityHarness;
 
 /**
- * Cross-language validator parity test. Now powered by the
- * extracted `ParityHarness` — every plugin in the cross-language
- * family will use the same harness, so this test doubles as the
- * harness's own self-verification.
+ * Cross-language validator parity test. Uses the extracted
+ * `ParityHarness` to drive N adversarial inputs through both
+ * the PHP `Binder::bind` and the emitted JS validator, asserts
+ * agreement on the set of failing fields per input.
  *
- * Skipped when `node` isn't on PATH — the test is meaningful only
- * with both runtimes available. CI image must install Node ≥ 18.
+ * Skipped when `node` isn't on PATH — the test is meaningful
+ * only with both runtimes available.
  *
- * Compares the *set of failing fields*, not message text. PHP and
- * JS messages happen to be identical today; the parity guarantee
- * doesn't hinge on that.
+ * Compares the *set of failing fields*, not message text. PHP
+ * and JS messages happen to be identical today; the parity
+ * guarantee doesn't hinge on that.
  */
 final class JsValidatorParityTest extends TestCase
 {
@@ -28,12 +29,24 @@ final class JsValidatorParityTest extends TestCase
         }
     }
 
-    public function testParityDtoAgreesWithPhpOnRandomInputs(): void
+    /**
+     * @return iterable<string, array{class-string}>
+     */
+    public static function dtos(): iterable
+    {
+        yield 'ParityDto'      => [Fixture\ParityDto::class];
+        yield 'KitchenSinkDto' => [Fixture\KitchenSinkDto::class];
+        yield 'NumericEdgeDto' => [Fixture\NumericEdgeDto::class];
+        yield 'StringEdgeDto'  => [Fixture\StringEdgeDto::class];
+    }
+
+    #[DataProvider('dtos')]
+    public function testValidatorAgreesWithPhpOnRandomInputs(string $dtoClass): void
     {
         $emitter = new JsValidatorEmitter();
-        $result = ParityHarness::run(
-            dto:        Fixture\ParityDto::class,
-            source:     $emitter->emit(Fixture\ParityDto::class),
+        $result  = ParityHarness::run(
+            dto:        $dtoClass,
+            source:     $emitter->emit($dtoClass),
             invoke:     ParityHarness::nodeInvoker(),
             iterations: 10_000,
             extension:  'mjs',

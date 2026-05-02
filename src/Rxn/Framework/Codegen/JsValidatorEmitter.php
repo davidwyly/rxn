@@ -323,13 +323,16 @@ final class JsValidatorEmitter
 
         // Mirrors PHP's runtime int-cast guard:
         //   is_numeric(\$v) && (string)(int)\$v === (string)\$v
-        // Only round-tripping integer strings pass.
+        // Only round-tripping integer strings pass. NO trim() — the
+        // round-trip check is bit-for-bit string equality, so any
+        // leading/trailing whitespace, leading "+", or leading zeros
+        // make the input fail (matching PHP).
         function phpIntCast(v) {
           if (typeof v === 'boolean') return { ok: false };
           const s = String(v);
-          if (!/^-?\\d+\$/.test(s.trim())) return { ok: false };
+          if (!/^-?\\d+\$/.test(s)) return { ok: false };
           const n = parseInt(s, 10);
-          if (!Number.isFinite(n) || String(n) !== s.trim()) return { ok: false };
+          if (!Number.isFinite(n) || String(n) !== s) return { ok: false };
           return { ok: true, value: n };
         }
 
