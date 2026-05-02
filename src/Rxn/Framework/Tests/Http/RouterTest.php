@@ -175,6 +175,23 @@ final class RouterTest extends TestCase
         $this->assertSame('/products/42', $r->url('products.show', ['id' => 42]));
     }
 
+
+    public function testNamedRouteUrlEncodesPathSegmentCharacters(): void
+    {
+        $r = new Router();
+        $r->get('/products/{id}', 'show')->name('products.show');
+
+        $this->assertSame('/products/a%2Fb', $r->url('products.show', ['id' => 'a/b']));
+        $this->assertSame('/products/foo%3Fadmin%3Dtrue%23frag', $r->url('products.show', ['id' => 'foo?admin=true#frag']));
+    }
+
+    public function testNamedRouteUrlDoesNotProduceSchemeRelativeUrlFromRootPlaceholder(): void
+    {
+        $r = new Router();
+        $r->get('/{target}', 'go')->name('go');
+
+        $this->assertSame('/%2Fevil.example', $r->url('go', ['target' => '/evil.example']));
+    }
     public function testUrlRejectsUnknownName(): void
     {
         $r = new Router();
