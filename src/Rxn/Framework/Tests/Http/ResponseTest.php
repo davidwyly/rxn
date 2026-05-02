@@ -109,7 +109,7 @@ final class ResponseTest extends TestCase
             $this->assertSame('about:blank', $pd['type']);
             $this->assertSame('Not Found', $pd['title']);
             $this->assertSame(404, $pd['status']);
-            $this->assertSame('Not Found', $pd['detail']);
+            $this->assertSame('row not found', $pd['detail']);
             $this->assertSame('/users/42', $pd['instance']);
         } finally {
             putenv('ENVIRONMENT');
