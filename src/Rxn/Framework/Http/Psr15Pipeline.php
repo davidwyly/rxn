@@ -45,7 +45,13 @@ final class Psr15Pipeline implements RequestHandlerInterface
     {
         $this->terminal = $terminal;
         $this->index    = 0;
-        return $this->handle($request);
+
+        try {
+            return $this->handle($request);
+        } finally {
+            $this->terminal = null;
+            $this->index    = 0;
+        }
     }
 
     /**
