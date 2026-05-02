@@ -5,7 +5,10 @@
   "autoload": {
     "psr-4": {
       "Rxn\\": "src/Rxn/"
-    }
+    },
+    "files": [
+      "src/Rxn/Framework/Concurrency/await.php"
+    ]
   },
   "config": {
     "preferred-install": "source"

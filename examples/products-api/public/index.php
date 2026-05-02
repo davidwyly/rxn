@@ -44,6 +44,8 @@ use Example\Products\Dto\CreateProduct;
 use Example\Products\Repo\ProductRepo;
 use Psr\Http\Message\ServerRequestInterface;
 use Rxn\Framework\App;
+use Rxn\Framework\Concurrency\HttpClient as AsyncHttpClient;
+use Rxn\Framework\Concurrency\Scheduler;
 use Rxn\Framework\Http\Binding\Binder;
 use Rxn\Framework\Http\Binding\ValidationException;
 use Rxn\Framework\Http\Health\HealthCheck;
@@ -54,6 +56,8 @@ use Rxn\Framework\Http\Middleware\Pagination as PaginationMiddleware;
 use Rxn\Framework\Http\Pagination\Pagination;
 use Rxn\Framework\Http\Router;
 use Rxn\Framework\Service\Auth;
+
+use function Rxn\Framework\Concurrency\awaitAll;
 
 // ---- bootstrap ------------------------------------------------------
 
@@ -137,6 +141,68 @@ $router->post('/products', function (array $params, ServerRequestInterface $requ
 })
     ->middleware($bearer)
     ->middleware($idempotency);
+
+// ---- dashboard fan-out (fiber-await demo) ---------------------------
+//
+// GET /dashboard/{id}?mode=parallel|sequential
+//
+// A "compose a response from N upstream microservices" route, the
+// shape that gives the fiber-await mechanism its win. Hits three
+// fake-upstream backends (boot them with `bench/fiber/backend.php`
+// on ports 8101/8102/8103 — see the README), in either:
+//
+//   ?mode=sequential — three blocking file_get_contents in series
+//                      (~300ms wall-clock, three 100ms sleeps stacked)
+//   ?mode=parallel   — three curl handles overlapped via the
+//                      Scheduler/Promise/awaitAll machinery
+//                      (~100ms wall-clock — bound by the slowest)
+//
+// The response's `meta.wall_clock_ms` shows the difference live.
+// Same five lines of fan-out, two completely different latency
+// profiles. Sync code outside the `Scheduler::run()` body is
+// untouched — handlers that don't compose upstream calls don't
+// pay any cost.
+$router->get('/dashboard/{id:int}', function (array $params, ServerRequestInterface $request): array {
+    $id   = (int) $params['id'];
+    $mode = $request->getQueryParams()['mode'] ?? 'parallel';
+
+    $base = getenv('DASHBOARD_BACKEND_BASE') ?: 'http://127.0.0.1';
+    $urls = [
+        'inventory' => "$base:8101/inventory/$id",
+        'pricing'   => "$base:8102/pricing/$id",
+        'reviews'   => "$base:8103/reviews/$id",
+    ];
+
+    $started = hrtime(true);
+    if ($mode === 'sequential') {
+        $bodies = [];
+        foreach ($urls as $key => $url) {
+            $bodies[$key] = (string) @file_get_contents($url);
+        }
+    } else {
+        $scheduler = new Scheduler();
+        $client    = new AsyncHttpClient($scheduler);
+        $bodies = $scheduler->run(static fn (): array => awaitAll(array_map(
+            static fn (string $url) => $client->getAsync($url),
+            $urls,
+        )));
+    }
+    $wallClockMs = (hrtime(true) - $started) / 1e6;
+
+    $decoded = [];
+    foreach ($bodies as $key => $body) {
+        $decoded[$key] = $body !== '' ? json_decode($body, true) : null;
+    }
+
+    return [
+        'data' => $decoded,
+        'meta' => [
+            'mode'          => $mode,
+            'fanout'        => count($urls),
+            'wall_clock_ms' => round($wallClockMs, 1),
+        ],
+    ];
+});
 
 // ---- dispatch -------------------------------------------------------
 
