@@ -18,6 +18,7 @@
   ],
   "require": {
     "php": "^8.2",
+    "ext-pdo": "*",
     "vlucas/phpdotenv": "^3.0",
     "nyholm/psr7": "^1.8",
     "nyholm/psr7-server": "^1.1",
@@ -28,8 +29,8 @@
     "davidwyly/rxn-orm": "^0.1"
   },
   "suggest": {
-    "davidwyly/rxn-orm": "^0.1 — Rxn's query builder + ActiveRecord-shaped layer. Required only when you use `Rxn\\Framework\\Data\\Database::run()` or `Rxn\\Framework\\Model\\ActiveRecord` (and the `bin/bench` builder cases). Apps using Rxn purely for routing / DTO binding / middleware don't need this — install it when you reach for the Data / Model layer.",
-    "psr/simple-cache": "^3.0 — required only when using `Psr16IdempotencyStore` to plug an existing PSR-16 cache (Redis / Memcached / APCu) into the Idempotency middleware. Apps using `FileIdempotencyStore` (the default) don't need this."
+    "davidwyly/rxn-orm": "^0.1 \u2014 Rxn's query builder + ActiveRecord-shaped layer. Required only when you use `Rxn\\Framework\\Data\\Database::run()` or `Rxn\\Framework\\Model\\ActiveRecord` (and the `bin/bench` builder cases). Apps using Rxn purely for routing / DTO binding / middleware don't need this \u2014 install it when you reach for the Data / Model layer.",
+    "psr/simple-cache": "^3.0 \u2014 required only when using `Psr16IdempotencyStore` to plug an existing PSR-16 cache (Redis / Memcached / APCu) into the Idempotency middleware. Apps using `FileIdempotencyStore` (the default) don't need this."
   },
   "scripts": {
     "test": "phpunit"
