@@ -166,8 +166,9 @@ final class Binder
         // at compile time, dispatched by index from the closure's
         // `use ($validators)`.
         $validators = [];
+        $dtoFactory = static fn () => $reflection->newInstanceWithoutConstructor();
         $body = "    \$errors = [];\n";
-        $body .= "    \$dto = new \\" . ltrim($class, '\\') . "();\n";
+        $body .= "    \$dto = \$dtoFactory();\n";
         foreach ($reflection->getProperties(\ReflectionProperty::IS_PUBLIC) as $prop) {
             if ($prop->isStatic()) {
                 continue;
@@ -179,7 +180,7 @@ final class Binder
               .  "    }\n"
               .  "    return \$dto;\n";
 
-        $code = "return static function (array \$bag) use (\$validators): \\" . ltrim($class, '\\')
+        $code = "return static function (array \$bag) use (\$validators, \$dtoFactory): \\" . ltrim($class, '\\')
               . " {\n" . $body . "};";
 
         /** @var \Closure(array): RequestDto $closure */
