@@ -63,16 +63,6 @@ class Container
     private static array $constructorPlanCache = [];
 
     /**
-     * Memoise normalised class names. parseClassName is a pure
-     * function (`'\\' . ltrim($input, '\\')`); same input always
-     * produces the same output, and it gets called multiple times
-     * per `get()` (entry call + recursive autowire + addInstance).
-     *
-     * @var array<string, string>
-     */
-    private static array $parsedNameCache = [];
-
-    /**
      * Precomputed normalised name of the Container class itself. Used
      * by `get()` to short-circuit when callers ask for the container.
      * Avoids a `ltrim($class_name, '\\') === ltrim(Container::class, '\\')`
@@ -340,12 +330,10 @@ class Container
         foreach ($constructor->getParameters() as $p) {
             $type = $p->getType();
             if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
-                // Pre-normalise the target FQCN so the recursive
-                // get($directive[1]) lands on the parseClassName cache
-                // immediately instead of paying for ltrim + concat.
+                // Pre-normalise the target FQCN so recursive
+                // get($directive[1]) skips repeated normalisation.
                 $name = $type->getName();
-                $normalised = self::$parsedNameCache[$name]
-                    ??= '\\' . ltrim($name, '\\');
+                $normalised = '\\' . ltrim($name, '\\');
                 $plan[] = ['autowire', $normalised];
                 continue;
             }
@@ -377,8 +365,7 @@ class Container
 
     private function parseClassName($class_name)
     {
-        return self::$parsedNameCache[$class_name]
-            ??= "\\" . ltrim($class_name, '\\');
+        return "\\" . ltrim($class_name, '\\');
     }
 
     /**
