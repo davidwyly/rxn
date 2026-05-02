@@ -107,10 +107,23 @@ final class ResponseTest extends TestCase
             $this->assertSame('about:blank', $pd['type']);
             $this->assertSame('Not Found', $pd['title']);
             $this->assertSame(404, $pd['status']);
-            $this->assertSame('row not found', $pd['detail']);
+            $this->assertSame('Not Found', $pd['detail']);
             $this->assertSame('/users/42', $pd['instance']);
         } finally {
             putenv('ENVIRONMENT');
+        }
+    }
+
+    public function testGetFailureKeepsRequestExceptionMessageInProduction(): void
+    {
+        $previous = getenv('ENVIRONMENT');
+        putenv('ENVIRONMENT=production');
+        try {
+            $response = new Response();
+            $response->getFailure(new \Rxn\Framework\Error\RequestException('bad request', 400));
+            $this->assertSame('bad request', $response->getErrors()['message']);
+        } finally {
+            putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
         }
     }
 
