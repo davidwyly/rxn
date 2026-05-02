@@ -64,7 +64,7 @@ final class IdempotencyTest extends TestCase
             terminal: $this->terminalReturning(200, ['greeting' => 'hi']),
         );
         $this->assertSame(['greeting' => 'hi'], $response->data);
-        $this->assertNull($store->get('k-1'), 'GET should not have been recorded');
+        $this->assertCount(0, glob($this->tmpDir . '/*.json') ?: [], 'GET should not have been recorded');
     }
 
     public function testColdKeyStoresResponse(): void
@@ -74,7 +74,9 @@ final class IdempotencyTest extends TestCase
         $response = $this->runMiddleware($store, $headers, body: '{"a":1}', method: 'POST', terminal: $this->terminalReturning(201, ['id' => 42]));
         $this->assertSame(201, $response->getCode());
 
-        $stored = $store->get('k-cold');
+        $files = glob($this->tmpDir . '/*.json') ?: [];
+        $this->assertCount(1, $files);
+        $stored = StoredResponse::fromArray((array) json_decode((string) file_get_contents($files[0]), true));
         $this->assertInstanceOf(StoredResponse::class, $stored);
         $this->assertSame(201, $stored->statusCode);
         $this->assertSame(['id' => 42], $stored->body['data'] ?? null);
@@ -111,6 +113,45 @@ final class IdempotencyTest extends TestCase
         $this->assertContains('Idempotent-Replayed: true', $emittedHeaders);
     }
 
+
+    public function testSameKeyDoesNotReplayAcrossAuthorizationScopes(): void
+    {
+        $store = $this->makeFileStore();
+        $headers = ['HTTP_IDEMPOTENCY_KEY' => 'k-scope', 'HTTP_AUTHORIZATION' => 'Bearer alice'];
+
+        $alice = $this->runMiddleware($store, $headers, body: '{"a":1}', method: 'POST', terminal: $this->terminalReturning(201, ['id' => 'alice']));
+        $this->assertSame(['id' => 'alice'], $alice->data);
+
+        $count = 0;
+        $bob = $this->runMiddleware(
+            $store,
+            ['HTTP_IDEMPOTENCY_KEY' => 'k-scope', 'HTTP_AUTHORIZATION' => 'Bearer bob'],
+            body: '{"a":1}',
+            method: 'POST',
+            terminal: function () use (&$count): Response {
+                $count++;
+                return $this->terminalReturning(201, ['id' => 'bob'])();
+            },
+        );
+
+        $this->assertSame(1, $count, 'request with different auth scope should not replay cached response');
+        $this->assertSame(['id' => 'bob'], $bob->data);
+    }
+
+    public function testOversizedBodyReturns413(): void
+    {
+        $store = $this->makeFileStore();
+        $response = $this->runMiddleware(
+            $store,
+            ['HTTP_IDEMPOTENCY_KEY' => 'k-big'],
+            body: str_repeat('a', 20),
+            method: 'POST',
+            terminal: $this->terminalReturning(201, ['ok' => true]),
+            maxBodyBytes: 10,
+        );
+        $this->assertSame(413, $response->getCode());
+        $this->assertSame('idempotency_request_body_too_large', $response->meta['type']);
+    }
     public function testFingerprintMismatchReturns400(): void
     {
         $store = $this->makeFileStore();
@@ -130,13 +171,14 @@ final class IdempotencyTest extends TestCase
         $headers = ['HTTP_IDEMPOTENCY_KEY' => 'k-conflict'];
 
         // Acquire the lock manually to simulate "request in-flight".
-        $this->assertTrue($store->lock('k-conflict', 30));
+        $scopedKey = hash('sha256', "\n" . 'k-conflict');
+        $this->assertTrue($store->lock($scopedKey, 30));
 
         $response = $this->runMiddleware($store, $headers, body: '{"a":1}', method: 'POST', terminal: $this->terminalReturning(201, ['ok' => true]));
         $this->assertSame(409, $response->getCode());
         $this->assertSame('idempotency_key_in_use', $response->meta['type']);
 
-        $store->release('k-conflict');
+        $store->release($scopedKey);
     }
 
     public function test5xxResponsesAreNotCached(): void
@@ -151,7 +193,7 @@ final class IdempotencyTest extends TestCase
             method: 'POST',
             terminal: $this->terminalReturning(503, ['error' => 'down']),
         );
-        $this->assertNull($store->get('k-5xx'),
+        $this->assertCount(0, glob($this->tmpDir . '/*.json') ?: [],
             '5xx responses should not be cached so retries can hit a healthy backend');
     }
 
@@ -276,6 +318,7 @@ final class IdempotencyTest extends TestCase
         string $method,
         callable $terminal,
         ?callable $emitHeader = null,
+        int $maxBodyBytes = 1_048_576,
     ): Response {
         // Stash + restore $_SERVER so test isolation is real.
         $prevServer = $_SERVER;
@@ -287,6 +330,7 @@ final class IdempotencyTest extends TestCase
         try {
             $mw = new Idempotency(
                 $store,
+                maxBodyBytes: $maxBodyBytes,
                 emitHeader: $emitHeader,
                 readBody:   static fn (): string => $body,
             );
