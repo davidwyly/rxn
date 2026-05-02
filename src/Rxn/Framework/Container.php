@@ -151,6 +151,10 @@ class Container
             throw new ContainerException("$class_name is not a valid class name");
         }
 
+        // Canonicalise to the declared class casing so process-lifetime
+        // caches don't grow with case-variant aliases of the same class.
+        $class_name = $this->parseClassName(self::reflectionFor($class_name)->getName());
+
         // if we already stored an instance of a statically-bound service class, return it
         if (self::isService($class_name)
             && self::has($class_name)
