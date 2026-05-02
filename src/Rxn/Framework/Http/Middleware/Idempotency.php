@@ -54,6 +54,9 @@ final class Idempotency implements Middleware
     /** @var callable(): string Read the raw request body (for fingerprinting) */
     private $readBody;
 
+    /** @var callable(): string Optional scope (e.g. auth principal) added to key/fingerprint */
+    private $scopeResolver;
+
     public function __construct(
         private readonly IdempotencyStore $store,
         private readonly string $headerName     = 'Idempotency-Key',
@@ -61,11 +64,16 @@ final class Idempotency implements Middleware
         private readonly int    $lockTtlSeconds = 30,
         /** @var list<string> */
         private readonly array  $methods        = ['POST', 'PUT', 'PATCH', 'DELETE'],
+        private readonly int    $maxBodyBytes   = 1_048_576,
         ?callable $emitHeader = null,
         ?callable $readBody   = null,
+        ?callable $scopeResolver = null,
     ) {
         $this->emitHeader = $emitHeader ?? static fn (string $h) => header($h);
         $this->readBody   = $readBody   ?? static fn (): string => (string)file_get_contents('php://input');
+        $this->scopeResolver = $scopeResolver ?? static function (): string {
+            return (string)($_SERVER['HTTP_AUTHORIZATION'] ?? '');
+        };
     }
 
     public function handle(Request $request, callable $next): Response
@@ -79,10 +87,18 @@ final class Idempotency implements Middleware
             return $next($request);
         }
 
+        $scopedKey = $this->scopedKey($key);
         $fingerprint = $this->fingerprint($method);
+        if ($fingerprint === null) {
+            return $this->renderProblem(
+                413,
+                'idempotency_request_body_too_large',
+                'Request body exceeds idempotency fingerprint size limit.',
+            );
+        }
 
         // Replay path — cache hit.
-        $stored = $this->store->get($key);
+        $stored = $this->store->get($scopedKey);
         if ($stored !== null) {
             if ($stored->fingerprint !== $fingerprint) {
                 // Same key, different request shape → client bug.
@@ -97,7 +113,7 @@ final class Idempotency implements Middleware
         }
 
         // Cold path — acquire lock, process, store.
-        if (!$this->store->lock($key, $this->lockTtlSeconds)) {
+        if (!$this->store->lock($scopedKey, $this->lockTtlSeconds)) {
             return $this->renderProblem(
                 409,
                 'idempotency_key_in_use',
@@ -113,7 +129,7 @@ final class Idempotency implements Middleware
             // errors don't get cached as the canonical answer.
             if ($response->getCode() < 500) {
                 $this->store->put(
-                    $key,
+                    $scopedKey,
                     new StoredResponse(
                         statusCode:  $response->getCode(),
                         body:        $response->stripEmptyParams(),
@@ -125,7 +141,7 @@ final class Idempotency implements Middleware
             }
             return $response;
         } finally {
-            $this->store->release($key);
+            $this->store->release($scopedKey);
         }
     }
 
@@ -157,11 +173,21 @@ final class Idempotency implements Middleware
      * + raw request body. Query params are part of the URI and so
      * captured automatically.
      */
-    private function fingerprint(string $method): string
+    private function fingerprint(string $method): ?string
     {
         $uri  = $_SERVER['REQUEST_URI'] ?? '/';
+        $scope = (string)($this->scopeResolver)();
         $body = ($this->readBody)();
-        return hash('sha256', $method . "\n" . $uri . "\n" . $body);
+        if (strlen($body) > $this->maxBodyBytes) {
+            return null;
+        }
+        return hash('sha256', $scope . "\n" . $method . "\n" . $uri . "\n" . $body);
+    }
+
+    private function scopedKey(string $incomingKey): string
+    {
+        $scope = (string)($this->scopeResolver)();
+        return hash('sha256', $scope . "\n" . $incomingKey);
     }
 
     private function renderStored(StoredResponse $stored, Request $request): Response
