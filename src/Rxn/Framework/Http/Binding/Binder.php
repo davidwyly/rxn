@@ -348,17 +348,30 @@ final class Binder
 
     private static function inlineJson(string $valueExpr, string $fieldQ): string
     {
-        return "        if (\\is_string($valueExpr) && !\\json_validate($valueExpr)) {\n"
-             . "            \$errors[] = ['field' => $fieldQ, 'message' => 'must be valid JSON'];\n"
+        return "        if (\\is_string($valueExpr)) {\n"
+             . "            if (\\function_exists('json_validate')) {\n"
+             . "                if (!\\json_validate($valueExpr)) {\n"
+             . "                    \$errors[] = ['field' => $fieldQ, 'message' => 'must be valid JSON'];\n"
+             . "                }\n"
+             . "            } else {\n"
+             . "                try {\n"
+             . "                    \\json_decode($valueExpr, true, 512, \\JSON_THROW_ON_ERROR);\n"
+             . "                } catch (\\JsonException) {\n"
+             . "                    \$errors[] = ['field' => $fieldQ, 'message' => 'must be valid JSON'];\n"
+             . "                }\n"
+             . "            }\n"
              . "        }\n";
     }
 
     private static function inlineDate(string $valueExpr, string $fieldQ): string
     {
         return "        if (\\is_string($valueExpr)) {\n"
-             . "            \$dt = \\DateTimeImmutable::createFromFormat('!Y-m-d', $valueExpr);\n"
-             . "            if (\$dt === false || \$dt->format('Y-m-d') !== $valueExpr) {\n"
+             . "            if (\\str_contains($valueExpr, \"\0\")) {\n"
              . "                \$errors[] = ['field' => $fieldQ, 'message' => 'must be a valid date (YYYY-MM-DD)'];\n"
+             . "            } else {\n"
+             . "                \$dt = \\DateTimeImmutable::createFromFormat('!Y-m-d', $valueExpr);\n"             . "                if (\$dt === false || \$dt->format('Y-m-d') !== $valueExpr) {\n"
+             . "                    \$errors[] = ['field' => $fieldQ, 'message' => 'must be a valid date (YYYY-MM-DD)'];\n"
+             . "                }\n"
              . "            }\n"
              . "        }\n";
     }
