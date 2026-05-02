@@ -117,7 +117,7 @@ Opinionated pieces worth naming:
 
 ### Simplicity
 
-Small enough to read end to end — **~11K LOC of framework code
+Small enough to read end to end — **~12K LOC of framework code
 ships what a comparably-featured Slim or Mezzio composition
 reaches in 70–100K LOC of vendor packages** (DTO binding +
 attribute-driven validation, OpenAPI from reflection, idempotency
@@ -212,7 +212,7 @@ cumulative scoreboard is in
 
 ```bash
 composer install
-vendor/bin/phpunit          # 483 tests, 1048 assertions
+vendor/bin/phpunit          # 554 tests, 1145 assertions
 bin/rxn help                # CLI subcommands
 ```
 
@@ -293,7 +293,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Test counts:
 
-- **Rxn framework:** 483 tests / 1048 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 554 tests / 1145 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
@@ -315,7 +315,9 @@ methodology is in
 | Scaffolded CRUD | [`docs/scaffolding.md`](docs/scaffolding.md) |
 | Error handling | [`docs/error-handling.md`](docs/error-handling.md) |
 | Building blocks (Logger, RateLimiter, Scheduler, Auth, Pipeline, Router, Validator, Migration, Chain, query cache, PSR-7 bridge) | [`docs/building-blocks.md`](docs/building-blocks.md) |
-| PSR-7 / PSR-15 interop — why the framework is bridged not native, and when each stack applies | [`docs/psr-7-interop.md`](docs/psr-7-interop.md) |
+| PSR-7 / PSR-15 interop — bench evidence behind the ingress cost analysis (page predates the PSR-15 native migration; see CHANGELOG) | [`docs/psr-7-interop.md`](docs/psr-7-interop.md) |
+| Plugin architecture — what lives in core vs. as separate Composer packages | [`docs/plugin-architecture.md`](docs/plugin-architecture.md) |
+| Horizons — research directions that could reposition the framework, each sized with cost and ship signal | [`docs/horizons.md`](docs/horizons.md) |
 | CLI (`bin/rxn`) | [`docs/cli.md`](docs/cli.md) |
 | Benchmarks (`bin/bench`) | [`docs/benchmarks.md`](docs/benchmarks.md) |
 | Cross-framework comparison (Slim / Symfony / raw) | [`bench/compare/README.md`](bench/compare/README.md) |
