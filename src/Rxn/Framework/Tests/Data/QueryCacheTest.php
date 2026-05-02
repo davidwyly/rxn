@@ -109,6 +109,25 @@ final class QueryCacheTest extends TestCase
         $this->assertSame([], glob($this->dir . '/*.qcache') ?: []);
     }
 
+    public function testWriteQueriesInvalidateExistingCachedReads(): void
+    {
+        $sql = 'SELECT v FROM kv WHERE k = :k';
+        $read = new Query($this->pdo, Query::TYPE_FETCH, $sql, ['k' => 'greeting']);
+        $read->setCache($this->dir, 60);
+        $this->assertSame(['v' => 'hello'], $read->run());
+        $this->assertCount(1, glob($this->dir . '/*.qcache') ?: []);
+
+        $write = new Query(
+            $this->pdo,
+            Query::TYPE_QUERY,
+            "UPDATE kv SET v = 'changed' WHERE k = 'greeting'"
+        );
+        $write->setCache($this->dir, 60);
+        $write->run();
+
+        $this->assertSame([], glob($this->dir . '/*.qcache') ?: []);
+    }
+
     public function testClearCacheRemovesAllEntries(): void
     {
         $sql = 'SELECT v FROM kv WHERE k = :k';

@@ -286,6 +286,9 @@ class Query
     {
         switch ($this->type) {
             case "query":
+                if ($this->caching) {
+                    $this->clearCache();
+                }
                 return true;
             case "fetchAll":
                 $result = $executed_statement->fetchAll(\PDO::FETCH_ASSOC);
