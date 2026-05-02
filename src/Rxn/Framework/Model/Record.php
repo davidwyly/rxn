@@ -146,13 +146,16 @@ abstract class Record extends Model
 
     public function update($record_id, array $key_values)
     {
-        // Reject attempts to mutate the primary key through an update;
-        // the WHERE clause below already binds its own column value.
-        if (array_key_exists($this->primary_key, $key_values)) {
-            throw new \Exception(
-                "'$this->primary_key' cannot be updated through this request as it is the primary key",
-                400
-            );
+        // Only allow updates to reflected table columns except the primary key.
+        $allowed_columns = array_diff($this->getColumns(), [$this->primary_key]);
+        $invalid_columns = array_diff(array_keys($key_values), $allowed_columns);
+        if (!empty($invalid_columns)) {
+            $invalid = implode(', ', $invalid_columns);
+            throw new \Exception("Update contains forbidden field(s): $invalid", 400);
+        }
+
+        if (empty($key_values)) {
+            throw new \Exception("Cannot update an empty record", 400);
         }
 
         $expressions = [];
