@@ -252,14 +252,17 @@ final class ValidatorTest extends TestCase
         yield 'json object'       => ['json', '{"a":1}', true];
         yield 'json array'        => ['json', '[1,2,3]', true];
         yield 'json invalid'      => ['json', 'not json', false];
+        yield 'json with null byte escape' => ['json', "\"\\u0000\"", true];
         yield 'date valid'        => ['date', '2026-04-29', true];
         yield 'date bad month'    => ['date', '2026-13-01', false];
         yield 'date phantom day'  => ['date', '2024-02-30', false];
+        yield 'date embedded null byte' => ['date', "2026-04-29\0", false];
         yield 'date wrong format' => ['date', '04/29/2026', false];
         yield 'datetime ISO Z'    => ['datetime', '2026-04-29T12:34:56Z', true];
         yield 'datetime ISO offset' => ['datetime', '2026-04-29T12:34:56+00:00', true];
         yield 'datetime SQL'      => ['datetime', '2026-04-29 12:34:56', true];
         yield 'datetime invalid'  => ['datetime', 'tomorrow', false];
+        yield 'datetime embedded null byte' => ['datetime', "2026-04-29T12:34:56Z\0", false];
         yield 'not_blank space-only' => ['not_blank', '   ', false];
         yield 'not_blank tab-only'   => ['not_blank', "\t\n", false];
         yield 'not_blank ok'      => ['not_blank', 'hi', true];
