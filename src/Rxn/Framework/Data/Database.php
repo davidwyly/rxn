@@ -363,6 +363,8 @@ class Database
             $error = $exception->getCode();
             throw new DatabaseException("PDO Exception (code $error)", 500, $exception);
         }
+        $this->transaction_depth--;
+        $this->in_transaction = false;
         return true;
     }
 
