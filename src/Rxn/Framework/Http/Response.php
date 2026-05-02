@@ -3,7 +3,6 @@
 namespace Rxn\Framework\Http;
 
 use \Rxn\Framework\App;
-use \Rxn\Framework\Error\RequestException;
 use \Rxn\Framework\Http\Binding\ValidationException;
 
 /**
@@ -208,9 +207,10 @@ class Response
 
     private function isInternalThrowable(\Throwable $exception, int $code): bool
     {
-        return $code >= 500
-            && !$exception instanceof RequestException
-            && !$exception instanceof ValidationException;
+        // ValidationException always carries user-visible field-level errors — never scrub.
+        // All other 5xx throwables (including RequestException with a 5xx code) are internal
+        // and must be sanitized so implementation details are not exposed in production.
+        return $code >= 500 && !$exception instanceof ValidationException;
     }
 
     /**

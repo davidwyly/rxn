@@ -178,7 +178,7 @@ final class ResponseTest extends TestCase
         }
     }
 
-    public function testProductionRequestExceptionMessageIsNotScrubbed(): void
+    public function testProductionRequestExceptionWith4xxMessageIsNotScrubbed(): void
     {
         $previous = getenv('ENVIRONMENT');
         putenv('ENVIRONMENT=production');
@@ -186,6 +186,22 @@ final class ResponseTest extends TestCase
             $response = new Response();
             $response->getFailure(new RequestException('resource not found', 404));
             $this->assertSame('resource not found', $response->errors['message']);
+        } finally {
+            putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
+        }
+    }
+
+    public function testProductionRequestExceptionWith5xxMessageIsScrubbed(): void
+    {
+        $previous = getenv('ENVIRONMENT');
+        putenv('ENVIRONMENT=production');
+        try {
+            $response = new Response();
+            // Simulates e.g. Request::getSanitizedUrl() throwing a RequestException(510)
+            // with an internal message referencing server configuration.
+            $response->getFailure(new RequestException('verify Apache/Nginx virtual hosts settings', 510));
+            $this->assertSame('Not Extended', $response->errors['message'],
+                '5xx RequestException messages must be scrubbed in production');
         } finally {
             putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
         }
