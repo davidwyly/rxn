@@ -68,7 +68,7 @@ class App
     {
         try {
             $response = $this->dispatch();
-        } catch (\Exception $exception) {
+        } catch (\Throwable $exception) {
             $response = $this->renderFailure($exception);
         }
         self::render($response);
@@ -101,7 +101,7 @@ class App
         return $this->api->controller->trigger();
     }
 
-    private function renderFailure(\Exception $exception): Response
+    private function renderFailure(\Throwable $exception): Response
     {
         $response = $this->container->get(Response::class);
         if ($response->isRendered()) {
