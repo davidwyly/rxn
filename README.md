@@ -212,7 +212,7 @@ cumulative scoreboard is in
 
 ```bash
 composer install
-vendor/bin/phpunit          # 554 tests, 1145 assertions
+vendor/bin/phpunit          # 560 tests, 1159 assertions
 bin/rxn help                # CLI subcommands
 ```
 
@@ -293,7 +293,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Test counts:
 
-- **Rxn framework:** 554 tests / 1145 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 560 tests / 1159 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
