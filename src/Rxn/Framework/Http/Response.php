@@ -3,6 +3,7 @@
 namespace Rxn\Framework\Http;
 
 use \Rxn\Framework\App;
+use \Rxn\Framework\Error\RequestException;
 use \Rxn\Framework\Http\Binding\ValidationException;
 
 /**
@@ -175,10 +176,16 @@ class Response
         $this->setRendered(true);
 
         $code         = self::getErrorCode($exception);
+        $message      = $exception->getMessage();
+        if (getenv('ENVIRONMENT') === 'production'
+            && $this->isInternalThrowable($exception, (int)$code)
+        ) {
+            $message = (string)self::getResponseCodeResult(500);
+        }
         $this->code   = (int)$code;
         $this->errors = [
             'type'    => self::getResponseCodeResult($code),
-            'message' => $exception->getMessage(),
+            'message' => $message,
         ];
         if ($exception instanceof ValidationException) {
             $this->validation_errors = $exception->errors();
@@ -197,6 +204,13 @@ class Response
         ];
 
         return $this;
+    }
+
+    private function isInternalThrowable(\Throwable $exception, int $code): bool
+    {
+        return $code >= 500
+            && !$exception instanceof RequestException
+            && !$exception instanceof ValidationException;
     }
 
     /**
