@@ -160,13 +160,20 @@ final class Load
         // last bin ends mid-tick) and take the median of the rest.
         // Multiplied to req/sec from req/100ms.
         $rpsMedianWindow = 0.0;
-        if (count($windowCounts) > 2) {
+        if (count($windowCounts) > 0) {
             ksort($windowCounts);
-            $bins = array_values($windowCounts);
-            $bins = array_slice($bins, 1, -1);
-            sort($bins);
-            $mid = $bins[(int) (count($bins) / 2)];
-            $rpsMedianWindow = $mid * (1000.0 / $windowMs);
+            $firstBin = (int) array_key_first($windowCounts);
+            $lastBin = (int) array_key_last($windowCounts);
+            $bins = [];
+            for ($b = $firstBin; $b <= $lastBin; $b++) {
+                $bins[] = $windowCounts[$b] ?? 0;
+            }
+            if (count($bins) > 2) {
+                $bins = array_slice($bins, 1, -1);
+                sort($bins);
+                $mid = $bins[(int) (count($bins) / 2)];
+                $rpsMedianWindow = $mid * (1000.0 / $windowMs);
+            }
         }
 
         ksort($statusCounts);
