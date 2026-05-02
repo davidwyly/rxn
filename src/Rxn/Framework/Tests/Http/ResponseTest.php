@@ -3,6 +3,8 @@
 namespace Rxn\Framework\Tests\Http;
 
 use PHPUnit\Framework\TestCase;
+use Rxn\Framework\Error\RequestException;
+use Rxn\Framework\Http\Binding\ValidationException;
 use Rxn\Framework\Http\Response;
 
 final class ResponseTest extends TestCase
@@ -144,5 +146,61 @@ final class ResponseTest extends TestCase
         $decoded  = json_decode($response->toJson(), true);
         $this->assertSame(['id' => 7], $decoded['data']);
         $this->assertTrue($decoded['meta']['success']);
+    }
+
+    // --- production sanitization tests ---
+
+    public function testProductionInternalThrowableMessageIsScrubbed(): void
+    {
+        $previous = getenv('ENVIRONMENT');
+        putenv('ENVIRONMENT=production');
+        try {
+            $response = new Response();
+            $response->getFailure(new \Exception('secret db password', 500));
+            $this->assertSame('Internal Server Error', $response->errors['message']);
+        } finally {
+            putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
+        }
+    }
+
+    public function testProductionNon500InternalThrowableUsesMatchingStatusText(): void
+    {
+        $previous = getenv('ENVIRONMENT');
+        putenv('ENVIRONMENT=production');
+        try {
+            $response = new Response();
+            $response->getFailure(new \Exception('upstream timed out', 503));
+            $this->assertSame(503, $response->getCode());
+            $this->assertSame('Container Unavailable', $response->errors['message'],
+                'sanitized detail should match the actual status text, not hardcode 500');
+        } finally {
+            putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
+        }
+    }
+
+    public function testProductionRequestExceptionMessageIsNotScrubbed(): void
+    {
+        $previous = getenv('ENVIRONMENT');
+        putenv('ENVIRONMENT=production');
+        try {
+            $response = new Response();
+            $response->getFailure(new RequestException('resource not found', 404));
+            $this->assertSame('resource not found', $response->errors['message']);
+        } finally {
+            putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
+        }
+    }
+
+    public function testProductionValidationExceptionMessageIsNotScrubbed(): void
+    {
+        $previous = getenv('ENVIRONMENT');
+        putenv('ENVIRONMENT=production');
+        try {
+            $response = new Response();
+            $response->getFailure(new ValidationException([['field' => 'email', 'message' => 'invalid']]));
+            $this->assertSame('Validation failed', $response->errors['message']);
+        } finally {
+            putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
+        }
     }
 }
