@@ -144,7 +144,7 @@ try {
 
         case 'migrate:status':
             $database  = rxn_make_database($projectRoot);
-            $migration = new Data\Migration($database, rxn_migration_dir($projectRoot));
+            $migration = new Data\Migration($database, rxn_migration_dir($projectRoot), false);
             $applied   = $migration->applied();
             $available = $migration->available();
             $pending   = array_values(array_diff($available, $applied));
