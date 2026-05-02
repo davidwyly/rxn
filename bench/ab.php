@@ -141,7 +141,22 @@ function resolve_ref(string $repo, string $ref): ?string
 
 function make_worktree(string $repo, string $sha): string
 {
-    $dir = sys_get_temp_dir() . '/rxn-ab-' . substr($sha, 0, 8) . '-' . bin2hex(random_bytes(3));
+    $tmp = rtrim(sys_get_temp_dir(), '/');
+    $prefix = $tmp . '/rxn-ab-' . substr($sha, 0, 8) . '-';
+
+    $dir = null;
+    for ($i = 0; $i < 16; $i++) {
+        $candidate = $prefix . bin2hex(random_bytes(16));
+        if (@mkdir($candidate, 0700)) {
+            $dir = $candidate;
+            break;
+        }
+    }
+    if ($dir === null) {
+        fwrite(STDERR, "ab: unable to create private temp worktree dir\n");
+        exit(1);
+    }
+
     // Worktrees can't be reused across refs; force-add a detached
     // checkout at this sha, isolated from any branch.
     $r = run_capture($repo, ['git', 'worktree', 'add', '--detach', $dir, $sha]);

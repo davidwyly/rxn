@@ -2,11 +2,14 @@
 
 namespace Rxn\Framework\Tests\Testing;
 
+use Nyholm\Psr7\Response as Psr7Response;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\TestCase;
-use Rxn\Framework\Http\Middleware;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use Rxn\Framework\Http\Middleware\JsonBody;
 use Rxn\Framework\Http\Router;
 use Rxn\Framework\Testing\TestClient;
 
@@ -17,20 +20,42 @@ final class TestClientTest extends TestCase
         $r = new Router();
         $r->get('/ok',            ['ok']);
         $r->get('/products/{id:int}', ['products.show']);
-        $r->post('/products',      ['products.create']);
+        $r->post('/products',      ['products.create'])->middleware(new JsonBody());
         $r->delete('/products/{id:int}', ['products.delete']);
         return $r;
     }
 
+    /**
+     * Build a JSON-envelope response in the framework's native shape
+     * `{data, meta}` so the existing assertJsonPath / assertJsonStructure
+     * tests work unchanged. The shape is what the framework's own
+     * App::render produces for a success path.
+     */
+    private static function ok(array $data, int $status = 200): ResponseInterface
+    {
+        $body = json_encode([
+            'data' => $data,
+            'meta' => ['success' => true, 'code' => $status],
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        return new Psr7Response(
+            $status,
+            ['Content-Type' => 'application/json'],
+            $body,
+        );
+    }
+
     private function client(Router $router, ?\Closure $dispatch = null): TestClient
     {
-        return new TestClient($router, $dispatch ?? fn (array $hit, Request $req): Response => match ($hit['handler'][0]) {
-            'ok'               => (new Response())->getSuccess(['status' => 'ok']),
-            'products.show'    => (new Response())->getSuccess(['id' => (int)$hit['params']['id']]),
-            'products.create'  => (new Response())->getSuccess(['created' => true, 'body' => $_POST]),
-            'products.delete'  => (new Response())->getSuccess(['deleted' => (int)$hit['params']['id']]),
-            default            => throw new \LogicException('unhandled'),
-        });
+        return new TestClient(
+            $router,
+            $dispatch ?? fn (array $hit, ServerRequestInterface $req): ResponseInterface => match ($hit['handler'][0]) {
+                'ok'               => self::ok(['status' => 'ok']),
+                'products.show'    => self::ok(['id' => (int)$hit['params']['id']]),
+                'products.create'  => self::ok(['created' => true, 'body' => $req->getParsedBody() ?? []]),
+                'products.delete'  => self::ok(['deleted' => (int)$hit['params']['id']]),
+                default            => throw new \LogicException('unhandled'),
+            }
+        );
     }
 
     public function testRoutesAndDispatches(): void
@@ -76,12 +101,14 @@ final class TestClientTest extends TestCase
     public function testMiddlewareStackRuns(): void
     {
         $order = [];
-        $tag = new class($order) implements Middleware {
+        $tag = new class($order) implements MiddlewareInterface {
             public function __construct(private array &$order) {}
-            public function handle(Request $request, callable $next): Response
-            {
+            public function process(
+                ServerRequestInterface $request,
+                RequestHandlerInterface $handler,
+            ): ResponseInterface {
                 $this->order[] = 'middleware';
-                return $next($request);
+                return $handler->handle($request);
             }
         };
 
@@ -90,7 +117,7 @@ final class TestClientTest extends TestCase
 
         $client = $this->client($router, function () use (&$order) {
             $order[] = 'terminal';
-            return (new Response())->getSuccess(['ok' => true]);
+            return self::ok(['ok' => true]);
         });
         $client->get('/m')->assertOk();
 
@@ -116,13 +143,46 @@ final class TestClientTest extends TestCase
         $router = new Router();
         $router->get('/h', ['h']);
         $seen = null;
-        $client = (new TestClient($router, function () use (&$seen) {
-            $seen = $_SERVER['HTTP_AUTHORIZATION'] ?? null;
-            return (new Response())->getSuccess([]);
+        $client = (new TestClient($router, function ($_, ServerRequestInterface $req) use (&$seen) {
+            $seen = $req->getHeaderLine('Authorization');
+            return self::ok([]);
         }))->withHeaders(['Authorization' => 'Bearer xyz']);
 
         $client->get('/h')->assertOk();
         $this->assertSame('Bearer xyz', $seen);
+    }
+
+
+    public function testRequestHeadersDoNotLeakBetweenRequests(): void
+    {
+        $router = new Router();
+        $router->get('/h', ['h']);
+        $seen = [];
+
+        $client = new TestClient($router, function () use (&$seen) {
+            $seen[] = [
+                'authorization' => $_SERVER['HTTP_AUTHORIZATION'] ?? null,
+                'content_type' => $_SERVER['CONTENT_TYPE'] ?? null,
+                'content_length' => $_SERVER['CONTENT_LENGTH'] ?? null,
+            ];
+            return (new Response())->getSuccess([]);
+        });
+
+        $client->get('/h', [
+            'Authorization' => 'Bearer xyz',
+            'Content-Type' => 'application/json',
+            'Content-Length' => '3',
+        ])->assertOk();
+
+        $client->get('/h')->assertOk();
+
+        $this->assertSame('Bearer xyz', $seen[0]['authorization']);
+        $this->assertSame('application/json', $seen[0]['content_type']);
+        $this->assertSame('3', $seen[0]['content_length']);
+
+        $this->assertNull($seen[1]['authorization']);
+        $this->assertNull($seen[1]['content_type']);
+        $this->assertNull($seen[1]['content_length']);
     }
 
     public function testQueryStringIsParsedIntoGet(): void
@@ -130,12 +190,48 @@ final class TestClientTest extends TestCase
         $router = new Router();
         $router->get('/search', ['s']);
         $captured = [];
-        $client = new TestClient($router, function () use (&$captured) {
-            $captured = $_GET;
-            return (new Response())->getSuccess([]);
+        $client = new TestClient($router, function ($_, ServerRequestInterface $req) use (&$captured) {
+            $captured = $req->getQueryParams();
+            return self::ok([]);
         });
         $client->get('/search?q=widgets&page=2')->assertOk();
 
         $this->assertSame(['q' => 'widgets', 'page' => '2'], $captured);
+    }
+
+    public function testJsonBodyIsNullWithoutJsonBodyMiddleware(): void
+    {
+        // TestClient must NOT pre-populate parsedBody for JSON requests.
+        // Without a JsonBody (or equivalent) middleware in the pipeline,
+        // getParsedBody() must return null — mirroring production behaviour
+        // where PsrAdapter::serverRequestFromGlobals() only sets parsedBody
+        // for form-content-type POSTs.
+        $router = new Router();
+        $router->post('/raw', ['raw']); // No JsonBody middleware.
+
+        $parsed = 'NOT_SET';
+        $client = new TestClient($router, function ($_, ServerRequestInterface $req) use (&$parsed) {
+            $parsed = $req->getParsedBody();
+            return self::ok([]);
+        });
+        $client->post('/raw', ['key' => 'value'])->assertOk();
+
+        $this->assertNull($parsed, 'parsedBody must be null without a JSON body parser in the middleware chain');
+    }
+
+    public function testJsonBodyIsPopulatedByJsonBodyMiddleware(): void
+    {
+        // With JsonBody middleware, the same request DOES get a parsed body.
+        $router = new Router();
+        $router->post('/json', ['json'])->middleware(new JsonBody());
+
+        $parsed = null;
+        $client = new TestClient($router, function ($_, ServerRequestInterface $req) use (&$parsed) {
+            $parsed = $req->getParsedBody();
+            return self::ok([]);
+        });
+        $client->post('/json', ['key' => 'value'])->assertOk();
+
+        $this->assertSame(['key' => 'value'], $parsed);
     }
 }

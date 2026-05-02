@@ -2,10 +2,11 @@
 
 namespace Rxn\Framework\Http\Middleware;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Data\Database;
-use Rxn\Framework\Http\Middleware;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
 
 /**
  * Wrap a request in a database transaction. Commits on a 2xx
@@ -36,7 +37,7 @@ use Rxn\Framework\Http\Response;
  * commit/rollback decision is made independently per database
  * based on the same response code.
  */
-final class Transaction implements Middleware
+final class Transaction implements MiddlewareInterface
 {
     public function __construct(
         private readonly Database $database,
@@ -44,19 +45,21 @@ final class Transaction implements Middleware
         private readonly array $wrappedMethods = ['POST', 'PUT', 'PATCH', 'DELETE'],
     ) {}
 
-    public function handle(Request $request, callable $next): Response
-    {
-        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+    ): ResponseInterface {
+        $method = strtoupper($request->getMethod());
         if (!in_array($method, $this->wrappedMethods, true)) {
-            return $next($request);
+            return $handler->handle($request);
         }
 
         $this->database->transactionOpen();
         try {
-            $response = $next($request);
+            $response = $handler->handle($request);
         } catch (\Throwable $exception) {
             // Roll back, then re-raise — the exception handler /
-            // Response::getFailure() further up the stack still
+            // problem-details renderer further up the stack still
             // sees the same Throwable.
             $this->safeRollback();
             throw $exception;
@@ -64,7 +67,8 @@ final class Transaction implements Middleware
         // 2xx → commit, anything else → rollback. Validation
         // failures (422) and client errors (4xx) shouldn't persist
         // partial writes; server errors (5xx) definitely shouldn't.
-        if ($response->getCode() >= 200 && $response->getCode() < 300) {
+        $code = $response->getStatusCode();
+        if ($code >= 200 && $code < 300) {
             $this->database->transactionClose();
         } else {
             $this->safeRollback();

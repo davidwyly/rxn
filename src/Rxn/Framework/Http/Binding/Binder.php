@@ -35,6 +35,26 @@ use Rxn\Framework\Http\Attribute\Uuid;
 final class Binder
 {
     /**
+     * Bind a DTO from a PSR-7 `ServerRequestInterface`. Pulls
+     * query params + parsed body (or, when no parsed body is set,
+     * decodes a JSON body inline) — so callers don't need the
+     * JsonBody middleware to have mutated `$_POST` first.
+     *
+     * Prefer this over `bind()` in PSR-15 / PSR-7 code paths;
+     * `bind()` is retained for back-compat with the convention-
+     * router controllers that still rely on the global `$_GET +
+     * $_POST` merge.
+     *
+     * @template T of RequestDto
+     * @param class-string<T> $class
+     * @return T
+     */
+    public static function bindRequest(string $class, \Psr\Http\Message\ServerRequestInterface $request): RequestDto
+    {
+        return self::bind($class, self::gatherFromRequest($request));
+    }
+
+    /**
      * @template T of RequestDto
      * @param class-string<T> $class
      * @param array<string, mixed>|null $source override for the
@@ -157,6 +177,18 @@ final class Binder
     }
 
     /**
+     * Drop the in-memory compiled-binder cache and any dumped
+     * `*.php` files in the configured cache dir. Mirror of
+     * `Container::clearCache()` — both share the dump cache, so
+     * either entrypoint clears the same files.
+     */
+    public static function clearCache(): void
+    {
+        self::$compiledCache = [];
+        \Rxn\Framework\Codegen\DumpCache::purgeFiles();
+    }
+
+    /**
      * @template T of RequestDto
      * @param class-string<T> $class
      * @return \Closure(array): T
@@ -168,10 +200,21 @@ final class Binder
             throw new \InvalidArgumentException("$class must implement " . RequestDto::class);
         }
 
-        // Side-table for non-inlinable validators: pre-instantiated
-        // at compile time, dispatched by index from the closure's
-        // `use ($validators)`.
-        $validators = [];
+        // Two parallel side-tables for non-inlinable validators:
+        //   $validators     — pre-instantiated objects, used by the
+        //                     eval path via the closure's
+        //                     `use ($validators)` capture.
+        //   $validatorExprs — `'new \\Foo\\Bar(arg, ...)'` strings,
+        //                     used by the dump path to reconstruct
+        //                     `$validators` at the top of the
+        //                     dumped file.
+        // Same index in both arrays refers to the same logical
+        // validator. eval path doesn't need the exprs; dump path
+        // doesn't need the instances. The runtime closure body is
+        // identical in both paths — it always references
+        // `$validators[$idx]`.
+        $validators     = [];
+        $validatorExprs = [];
         $dtoFactory = static fn () => $reflection->newInstanceWithoutConstructor();
         $body = "    \$errors = [];\n";
         $body .= "    \$dto = \$dtoFactory();\n";
@@ -179,18 +222,31 @@ final class Binder
             if ($prop->isStatic()) {
                 continue;
             }
-            $body .= self::compileProperty($prop, $validators);
+            $body .= self::compileProperty($prop, $validators, $validatorExprs);
         }
         $body .= "    if (\$errors !== []) {\n"
               .  "        throw new \\Rxn\\Framework\\Http\\Binding\\ValidationException(\$errors);\n"
               .  "    }\n"
               .  "    return \$dto;\n";
 
-        $code = "return static function (array \$bag) use (\$validators, \$dtoFactory): \\" . ltrim($class, '\\')
-              . " {\n" . $body . "};";
+        $closureBody = "return static function (array \$bag) use (\$validators, \$dtoFactory): \\" . ltrim($class, '\\')
+                     . " {\n" . $body . "};";
 
-        /** @var \Closure(array): RequestDto $closure */
-        $closure = eval($code);
+        if (\Rxn\Framework\Codegen\DumpCache::dir() !== null) {
+            // Dump path: prepend $validators and a serialisable
+            // $dtoFactory so the file is self-contained when
+            // `require`d. The closure's `use ($validators, $dtoFactory)`
+            // captures the file-scope variables at instantiation time.
+            $exprList   = '[' . implode(', ', $validatorExprs) . ']';
+            $classLit   = var_export('\\' . ltrim($class, '\\'), true);
+            $dumpSource = "\$validators = $exprList;\n"
+                        . "\$dtoFactory = static fn () => (new \\ReflectionClass($classLit))->newInstanceWithoutConstructor();\n"
+                        . $closureBody;
+            $closure    = \Rxn\Framework\Codegen\DumpCache::load($dumpSource);
+        } else {
+            $closure = eval($closureBody);
+        }
+
         if (!$closure instanceof \Closure) {
             throw new \RuntimeException("Binder: failed to compile binder for $class");
         }
@@ -201,10 +257,14 @@ final class Binder
      * Generate the PHP fragment that hydrates and validates one
      * property of the DTO.
      *
-     * @param array<int, object> $validators side-table for non-inlinable validators
+     * @param array<int, object> $validators     instances side-table for the eval path
+     * @param array<int, string> $validatorExprs construction-expression side-table for the dump path
      */
-    private static function compileProperty(\ReflectionProperty $prop, array &$validators): string
-    {
+    private static function compileProperty(
+        \ReflectionProperty $prop,
+        array &$validators,
+        array &$validatorExprs,
+    ): string {
         $name   = $prop->getName();
         $nameQ  = self::quoteString($name);
         $type   = $prop->getType();
@@ -249,6 +309,7 @@ final class Binder
             if (is_subclass_of($attrName, Validates::class) || in_array(Validates::class, class_implements($attrName) ?: [], true)) {
                 $instance = $attr->newInstance();
                 $idx = array_push($validators, $instance) - 1;
+                $validatorExprs[$idx] = self::validatorConstructionExpr($attrName, $attr->getArguments());
                 $validateBlock .= "        \$msg = \$validators[$idx]->validate(\$cast);\n"
                                .  "        if (\$msg !== null) { \$errors[] = ['field' => $nameQ, 'message' => \$msg]; }\n";
             }
@@ -481,6 +542,33 @@ final class Binder
         return "'" . strtr($s, ["\\" => "\\\\", "'" => "\\'"]) . "'";
     }
 
+    /**
+     * Render a `new \Foo\Bar(arg, ...)` expression for the dump
+     * path's `$validators = [...]` prelude. Attribute arguments
+     * are restricted by PHP to const expressions (scalars, enum
+     * cases, class constants, arrays of those), all of which
+     * `var_export` round-trips correctly.
+     *
+     * Handles three argument shapes:
+     *   - all positional: `new Foo('US', 1)`
+     *   - all named:      `new Foo(country: 'US', tier: 1)`
+     *   - mixed:          PHP iterates `getArguments()` in source
+     *                     order, named keys are strings, positional
+     *                     keys are ints — we render named with
+     *                     `name: value` and positional bare.
+     *
+     * @param array<int|string, mixed> $args from `ReflectionAttribute::getArguments()`
+     */
+    private static function validatorConstructionExpr(string $class, array $args): string
+    {
+        $parts = [];
+        foreach ($args as $key => $val) {
+            $literal = var_export($val, true);
+            $parts[] = is_string($key) ? "$key: $literal" : $literal;
+        }
+        return 'new \\' . ltrim($class, '\\') . '(' . implode(', ', $parts) . ')';
+    }
+
     private static function ensureIdentifier(string $name): string
     {
         if (preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $name) !== 1) {
@@ -564,5 +652,40 @@ final class Binder
     private static function gatherBag(): array
     {
         return array_merge($_GET ?? [], $_POST ?? []);
+    }
+
+    /**
+     * Build a bag from a PSR-7 ServerRequest. Query params first
+     * (so body keys win on collision, matching gatherBag's
+     * GET → POST precedence). Body is taken from `getParsedBody()`
+     * when middleware has populated it; otherwise we JSON-decode
+     * the raw body inline when Content-Type is application/json.
+     *
+     * @return array<string, mixed>
+     */
+    public static function gatherFromRequest(\Psr\Http\Message\ServerRequestInterface $request): array
+    {
+        $query  = $request->getQueryParams();
+        $parsed = $request->getParsedBody();
+        if (is_array($parsed)) {
+            return array_merge($query, $parsed);
+        }
+        // No parsed body — JSON decode inline if the content type
+        // says so. Mirrors the JsonBody middleware's eligibility
+        // check; not running that middleware is now non-fatal.
+        $contentType = strtolower(trim(explode(';', $request->getHeaderLine('Content-Type'), 2)[0]));
+        if ($contentType === 'application/json') {
+            $raw = (string)$request->getBody();
+            if ($request->getBody()->isSeekable()) {
+                $request->getBody()->rewind();
+            }
+            if ($raw !== '') {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    return array_merge($query, $decoded);
+                }
+            }
+        }
+        return $query;
     }
 }

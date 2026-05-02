@@ -11,6 +11,7 @@ use Rxn\Framework\Tests\Fixture\Container\SystemClock;
 use Rxn\Framework\Tests\Fixture\Container\Timestamper;
 use Rxn\Framework\Tests\Fixture\Container\UserRepo;
 use Rxn\Framework\Tests\Fixture\Container\MemoryUserRepo;
+use Rxn\Framework\Tests\Fixture\Container\NeedsDefaultBag;
 
 final class ContainerTest extends TestCase
 {
@@ -74,9 +75,223 @@ final class ContainerTest extends TestCase
         $c->get(UserRepo::class);
     }
 
+
+    public function testDefaultObjectParameterIsNotSharedAcrossInstances(): void
+    {
+        $c = new Container();
+
+
+        $fromDefaultA = $c->get(NeedsDefaultBag::class);
+        $fromDefaultB = $c->get(NeedsDefaultBag::class);
+
+        $this->assertNotSame($fromDefaultA->bag, $fromDefaultB->bag);
+    }
+
     public function testBindReturnsSelfForChaining(): void
     {
         $c = new Container();
         $this->assertSame($c, $c->bind(Clock::class, SystemClock::class));
+    }
+
+    public function testImplementsPsr11ContainerInterface(): void
+    {
+        $this->assertInstanceOf(\Psr\Container\ContainerInterface::class, new Container());
+    }
+
+    public function testHasReturnsTrueForConstructibleClass(): void
+    {
+        // PSR-11: has() returns true iff get() would succeed. Rxn
+        // autowires any constructible class, so any class-string
+        // that the autoloader can find should report true even
+        // before the first get() call.
+        $c = new Container();
+        $this->assertTrue($c->has(SystemClock::class));
+        $this->assertTrue($c->has(\Rxn\Framework\Container::class));
+    }
+
+    public function testHasReturnsTrueForBoundAbstract(): void
+    {
+        $c = new Container();
+        $c->bind(Clock::class, SystemClock::class);
+        $this->assertTrue($c->has(Clock::class));
+    }
+
+    public function testHasReturnsFalseForUnknownClass(): void
+    {
+        $c = new Container();
+        $this->assertFalse($c->has('Definitely\\Not\\A\\Real\\ClassName'));
+    }
+
+    public function testHasReturnsFalseForAbstractClass(): void
+    {
+        // PSR-11: has() must return false when get() would fail.
+        // Abstract classes satisfy class_exists() but cannot be
+        // instantiated by the autowirer, so has() must return false
+        // unless there is an explicit binding.
+        $c = new Container();
+        $this->assertFalse($c->has(Clock::class), 'unbound abstract must return false');
+
+        // Once bound, has() returns true again.
+        $c->bind(Clock::class, SystemClock::class);
+        $this->assertTrue($c->has(Clock::class), 'bound abstract must return true');
+    }
+
+    public function testGetThrowsPsr11NotFoundExceptionForMissingClass(): void
+    {
+        $c = new Container();
+        try {
+            $c->get('Definitely\\Not\\A\\Real\\ClassName');
+            $this->fail('expected NotFoundExceptionInterface');
+        } catch (\Psr\Container\NotFoundExceptionInterface $e) {
+            // PSR-11 consumers catch the standard interface; a
+            // missing-entry case must satisfy that contract or
+            // libraries that catch only NotFoundExceptionInterface
+            // (and not the broader ContainerExceptionInterface)
+            // will leak an unintended exception.
+            $this->assertInstanceOf(ContainerException::class, $e);
+        }
+    }
+
+    public function testContainerExceptionImplementsPsr11Interface(): void
+    {
+        $this->assertInstanceOf(
+            \Psr\Container\ContainerExceptionInterface::class,
+            new ContainerException('test')
+        );
+    }
+
+    // -------- factory-cache dump (Tier A: eval → require) --------
+
+    /**
+     * Per-test dump dir. setUp() creates one; tearDown() clears
+     * it and unsets the static cacheDir so other tests don't
+     * inherit dump-dir state.
+     */
+    private string $dumpDir = '';
+
+    protected function setUp(): void
+    {
+        $this->dumpDir = sys_get_temp_dir() . '/rxn-container-cache-' . bin2hex(random_bytes(4));
+        @mkdir($this->dumpDir, 0770, true);
+    }
+
+    protected function tearDown(): void
+    {
+        Container::useCacheDir(null);
+        Container::clearCache();
+        if ($this->dumpDir !== '' && is_dir($this->dumpDir)) {
+            foreach (glob($this->dumpDir . '/*') ?: [] as $f) {
+                @unlink($f);
+            }
+            @rmdir($this->dumpDir);
+        }
+    }
+
+    public function testCacheDirDefaultsToNull(): void
+    {
+        Container::useCacheDir(null);
+        $this->assertNull(Container::cacheDir());
+    }
+
+    public function testUseCacheDirRejectsMissingPath(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        Container::useCacheDir('/definitely/not/a/real/path/' . bin2hex(random_bytes(4)));
+    }
+
+    public function testFactoryDumpsToFileWhenCacheDirSet(): void
+    {
+        Container::useCacheDir($this->dumpDir);
+        Container::clearCache();
+
+        $c = new Container();
+        $c->bind(Clock::class, SystemClock::class);
+        $stamper = $c->get(Timestamper::class);
+
+        $this->assertInstanceOf(Timestamper::class, $stamper);
+        $files = glob($this->dumpDir . '/*.php') ?: [];
+        $this->assertNotEmpty($files, 'factory should have been dumped to disk');
+
+        $contents = file_get_contents($files[0]);
+        $this->assertStringContainsString('Timestamper', $contents);
+        $this->assertStringStartsWith("<?php\n", $contents);
+    }
+
+    public function testCacheFileIsContentAddressedAndIdempotent(): void
+    {
+        Container::useCacheDir($this->dumpDir);
+        Container::clearCache();
+
+        $c1 = new Container();
+        $c1->bind(Clock::class, SystemClock::class);
+        $c1->get(Timestamper::class);
+
+        $files1 = glob($this->dumpDir . '/*.php') ?: [];
+        $this->assertCount(1, $files1);
+        $mtime1 = filemtime($files1[0]);
+
+        // Wipe in-memory cache only — file on disk stays. A second
+        // container should reuse the existing file (no re-write).
+        $reflection  = new \ReflectionClass(Container::class);
+        $factoryProp = $reflection->getProperty('factoryCache');
+        $factoryProp->setAccessible(true);
+        $factoryProp->setValue(null, []);
+
+        clearstatcache();
+        $c2 = new Container();
+        $c2->bind(Clock::class, SystemClock::class);
+        $c2->get(Timestamper::class);
+
+        $files2 = glob($this->dumpDir . '/*.php') ?: [];
+        $this->assertSame($files1, $files2, 'no new file should appear');
+        clearstatcache();
+        $this->assertSame($mtime1, filemtime($files2[0]), 'existing file must not be rewritten');
+    }
+
+    public function testFallsBackToEvalWhenCacheDirNotSet(): void
+    {
+        Container::useCacheDir(null);
+        Container::clearCache();
+
+        $c = new Container();
+        $c->bind(Clock::class, SystemClock::class);
+        $stamper = $c->get(Timestamper::class);
+
+        $this->assertInstanceOf(Timestamper::class, $stamper);
+        $this->assertEmpty(
+            glob($this->dumpDir . '/*.php') ?: [],
+            'no files should land in the dump dir when useCacheDir is null',
+        );
+    }
+
+    public function testClearCacheRemovesDumpedFiles(): void
+    {
+        Container::useCacheDir($this->dumpDir);
+        Container::clearCache();
+
+        $c = new Container();
+        $c->bind(Clock::class, SystemClock::class);
+        $c->get(Timestamper::class);
+
+        $this->assertNotEmpty(glob($this->dumpDir . '/*.php'));
+
+        Container::clearCache();
+        $this->assertSame([], glob($this->dumpDir . '/*.php'));
+    }
+
+    public function testDumpedFactoryProducesCorrectInstance(): void
+    {
+        Container::useCacheDir($this->dumpDir);
+        Container::clearCache();
+
+        $c = new Container();
+        $c->bind(Clock::class, SystemClock::class);
+
+        $stamper = $c->get(Timestamper::class);
+        $this->assertInstanceOf(Timestamper::class, $stamper);
+        // The Clock dep arrives via the dumped factory's
+        // $c->get(Clock::class) call — exercise it through the
+        // public method to confirm the factory wired it up.
+        $this->assertStringStartsWith('hello@', $stamper->stamp('hello'));
     }
 }

@@ -2,169 +2,142 @@
 
 namespace Rxn\Framework\Tests\Http\Middleware;
 
+use Nyholm\Psr7\Response as Psr7Response;
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Http\Middleware\ETag;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
 
 final class ETagTest extends TestCase
 {
-    /** @var string[] */
-    private array $headers = [];
-    private ?int $status   = null;
-
-    protected function setUp(): void
+    private function request(string $method = 'GET', array $headers = []): ServerRequestInterface
     {
-        $this->headers = [];
-        $this->status  = null;
-        unset($_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_IF_NONE_MATCH']);
+        return new ServerRequest($method, 'http://test.local/', $headers);
     }
 
-    private function request(): Request
+    /**
+     * Build a JSON response in the framework's `{data, meta}` envelope —
+     * what App::render produces on success. ETag hashes the body bytes,
+     * so the envelope shape directly determines the tag.
+     */
+    private function jsonResponse(mixed $data, int $status = 200): ResponseInterface
     {
-        return (new \ReflectionClass(Request::class))->newInstanceWithoutConstructor();
+        $body = json_encode([
+            'data' => $data,
+            'meta' => ['success' => true, 'code' => $status],
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        return new Psr7Response($status, ['Content-Type' => 'application/json'], $body);
     }
 
-    private function response(mixed $data, int $code = 200): Response
+    private function failure(): ResponseInterface
     {
-        return (new Response())->getSuccess($data);
+        return new Psr7Response(500, ['Content-Type' => 'application/problem+json'], '{"status":500}');
     }
 
-    private function failure(): Response
+    private function terminal(callable $cb): RequestHandlerInterface
     {
-        return (new Response())->getFailure(new \Exception('nope', 500));
-    }
-
-    private function make(): ETag
-    {
-        return new ETag(
-            emitHeader: function (string $h) { $this->headers[] = $h; },
-            emitStatus: function (int $c) { $this->status = $c; },
-        );
+        return new class($cb) implements RequestHandlerInterface {
+            /** @var callable */
+            private $cb;
+            public function __construct(callable $cb) { $this->cb = $cb; }
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                return ($this->cb)($request);
+            }
+        };
     }
 
     public function testEmitsETagHeaderOnGet(): void
     {
-        $_SERVER['REQUEST_METHOD'] = 'GET';
-        $mw = $this->make();
-        $mw->handle($this->request(), fn () => $this->response(['name' => 'ada']));
+        $response = (new ETag())->process(
+            $this->request(),
+            $this->terminal(fn () => $this->jsonResponse(['name' => 'ada'])),
+        );
 
-        $has = false;
-        foreach ($this->headers as $h) {
-            if (str_starts_with($h, 'ETag: W/"')) {
-                $has = true;
-            }
-        }
-        $this->assertTrue($has, 'expected a weak ETag header');
+        $this->assertMatchesRegularExpression('/^W\/"[0-9a-f]{16}"$/', $response->getHeaderLine('ETag'));
     }
 
     public function testShortCircuitsWhenIfNoneMatchMatches(): void
     {
-        $_SERVER['REQUEST_METHOD'] = 'GET';
-
         // First pass: grab the ETag by letting the middleware compute it.
-        $mw1 = $this->make();
-        $mw1->handle($this->request(), fn () => $this->response(['x' => 1]));
-        $etag = null;
-        foreach ($this->headers as $h) {
-            if (str_starts_with($h, 'ETag: ')) {
-                $etag = substr($h, 6);
-            }
-        }
-        $this->assertNotNull($etag);
+        $first = (new ETag())->process(
+            $this->request(),
+            $this->terminal(fn () => $this->jsonResponse(['x' => 1])),
+        );
+        $etag = $first->getHeaderLine('ETag');
+        $this->assertNotEmpty($etag);
 
         // Second pass: send it back as If-None-Match and expect 304.
-        $this->headers = [];
-        $this->status  = null;
-        $_SERVER['HTTP_IF_NONE_MATCH'] = $etag;
         $terminalHit = false;
-
-        $mw2 = $this->make();
-        $result = $mw2->handle($this->request(), function () use (&$terminalHit) {
-            $terminalHit = true;
-            return $this->response(['x' => 1]);
-        });
+        $result = (new ETag())->process(
+            $this->request('GET', ['If-None-Match' => $etag]),
+            $this->terminal(function () use (&$terminalHit) {
+                $terminalHit = true;
+                return $this->jsonResponse(['x' => 1]);
+            }),
+        );
 
         $this->assertTrue($terminalHit, 'terminal still runs — ETag is post-processing, not a gate');
-        $this->assertSame(304, $this->status);
-        $this->assertSame(304, $result->getCode());
-        $this->assertNull($result->data);
+        $this->assertSame(304, $result->getStatusCode());
+        $this->assertSame('', (string)$result->getBody());
     }
 
     public function testWildcardIfNoneMatchShortCircuits(): void
     {
-        $_SERVER['REQUEST_METHOD']     = 'GET';
-        $_SERVER['HTTP_IF_NONE_MATCH'] = '*';
+        $result = (new ETag())->process(
+            $this->request('GET', ['If-None-Match' => '*']),
+            $this->terminal(fn () => $this->jsonResponse(['x' => 1])),
+        );
 
-        $mw     = $this->make();
-        $result = $mw->handle($this->request(), fn () => $this->response(['x' => 1]));
-
-        $this->assertSame(304, $this->status);
-        $this->assertSame(304, $result->getCode());
+        $this->assertSame(304, $result->getStatusCode());
     }
 
     public function testDifferentPayloadDoesNotMatch(): void
     {
-        $_SERVER['REQUEST_METHOD']     = 'GET';
-        $_SERVER['HTTP_IF_NONE_MATCH'] = 'W/"not-a-real-tag"';
+        $result = (new ETag())->process(
+            $this->request('GET', ['If-None-Match' => 'W/"not-a-real-tag"']),
+            $this->terminal(fn () => $this->jsonResponse(['x' => 1])),
+        );
 
-        $mw = $this->make();
-        $result = $mw->handle($this->request(), fn () => $this->response(['x' => 1]));
-
-        $this->assertNull($this->status);
-        $this->assertSame(200, $result->getCode());
-        $this->assertSame(['x' => 1], $result->data);
+        $this->assertSame(200, $result->getStatusCode());
+        $body = json_decode((string)$result->getBody(), true);
+        $this->assertSame(['x' => 1], $body['data']);
     }
 
     public function testPostIsPassedThroughWithoutHeader(): void
     {
-        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $response = (new ETag())->process(
+            $this->request('POST'),
+            $this->terminal(fn () => $this->jsonResponse(['created' => 1], 201)),
+        );
 
-        $mw = $this->make();
-        $mw->handle($this->request(), fn () => $this->response(['created' => 1]));
-
-        $this->assertNull($this->status);
-        $this->assertFalse($this->hasEtagHeader(), 'POST must not get an ETag');
+        $this->assertFalse($response->hasHeader('ETag'), 'POST must not get an ETag');
     }
 
     public function testErrorResponseIsPassedThrough(): void
     {
-        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $response = (new ETag())->process(
+            $this->request(),
+            $this->terminal(fn () => $this->failure()),
+        );
 
-        $mw = $this->make();
-        $mw->handle($this->request(), fn () => $this->failure());
-
-        $this->assertNull($this->status);
-        $this->assertFalse($this->hasEtagHeader(), 'failures must not get an ETag');
-    }
-
-    private function hasEtagHeader(): bool
-    {
-        foreach ($this->headers as $h) {
-            if (stripos($h, 'ETag') === 0) {
-                return true;
-            }
-        }
-        return false;
+        $this->assertFalse($response->hasHeader('ETag'), 'failures must not get an ETag');
     }
 
     public function testEtagIsStableAcrossCalls(): void
     {
-        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $first  = (new ETag())->process(
+            $this->request(),
+            $this->terminal(fn () => $this->jsonResponse(['id' => 7, 'name' => 'ada'])),
+        );
+        $second = (new ETag())->process(
+            $this->request(),
+            $this->terminal(fn () => $this->jsonResponse(['id' => 7, 'name' => 'ada'])),
+        );
 
-        $first  = null;
-        $second = null;
-        foreach (['first', 'second'] as $pass) {
-            $this->headers = [];
-            $mw = $this->make();
-            $mw->handle($this->request(), fn () => $this->response(['id' => 7, 'name' => 'ada']));
-            foreach ($this->headers as $h) {
-                if (str_starts_with($h, 'ETag: ')) {
-                    ${$pass} = $h;
-                }
-            }
-        }
-        $this->assertNotNull($first);
-        $this->assertSame($first, $second, 'same payload must produce the same ETag');
+        $this->assertSame($first->getHeaderLine('ETag'), $second->getHeaderLine('ETag'));
+        $this->assertNotEmpty($first->getHeaderLine('ETag'));
     }
 }

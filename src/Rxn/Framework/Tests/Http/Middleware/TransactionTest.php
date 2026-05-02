@@ -2,11 +2,14 @@
 
 namespace Rxn\Framework\Tests\Http\Middleware;
 
+use Nyholm\Psr7\Response as Psr7Response;
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Data\Database;
 use Rxn\Framework\Http\Middleware\Transaction;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
 
 /**
  * Uses an in-memory PDO sqlite connection wired into a real
@@ -17,47 +20,54 @@ use Rxn\Framework\Http\Response;
  */
 final class TransactionTest extends TestCase
 {
-    private array $serverBackup;
-
-    protected function setUp(): void
+    private function request(string $method): ServerRequestInterface
     {
-        $this->serverBackup = $_SERVER;
+        return new ServerRequest($method, 'http://test.local/');
     }
 
-    protected function tearDown(): void
+    private function terminal(callable $cb): RequestHandlerInterface
     {
-        $_SERVER = $this->serverBackup;
+        return new class($cb) implements RequestHandlerInterface {
+            /** @var callable */
+            private $cb;
+            public function __construct(callable $cb) { $this->cb = $cb; }
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                return ($this->cb)($request);
+            }
+        };
     }
 
     public function testGetRequestPassesThroughWithoutTransaction(): void
     {
         [$db, $pdo] = $this->makeDatabase();
-        $_SERVER['REQUEST_METHOD'] = 'GET';
 
-        $mw = new Transaction($db);
-        $response = $mw->handle($this->bareRequest(), fn () => $this->okResponse(200));
+        $response = (new Transaction($db))->process(
+            $this->request('GET'),
+            $this->terminal(fn () => new Psr7Response(200)),
+        );
 
         $this->assertFalse($pdo->inTransaction(), 'GET should not open a transaction');
-        $this->assertSame(200, $response->getCode());
+        $this->assertSame(200, $response->getStatusCode());
     }
 
     public function testSuccessful2xxCommits(): void
     {
         [$db, $pdo] = $this->makeDatabase();
-        $_SERVER['REQUEST_METHOD'] = 'POST';
 
         $insertedDuringRequest = null;
-        $mw = new Transaction($db);
-        $response = $mw->handle($this->bareRequest(), function () use ($pdo, &$insertedDuringRequest) {
-            $pdo->exec("INSERT INTO widgets (name) VALUES ('committed')");
-            $insertedDuringRequest = $pdo->inTransaction();
-            return $this->okResponse(201);
-        });
+        $response = (new Transaction($db))->process(
+            $this->request('POST'),
+            $this->terminal(function () use ($pdo, &$insertedDuringRequest) {
+                $pdo->exec("INSERT INTO widgets (name) VALUES ('committed')");
+                $insertedDuringRequest = $pdo->inTransaction();
+                return new Psr7Response(201);
+            }),
+        );
 
         $this->assertTrue($insertedDuringRequest, 'transaction should be open during handler');
         $this->assertFalse($pdo->inTransaction(), 'transaction should be closed after handler');
-        $this->assertSame(201, $response->getCode());
-        // Row survived the commit
+        $this->assertSame(201, $response->getStatusCode());
         $count = $pdo->query("SELECT COUNT(*) FROM widgets WHERE name = 'committed'")->fetchColumn();
         $this->assertSame(1, (int)$count);
     }
@@ -65,16 +75,17 @@ final class TransactionTest extends TestCase
     public function testClientError4xxRollsBack(): void
     {
         [$db, $pdo] = $this->makeDatabase();
-        $_SERVER['REQUEST_METHOD'] = 'POST';
 
-        $mw = new Transaction($db);
-        $response = $mw->handle($this->bareRequest(), function () use ($pdo) {
-            $pdo->exec("INSERT INTO widgets (name) VALUES ('should rollback')");
-            return $this->okResponse(422);
-        });
+        $response = (new Transaction($db))->process(
+            $this->request('POST'),
+            $this->terminal(function () use ($pdo) {
+                $pdo->exec("INSERT INTO widgets (name) VALUES ('should rollback')");
+                return new Psr7Response(422);
+            }),
+        );
 
         $this->assertFalse($pdo->inTransaction());
-        $this->assertSame(422, $response->getCode());
+        $this->assertSame(422, $response->getStatusCode());
         $count = $pdo->query("SELECT COUNT(*) FROM widgets WHERE name = 'should rollback'")->fetchColumn();
         $this->assertSame(0, (int)$count, 'rollback should have removed the partial write');
     }
@@ -82,13 +93,14 @@ final class TransactionTest extends TestCase
     public function testServerError5xxRollsBack(): void
     {
         [$db, $pdo] = $this->makeDatabase();
-        $_SERVER['REQUEST_METHOD'] = 'POST';
 
-        $mw = new Transaction($db);
-        $mw->handle($this->bareRequest(), function () use ($pdo) {
-            $pdo->exec("INSERT INTO widgets (name) VALUES ('5xx rollback')");
-            return $this->okResponse(503);
-        });
+        (new Transaction($db))->process(
+            $this->request('POST'),
+            $this->terminal(function () use ($pdo) {
+                $pdo->exec("INSERT INTO widgets (name) VALUES ('5xx rollback')");
+                return new Psr7Response(503);
+            }),
+        );
 
         $count = $pdo->query("SELECT COUNT(*) FROM widgets WHERE name = '5xx rollback'")->fetchColumn();
         $this->assertSame(0, (int)$count);
@@ -97,15 +109,16 @@ final class TransactionTest extends TestCase
     public function testThrownExceptionRollsBackAndRethrows(): void
     {
         [$db, $pdo] = $this->makeDatabase();
-        $_SERVER['REQUEST_METHOD'] = 'POST';
 
-        $mw = new Transaction($db);
         $caught = null;
         try {
-            $mw->handle($this->bareRequest(), function () use ($pdo) {
-                $pdo->exec("INSERT INTO widgets (name) VALUES ('exception rollback')");
-                throw new \RuntimeException('controller blew up');
-            });
+            (new Transaction($db))->process(
+                $this->request('POST'),
+                $this->terminal(function () use ($pdo) {
+                    $pdo->exec("INSERT INTO widgets (name) VALUES ('exception rollback')");
+                    throw new \RuntimeException('controller blew up');
+                }),
+            );
         } catch (\RuntimeException $e) {
             $caught = $e;
         }
@@ -120,20 +133,25 @@ final class TransactionTest extends TestCase
     public function testSequentialRequestsDoNotLeakTransactionState(): void
     {
         [$db, $pdo] = $this->makeDatabase();
-        $_SERVER['REQUEST_METHOD'] = 'POST';
 
         $mw = new Transaction($db);
-        $mw->handle($this->bareRequest(), function () use ($pdo) {
-            $pdo->exec("INSERT INTO widgets (name) VALUES ('first commit')");
-            return $this->okResponse(201);
-        });
+        $mw->process(
+            $this->request('POST'),
+            $this->terminal(function () use ($pdo) {
+                $pdo->exec("INSERT INTO widgets (name) VALUES ('first commit')");
+                return new Psr7Response(201);
+            }),
+        );
 
-        $response = $mw->handle($this->bareRequest(), function () use ($pdo) {
-            $pdo->exec("INSERT INTO widgets (name) VALUES ('should rollback after commit')");
-            return $this->okResponse(422);
-        });
+        $response = $mw->process(
+            $this->request('POST'),
+            $this->terminal(function () use ($pdo) {
+                $pdo->exec("INSERT INTO widgets (name) VALUES ('should rollback after commit')");
+                return new Psr7Response(422);
+            }),
+        );
 
-        $this->assertSame(422, $response->getCode());
+        $this->assertSame(422, $response->getStatusCode());
         $this->assertFalse($pdo->inTransaction());
         $countCommitted = $pdo->query("SELECT COUNT(*) FROM widgets WHERE name = 'first commit'")->fetchColumn();
         $countRolledBack = $pdo->query("SELECT COUNT(*) FROM widgets WHERE name = 'should rollback after commit'")->fetchColumn();
@@ -144,15 +162,16 @@ final class TransactionTest extends TestCase
     public function testCustomMethodList(): void
     {
         [$db, $pdo] = $this->makeDatabase();
-        $_SERVER['REQUEST_METHOD'] = 'GET';
 
         // Apps that want read-side snapshot isolation can opt GETs in.
-        $mw = new Transaction($db, wrappedMethods: ['GET', 'POST']);
         $duringHandler = null;
-        $mw->handle($this->bareRequest(), function () use ($pdo, &$duringHandler) {
-            $duringHandler = $pdo->inTransaction();
-            return $this->okResponse(200);
-        });
+        (new Transaction($db, wrappedMethods: ['GET', 'POST']))->process(
+            $this->request('GET'),
+            $this->terminal(function () use ($pdo, &$duringHandler) {
+                $duringHandler = $pdo->inTransaction();
+                return new Psr7Response(200);
+            }),
+        );
 
         $this->assertTrue($duringHandler);
         $this->assertFalse($pdo->inTransaction());
@@ -171,19 +190,5 @@ final class TransactionTest extends TestCase
         $db = (new \ReflectionClass(Database::class))->newInstanceWithoutConstructor();
         $db->connect($pdo);
         return [$db, $pdo];
-    }
-
-    private function bareRequest(): Request
-    {
-        return (new \ReflectionClass(Request::class))->newInstanceWithoutConstructor();
-    }
-
-    private function okResponse(int $code): Response
-    {
-        $r = (new \ReflectionClass(Response::class))->newInstanceWithoutConstructor();
-        $codeProp = (new \ReflectionClass(Response::class))->getProperty('code');
-        $codeProp->setAccessible(true);
-        $codeProp->setValue($r, $code);
-        return $r;
     }
 }

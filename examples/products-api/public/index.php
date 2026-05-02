@@ -14,18 +14,21 @@
  *
  *   1. Convention-free explicit Router with typed `{id:int}` constraint
  *   2. `Binder::bind(CreateProduct::class, $body)` for input validation
- *   3. `Pipeline` of middlewares — RequestId, BearerAuth, Idempotency,
- *      Pagination, Transaction
+ *   3. PSR-15 `Pipeline` of middlewares — RequestId, BearerAuth,
+ *      Idempotency, Pagination, Transaction
  *   4. RFC 7807 Problem Details for every failure mode
  *   5. `HealthCheck::register` for the readiness endpoint
+ *
+ * The whole front controller is plain PSR-7/15: ServerRequest in
+ * via `PsrAdapter::serverRequestFromGlobals`, threaded through a
+ * PSR-15 `Pipeline`, ResponseInterface out via `PsrAdapter::emit`.
+ * No reflection-stubbed Request/Response objects, no side-channel
+ * `header()` calls — every middleware modifies the response on the
+ * way out via PSR-7's `withHeader`.
  */
 
-// Use the framework's own vendor — keeps the example self-contained
-// in this monorepo without a second `composer install`.
 require __DIR__ . '/../../../vendor/autoload.php';
 
-// Hand-register the example's PSR-4 prefix so we don't need a
-// separate composer.json autoloader either.
 spl_autoload_register(static function (string $class): void {
     $prefix = 'Example\\Products\\';
     if (str_starts_with($class, $prefix)) {
@@ -39,6 +42,10 @@ spl_autoload_register(static function (string $class): void {
 
 use Example\Products\Dto\CreateProduct;
 use Example\Products\Repo\ProductRepo;
+use Psr\Http\Message\ServerRequestInterface;
+use Rxn\Framework\App;
+use Rxn\Framework\Concurrency\HttpClient as AsyncHttpClient;
+use Rxn\Framework\Concurrency\Scheduler;
 use Rxn\Framework\Http\Binding\Binder;
 use Rxn\Framework\Http\Binding\ValidationException;
 use Rxn\Framework\Http\Health\HealthCheck;
@@ -49,6 +56,8 @@ use Rxn\Framework\Http\Middleware\Pagination as PaginationMiddleware;
 use Rxn\Framework\Http\Pagination\Pagination;
 use Rxn\Framework\Http\Router;
 use Rxn\Framework\Service\Auth;
+
+use function Rxn\Framework\Concurrency\awaitAll;
 
 // ---- bootstrap ------------------------------------------------------
 
@@ -104,13 +113,13 @@ $router->get('/products/{id:int}', function (array $params) use ($repo) {
     return ['data' => $row];
 });
 
-$router->post('/products', function () use ($repo) {
-    $raw  = file_get_contents('php://input') ?: 'null';
-    $body = json_decode($raw, true);
-    $body = is_array($body) ? $body : [];
+$router->post('/products', function (array $params, ServerRequestInterface $request) use ($repo) {
     try {
+        // bindRequest reads ?query + parsedBody (or decodes a JSON
+        // body inline) — no dependency on JsonBody middleware
+        // having mutated $_POST first.
         /** @var CreateProduct $dto */
-        $dto = Binder::bind(CreateProduct::class, $body);
+        $dto = Binder::bindRequest(CreateProduct::class, $request);
     } catch (ValidationException $e) {
         return [
             'meta' => [
@@ -133,64 +142,85 @@ $router->post('/products', function () use ($repo) {
     ->middleware($bearer)
     ->middleware($idempotency);
 
+// ---- dashboard fan-out (fiber-await demo) ---------------------------
+//
+// GET /dashboard/{id}?mode=parallel|sequential
+//
+// A "compose a response from N upstream microservices" route, the
+// shape that gives the fiber-await mechanism its win. Hits three
+// fake-upstream backends (boot them with `bench/fiber/backend.php`
+// on ports 8101/8102/8103 — see the README), in either:
+//
+//   ?mode=sequential — three blocking file_get_contents in series
+//                      (~300ms wall-clock, three 100ms sleeps stacked)
+//   ?mode=parallel   — three curl handles overlapped via the
+//                      Scheduler/Promise/awaitAll machinery
+//                      (~100ms wall-clock — bound by the slowest)
+//
+// The response's `meta.wall_clock_ms` shows the difference live.
+// Same five lines of fan-out, two completely different latency
+// profiles. Sync code outside the `Scheduler::run()` body is
+// untouched — handlers that don't compose upstream calls don't
+// pay any cost.
+$router->get('/dashboard/{id:int}', function (array $params, ServerRequestInterface $request): array {
+    $id   = (int) $params['id'];
+    $mode = $request->getQueryParams()['mode'] ?? 'parallel';
+
+    $base = getenv('DASHBOARD_BACKEND_BASE') ?: 'http://127.0.0.1';
+    $urls = [
+        'inventory' => "$base:8101/inventory/$id",
+        'pricing'   => "$base:8102/pricing/$id",
+        'reviews'   => "$base:8103/reviews/$id",
+    ];
+
+    $started = hrtime(true);
+    if ($mode === 'sequential') {
+        $bodies = [];
+        foreach ($urls as $key => $url) {
+            $bodies[$key] = (string) @file_get_contents($url);
+        }
+    } else {
+        $scheduler = new Scheduler();
+        $client    = new AsyncHttpClient($scheduler);
+        $bodies = $scheduler->run(static fn (): array => awaitAll(array_map(
+            static fn (string $url) => $client->getAsync($url),
+            $urls,
+        )));
+    }
+    $wallClockMs = (hrtime(true) - $started) / 1e6;
+
+    $decoded = [];
+    foreach ($bodies as $key => $body) {
+        $decoded[$key] = $body !== '' ? json_decode($body, true) : null;
+    }
+
+    return [
+        'data' => $decoded,
+        'meta' => [
+            'mode'          => $mode,
+            'fanout'        => count($urls),
+            'wall_clock_ms' => round($wallClockMs, 1),
+        ],
+    ];
+});
+
 // ---- dispatch -------------------------------------------------------
 
-$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-$path   = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+// `App::serve()` builds the PSR-7 ServerRequest from globals, runs
+// it through the route's middleware Pipeline, invokes the matched
+// handler via the framework's default invoker, and emits a PSR-7
+// response. The `(array $hit, ServerRequestInterface $req)` invoker
+// signature lets handlers receive the request without further
+// indirection — handlers in this app return arrays which `App::serve`
+// wraps in the standard `{data, meta}` envelope.
+//
+// Apps that prefer the explicit wire-up (the shape of this file
+// before this commit) can still call `PsrAdapter::serverRequestFromGlobals()`
+// + `Pipeline::run()` + `PsrAdapter::emit()` directly — `App::serve`
+// is sugar, not magic.
+//
+// Apps using convention routing (/v{N}/{controller}/{action})
+// instead of explicit Router stay on `App::run()` — `serve()`
+// does not replace it.
 
-$hit = $router->match($method, $path);
-if ($hit === null) {
-    http_response_code(404);
-    header('Content-Type: application/problem+json');
-    echo json_encode([
-        'type'   => 'not_found',
-        'title'  => 'Not Found',
-        'status' => 404,
-    ], JSON_UNESCAPED_SLASHES);
-    return;
-}
-
-// Build the pipeline. Tiny inline runner — production apps lean on
-// App::run() or Psr15Pipeline; this example keeps the dispatcher in
-// view to show how the pieces fit. The chain deals only in Response
-// objects: the terminal wraps the handler's array result once, then
-// every middleware gets and returns a Response.
-$middlewares = $hit['middlewares'];
-
-$arrayToResponse = static function (array $body): \Rxn\Framework\Http\Response {
-    $r = (new \ReflectionClass(\Rxn\Framework\Http\Response::class))->newInstanceWithoutConstructor();
-    $r->data = $body['data'] ?? null;
-    $r->meta = $body['meta'] ?? null;
-    $codeProp = (new \ReflectionClass(\Rxn\Framework\Http\Response::class))->getProperty('code');
-    $codeProp->setAccessible(true);
-    $codeProp->setValue($r, (int) ($body['meta']['status'] ?? 200));
-    return $r;
-};
-
-$terminal = static function () use ($hit, $arrayToResponse): \Rxn\Framework\Http\Response {
-    $handler = $hit['handler'];
-    $body    = is_callable($handler) ? $handler($hit['params']) : null;
-    return $arrayToResponse(is_array($body) ? $body : []);
-};
-
-$next = $terminal;
-for ($i = count($middlewares) - 1; $i >= 0; $i--) {
-    $mw = $middlewares[$i];
-    $next = static function () use ($mw, $next): \Rxn\Framework\Http\Response {
-        $stub = (new \ReflectionClass(\Rxn\Framework\Http\Request::class))->newInstanceWithoutConstructor();
-        return $mw->handle($stub, static fn () => $next());
-    };
-}
-
-/** @var \Rxn\Framework\Http\Response $response */
-$response = $next();
-
-// Render — status + content-type + JSON body.
-$status = $response->getCode();
-http_response_code($status);
-$contentType = $status >= 400 ? 'application/problem+json' : 'application/json';
-header('Content-Type: ' . $contentType);
-echo json_encode(
-    array_filter(['data' => $response->data, 'meta' => $response->meta], static fn ($v) => $v !== null),
-    JSON_UNESCAPED_SLASHES,
-);
+App::serve($router);

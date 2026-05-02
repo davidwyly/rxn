@@ -23,8 +23,8 @@ final class AppErrorHandlingTest extends TestCase
         $source = $this->extractMethodSource($method);
 
         $this->assertStringContainsString("? ['message' => 'Startup error']", $source);
-        $this->assertStringContainsString("'file'    => $exception->getFile()", $source);
-        $this->assertStringContainsString("'line'    => $exception->getLine()", $source);
+        $this->assertStringContainsString("'file'    => \$exception->getFile()", $source);
+        $this->assertStringContainsString("'line'    => \$exception->getLine()", $source);
     }
 
     private function extractMethodSource(\ReflectionMethod $method): string
