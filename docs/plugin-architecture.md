@@ -27,6 +27,14 @@ contract to be useful. When there are, this doc grows.
   test rig that the JS validator's correctness rests on
   (runs adversarial inputs through PHP and the emitted JS,
   asserts agreement on the failing-field set per input).
+- `Rxn\Framework\Codegen\PolyparityExporter` — emits a
+  [polyparity](https://github.com/davidwyly/polyparity) YAML
+  spec from any `RequestDto`. Bridge for PHP shops with
+  polyglot frontends: the same DTO drives Rxn's PHP server,
+  the JS twin via `JsValidatorEmitter`, AND a polyparity spec
+  that polyparity's TS / Python / future-language siblings
+  consume. Same coverage matrix as the JS emitter, same
+  refusal posture on out-of-scope attributes.
 
 **Outside core (separate Composer packages):**
 
