@@ -117,6 +117,15 @@ final class Psr15PipelineTest extends TestCase
         $this->assertFalse($terminalHit);
     }
 
+
+    public function testHandleAfterRunThrows(): void
+    {
+        $pipeline = new Psr15Pipeline();
+        $pipeline->run($this->request(), $this->terminal($this->response()));
+
+        $this->expectException(\LogicException::class);
+        $pipeline->handle($this->request());
+    }
     public function testHandleWithoutRunThrows(): void
     {
         $this->expectException(\LogicException::class);
