@@ -3,6 +3,7 @@
 namespace Rxn\Framework\Http;
 
 use \Rxn\Framework\App;
+use \Rxn\Framework\Error\RequestException;
 use \Rxn\Framework\Http\Binding\ValidationException;
 
 /**
@@ -170,7 +171,7 @@ class Response
         $this->code   = (int)$code;
         $this->errors = [
             'type'    => self::getResponseCodeResult($code),
-            'message' => $exception->getMessage(),
+            'message' => self::getPublicErrorMessage($exception),
         ];
         if ($exception instanceof ValidationException) {
             $this->validation_errors = $exception->errors();
@@ -189,6 +190,24 @@ class Response
         ];
 
         return $this;
+    }
+
+
+    /**
+     * Keep explicit client-facing request errors verbatim, but hide
+     * internal Throwable detail in production.
+     */
+    private static function getPublicErrorMessage(\Throwable $exception): string
+    {
+        if (getenv('ENVIRONMENT') !== 'production') {
+            return $exception->getMessage();
+        }
+
+        if ($exception instanceof RequestException) {
+            return $exception->getMessage();
+        }
+
+        return self::getResponseCodeResult(self::getErrorCode($exception));
     }
 
     /**
