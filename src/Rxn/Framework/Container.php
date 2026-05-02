@@ -384,6 +384,14 @@ class Container implements ContainerInterface
         }
         $plan = [];
         foreach ($constructor->getParameters() as $p) {
+            if ($p->isDefaultValueAvailable()) {
+                $plan[] = ['default'];
+                continue;
+            }
+            if ($p->allowsNull()) {
+                $plan[] = ['null'];
+                continue;
+            }
             $type = $p->getType();
             if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
                 // Pre-normalise the target FQCN so recursive
@@ -391,14 +399,6 @@ class Container implements ContainerInterface
                 $name = $type->getName();
                 $normalised = '\\' . ltrim($name, '\\');
                 $plan[] = ['autowire', $normalised];
-                continue;
-            }
-            if ($p->isDefaultValueAvailable()) {
-                $plan[] = ['default'];
-                continue;
-            }
-            if ($p->allowsNull()) {
-                $plan[] = ['null'];
                 continue;
             }
             $plan[] = ['fail', $p->getName()];
