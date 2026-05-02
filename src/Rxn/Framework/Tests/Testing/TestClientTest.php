@@ -152,6 +152,39 @@ final class TestClientTest extends TestCase
         $this->assertSame('Bearer xyz', $seen);
     }
 
+
+    public function testRequestHeadersDoNotLeakBetweenRequests(): void
+    {
+        $router = new Router();
+        $router->get('/h', ['h']);
+        $seen = [];
+
+        $client = new TestClient($router, function () use (&$seen) {
+            $seen[] = [
+                'authorization' => $_SERVER['HTTP_AUTHORIZATION'] ?? null,
+                'content_type' => $_SERVER['CONTENT_TYPE'] ?? null,
+                'content_length' => $_SERVER['CONTENT_LENGTH'] ?? null,
+            ];
+            return (new Response())->getSuccess([]);
+        });
+
+        $client->get('/h', [
+            'Authorization' => 'Bearer xyz',
+            'Content-Type' => 'application/json',
+            'Content-Length' => '3',
+        ])->assertOk();
+
+        $client->get('/h')->assertOk();
+
+        $this->assertSame('Bearer xyz', $seen[0]['authorization']);
+        $this->assertSame('application/json', $seen[0]['content_type']);
+        $this->assertSame('3', $seen[0]['content_length']);
+
+        $this->assertNull($seen[1]['authorization']);
+        $this->assertNull($seen[1]['content_type']);
+        $this->assertNull($seen[1]['content_length']);
+    }
+
     public function testQueryStringIsParsedIntoGet(): void
     {
         $router = new Router();
