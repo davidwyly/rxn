@@ -117,6 +117,30 @@ final class TransactionTest extends TestCase
         $this->assertSame(0, (int)$count);
     }
 
+    public function testSequentialRequestsDoNotLeakTransactionState(): void
+    {
+        [$db, $pdo] = $this->makeDatabase();
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+
+        $mw = new Transaction($db);
+        $mw->handle($this->bareRequest(), function () use ($pdo) {
+            $pdo->exec("INSERT INTO widgets (name) VALUES ('first commit')");
+            return $this->okResponse(201);
+        });
+
+        $response = $mw->handle($this->bareRequest(), function () use ($pdo) {
+            $pdo->exec("INSERT INTO widgets (name) VALUES ('should rollback after commit')");
+            return $this->okResponse(422);
+        });
+
+        $this->assertSame(422, $response->getCode());
+        $this->assertFalse($pdo->inTransaction());
+        $countCommitted = $pdo->query("SELECT COUNT(*) FROM widgets WHERE name = 'first commit'")->fetchColumn();
+        $countRolledBack = $pdo->query("SELECT COUNT(*) FROM widgets WHERE name = 'should rollback after commit'")->fetchColumn();
+        $this->assertSame(1, (int)$countCommitted);
+        $this->assertSame(0, (int)$countRolledBack);
+    }
+
     public function testCustomMethodList(): void
     {
         [$db, $pdo] = $this->makeDatabase();
