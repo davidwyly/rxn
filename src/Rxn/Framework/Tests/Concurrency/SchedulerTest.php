@@ -115,6 +115,32 @@ final class SchedulerTest extends TestCase
         $this->assertSame('B wins', $result);
     }
 
+    public function testAwaitAnyReturnsLaterFulfillmentWhenEarlierPromiseRejects(): void
+    {
+        // Key correctness test: awaitAny must NOT return early on the
+        // first *settled* promise when that promise is a rejection —
+        // it must continue waiting until a fulfilled promise is found.
+        $scheduler = new Scheduler();
+
+        $a = new Promise($scheduler);
+        $b = new Promise($scheduler);
+        $c = new Promise($scheduler);
+
+        // Settle from a separate fiber so we can control ordering.
+        $result = $scheduler->run(function () use ($scheduler, $a, $b, $c) {
+            // Kick off a producer fiber that rejects a and fulfills b
+            // in sequence, with c left pending.
+            $producer = new \Fiber(function () use ($a, $b): void {
+                $a->reject(new \RuntimeException('a rejected'));
+                $b->fulfill('b fulfilled');
+            });
+            $producer->start();
+            return awaitAny([$a, $b, $c]);
+        });
+
+        $this->assertSame('b fulfilled', $result);
+    }
+
     public function testAwaitAnyAllRejectionsRethrowsLast(): void
     {
         $scheduler = new Scheduler();

@@ -142,14 +142,49 @@ final class TestClient
         array $headers,
     ): ServerRequestInterface {
         $uri = 'http://test.local' . $path;
+
+        // Implicitly set Content-Type: application/json when sending a
+        // body as a PHP array and the caller hasn't specified a type.
+        // This mirrors what real HTTP clients do and ensures JsonBody
+        // (or similar) middleware sees the correct content-type.
+        if ($body !== null && self::headerValue($headers, 'content-type') === null) {
+            $headers['Content-Type'] = 'application/json';
+        }
+
         $jsonBody = $body !== null ? json_encode($body, JSON_THROW_ON_ERROR) : null;
 
         $request = new ServerRequest($method, $uri, $headers, $jsonBody, '1.1', $_SERVER);
         $request = $request->withQueryParams($query);
         if ($body !== null) {
-            $request = $request->withParsedBody($body);
+            // Only pre-populate parsedBody for form submissions — this matches
+            // PsrAdapter::serverRequestFromGlobals() production behaviour.
+            // JSON requests must go through JsonBody (or similar) middleware;
+            // tests that skip that middleware will correctly see null from
+            // getParsedBody() rather than silently receiving a pre-parsed value.
+            $contentType = strtolower(trim(explode(';', self::headerValue($headers, 'content-type') ?? '', 2)[0]));
+            if ($contentType === 'application/x-www-form-urlencoded'
+                || $contentType === 'multipart/form-data'
+            ) {
+                $request = $request->withParsedBody($body);
+            }
         }
         return $request;
+    }
+
+    /**
+     * Case-insensitive header lookup over an assoc array.
+     *
+     * @param array<string, string> $headers
+     */
+    private static function headerValue(array $headers, string $name): ?string
+    {
+        $needle = strtolower($name);
+        foreach ($headers as $k => $v) {
+            if (strtolower($k) === $needle) {
+                return $v;
+            }
+        }
+        return null;
     }
 
     /**

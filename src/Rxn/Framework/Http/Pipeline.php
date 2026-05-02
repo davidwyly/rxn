@@ -55,12 +55,19 @@ final class Pipeline implements RequestHandlerInterface
 
     /**
      * Run the pipeline against $request, landing on $terminal.
+     * State is reset in a finally block so the same Pipeline instance
+     * can safely be reused across requests.
      */
     public function run(ServerRequestInterface $request, RequestHandlerInterface $terminal): ResponseInterface
     {
         $this->terminal = $terminal;
         $this->index    = 0;
-        return $this->handle($request);
+        try {
+            return $this->handle($request);
+        } finally {
+            $this->index    = 0;
+            $this->terminal = null;
+        }
     }
 
     /**

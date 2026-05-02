@@ -411,10 +411,11 @@ class Container implements ContainerInterface
      * without throwing.
      *
      * Rxn's container autowires any constructible class, so for a
-     * class-string identifier this is equivalent to "class exists
-     * and isn't already failing as a binding." We also short-circuit
-     * on the self-lookup key, declared bindings, and the instance
-     * cache so the lookup is O(1) for the hot paths.
+     * class-string identifier this is equivalent to "class exists,
+     * isn't abstract, and isn't already failing as a binding."
+     * We also short-circuit on the self-lookup key, declared
+     * bindings, and the instance cache so the lookup is O(1) for
+     * the hot paths.
      *
      * Doesn't catch circular-dependency failures — those are
      * detectable only at construction time. PSR-11 explicitly
@@ -432,7 +433,13 @@ class Container implements ContainerInterface
         if (isset($this->instances[$class_name])) {
             return true;
         }
-        return class_exists($class_name);
+        if (!class_exists($class_name)) {
+            return false;
+        }
+        // Abstract classes satisfy class_exists() but cannot be
+        // instantiated by the autowirer, so get() would throw.
+        // has() must only return true when get() would succeed.
+        return !self::reflectionFor($class_name)->isAbstract();
     }
 
     private function parseClassName($class_name)

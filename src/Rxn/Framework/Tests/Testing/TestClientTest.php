@@ -9,6 +9,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Rxn\Framework\Http\Middleware\JsonBody;
 use Rxn\Framework\Http\Router;
 use Rxn\Framework\Testing\TestClient;
 
@@ -19,7 +20,7 @@ final class TestClientTest extends TestCase
         $r = new Router();
         $r->get('/ok',            ['ok']);
         $r->get('/products/{id:int}', ['products.show']);
-        $r->post('/products',      ['products.create']);
+        $r->post('/products',      ['products.create'])->middleware(new JsonBody());
         $r->delete('/products/{id:int}', ['products.delete']);
         return $r;
     }
@@ -163,5 +164,41 @@ final class TestClientTest extends TestCase
         $client->get('/search?q=widgets&page=2')->assertOk();
 
         $this->assertSame(['q' => 'widgets', 'page' => '2'], $captured);
+    }
+
+    public function testJsonBodyIsNullWithoutJsonBodyMiddleware(): void
+    {
+        // TestClient must NOT pre-populate parsedBody for JSON requests.
+        // Without a JsonBody (or equivalent) middleware in the pipeline,
+        // getParsedBody() must return null — mirroring production behaviour
+        // where PsrAdapter::serverRequestFromGlobals() only sets parsedBody
+        // for form-content-type POSTs.
+        $router = new Router();
+        $router->post('/raw', ['raw']); // No JsonBody middleware.
+
+        $parsed = 'NOT_SET';
+        $client = new TestClient($router, function ($_, ServerRequestInterface $req) use (&$parsed) {
+            $parsed = $req->getParsedBody();
+            return self::ok([]);
+        });
+        $client->post('/raw', ['key' => 'value'])->assertOk();
+
+        $this->assertNull($parsed, 'parsedBody must be null without a JSON body parser in the middleware chain');
+    }
+
+    public function testJsonBodyIsPopulatedByJsonBodyMiddleware(): void
+    {
+        // With JsonBody middleware, the same request DOES get a parsed body.
+        $router = new Router();
+        $router->post('/json', ['json'])->middleware(new JsonBody());
+
+        $parsed = null;
+        $client = new TestClient($router, function ($_, ServerRequestInterface $req) use (&$parsed) {
+            $parsed = $req->getParsedBody();
+            return self::ok([]);
+        });
+        $client->post('/json', ['key' => 'value'])->assertOk();
+
+        $this->assertSame(['key' => 'value'], $parsed);
     }
 }

@@ -145,4 +145,62 @@ final class PipelineTest extends TestCase
 
         $this->assertSame([spl_object_id($req), spl_object_id($req)], $seen);
     }
+
+    public function testPipelineCanBeReusedForMultipleRequests(): void
+    {
+        // run() must reset state so a reused pipeline doesn't skip
+        // middleware or use a stale terminal on the second request.
+        $hits = [];
+        $recorder = new class($hits) implements MiddlewareInterface {
+            public function __construct(private array &$hits) {}
+            public function process(
+                ServerRequestInterface $request,
+                RequestHandlerInterface $handler,
+            ): ResponseInterface {
+                $this->hits[] = 'mw';
+                return $handler->handle($request);
+            }
+        };
+
+        $pipeline = (new Pipeline())->add($recorder);
+
+        $first  = $pipeline->run($this->request(), $this->terminal(fn () => new Psr7Response(200)));
+        $second = $pipeline->run($this->request(), $this->terminal(fn () => new Psr7Response(201)));
+
+        $this->assertSame(200, $first->getStatusCode());
+        $this->assertSame(201, $second->getStatusCode());
+        $this->assertSame(['mw', 'mw'], $hits, 'middleware must run on every request, not just the first');
+    }
+
+    public function testStateIsResetAfterExceptionDuringRun(): void
+    {
+        // handle() must remain callable after an exception during run()
+        // without replaying the previous request's terminal.
+        $thrower = new class implements MiddlewareInterface {
+            public function process(
+                ServerRequestInterface $request,
+                RequestHandlerInterface $handler,
+            ): ResponseInterface {
+                throw new \RuntimeException('boom');
+            }
+        };
+
+        $pipeline = (new Pipeline())->add($thrower);
+        try {
+            $pipeline->run($this->request(), $this->terminal(fn () => $this->response()));
+        } catch (\RuntimeException) {}
+
+        // Second run with a pass-through middleware must work cleanly.
+        $passthrough = new class implements MiddlewareInterface {
+            public function process(
+                ServerRequestInterface $request,
+                RequestHandlerInterface $handler,
+            ): ResponseInterface {
+                return $handler->handle($request);
+            }
+        };
+        $pipeline2  = (new Pipeline())->add($passthrough);
+        $result = $pipeline2->run($this->request(), $this->terminal(fn () => new Psr7Response(204)));
+        $this->assertSame(204, $result->getStatusCode());
+    }
 }

@@ -59,6 +59,23 @@ final class Promise
     }
 
     /**
+     * Register $fiber to be enqueued for resumption when this promise
+     * settles. Unlike wait(), this does NOT suspend the fiber — the
+     * caller is responsible for suspending itself. If the same fiber
+     * is registered with multiple promises (e.g. awaitAny), the
+     * scheduler's isSuspended guard in tick() ensures extra enqueues
+     * after the first resume become no-ops.
+     */
+    public function notifyFiberOnSettle(\Fiber $fiber): void
+    {
+        if ($this->state !== self::PENDING) {
+            $this->scheduler->enqueueResume($fiber);
+            return;
+        }
+        $this->waiters[] = $fiber;
+    }
+
+    /**
      * Suspend the current fiber until this promise settles, then
      * return the value (or rethrow the rejection). Must be called
      * from inside `Scheduler::run()` — outside a fiber, there's

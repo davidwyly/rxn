@@ -122,6 +122,20 @@ final class ContainerTest extends TestCase
         $this->assertFalse($c->has('Definitely\\Not\\A\\Real\\ClassName'));
     }
 
+    public function testHasReturnsFalseForAbstractClass(): void
+    {
+        // PSR-11: has() must return false when get() would fail.
+        // Abstract classes satisfy class_exists() but cannot be
+        // instantiated by the autowirer, so has() must return false
+        // unless there is an explicit binding.
+        $c = new Container();
+        $this->assertFalse($c->has(Clock::class), 'unbound abstract must return false');
+
+        // Once bound, has() returns true again.
+        $c->bind(Clock::class, SystemClock::class);
+        $this->assertTrue($c->has(Clock::class), 'bound abstract must return true');
+    }
+
     public function testGetThrowsPsr11NotFoundExceptionForMissingClass(): void
     {
         $c = new Container();
