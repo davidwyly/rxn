@@ -180,7 +180,7 @@ class Response
         if (getenv('ENVIRONMENT') === 'production'
             && $this->isInternalThrowable($exception, (int)$code)
         ) {
-            $message = (string)self::getResponseCodeResult(500);
+            $message = (string)self::getResponseCodeResult((int)$code);
         }
         $this->code   = (int)$code;
         $this->errors = [
