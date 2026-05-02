@@ -236,24 +236,27 @@ Follow-ups (not in this PR):
    in CI on a wider input distribution (Unicode edge cases,
    surrogate pairs, very long strings, malformed UTF-8).
 
-## What this means for Rxn's positioning
+## What this is and isn't
 
-If shipped, **Rxn becomes the only web framework I'm aware of —
-in any language — that ships a cross-language compiled validator
-with parity-tested guarantees out of the box.**
+**Is:** a useful internal feature for the small audience of PHP
+shops with TypeScript / vanilla-JS frontends. Drift-free
+client-side validation for the same DTOs the server validates.
+Ships in core. Audience: existing Rxn users with a JS frontend.
+~370 LOC, zero new dependencies.
 
-The headline writes itself:
+**Isn't:** a "JSON contract authority" or a marketing pivot for
+the framework. Earlier drafts of this doc framed it that way
+and the framing didn't survive scrutiny — most polyglot teams
+won't install PHP just to generate a JS validator, and most
+PHP shops don't have polyglot frontends. The cross-language
+parity *idea* is genuinely interesting, but the realistic
+vehicle for it is a language-neutral spec format with native
+generators in each ecosystem (`npm install`-able, `pip
+install`-able, etc.), not a PHP-CLI codegen tool. That bigger
+project lives elsewhere; this experiment confirmed that the
+parity-test methodology works mechanistically, which is the
+load-bearing piece either way.
 
-> *"Your validation code never drifts because it's compiled
-> from one source to two targets. Property-tested, 0 / 10,000."*
-
-That's not a marketing claim. That's a CI-run property test
-result. The kind of thing experienced engineering teams
-recognise immediately as load-bearing infrastructure.
-
-Combined with the schema-as-truth principle the framework
-already embodies (one DTO drives binding + validation +
-OpenAPI + the compiled hot path), this experiment proves the
-thesis end-to-end: **the DTO declaration is executable in
-multiple targets, and the targets are provably equivalent on
-the load-bearing semantics.**
+So the result here — **0 disagreements over 10,000 random
+adversarial inputs** — is real and earns the JS validator's
+place in core. The broader cross-language pitch is rolled back.
