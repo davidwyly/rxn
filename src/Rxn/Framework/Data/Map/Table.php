@@ -152,6 +152,8 @@ class Table extends Service
             FROM information_schema.columns AS c
             LEFT JOIN information_schema.key_column_usage AS kcu
                 ON kcu.column_name = c.column_name
+                    AND kcu.table_schema = c.table_schema
+                    AND kcu.table_name = c.table_name
                     AND kcu.referenced_table_schema LIKE :database_name
                     AND kcu.referenced_table_name IS NOT NULL
             WHERE c.table_schema LIKE :database_name
