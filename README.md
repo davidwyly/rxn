@@ -74,8 +74,17 @@ ecosystem expects. **OpenAPI 3 specs generate from reflection**
 (`bin/rxn openapi`), so the contract is always in sync with the
 code — hand the spec to any OpenAPI consumer (Redocly, client
 generators). Drop in `Http\OpenApi\SwaggerUi::html($specUrl)`
-from a route handler for instant interactive docs. PSR-7 / PSR-15
-bridge lets any ecosystem middleware drop in via `Psr15Pipeline`.
+from a route handler for instant interactive docs.
+
+**PSR-native end-to-end.** PSR-7 ingress (default), PSR-15
+middleware (the contract for all eight shipped middlewares),
+PSR-11 container, PSR-3 logger, PSR-14 events — every framework
+interface satisfies the relevant PSR. Any third-party CORS /
+OAuth / OpenTelemetry / JWT / rate-limit middleware drops into
+the `Pipeline`; pass the container to a PSR-11-aware library;
+subscribe a PSR-14 listener to `IdempotencyHit` for replay-rate
+dashboards. No adapters, no escape hatches — the framework's
+contracts *are* the PSR contracts.
 
 ### Novelty
 
@@ -108,10 +117,22 @@ Opinionated pieces worth naming:
 
 ### Simplicity
 
-Small enough to read end to end. Dependency-free, injectable-for-test
-middlewares for the common defensive layers: **CORS with preflight,
-request-id correlation, JSON-body decoding with size caps,
-conditional GET via weak ETags**. DI container supports
+Small enough to read end to end — **~11K LOC of framework code
+ships what a comparably-featured Slim or Mezzio composition
+reaches in 70–100K LOC of vendor packages** (DTO binding +
+attribute-driven validation, OpenAPI from reflection, idempotency
+middleware with three storage shapes, RFC 7807 envelope, eight
+production middlewares, schema-compiled fast paths — all in one
+repository). Slim is small because it offloads to the ecosystem;
+Symfony is comprehensive because it doesn't. Rxn is small *and*
+feature-dense — the schema-as-truth principle (one DTO drives
+binding, validation, OpenAPI, and the compiled hydrator) is what
+makes that arithmetic work.
+
+Dependency-free, injectable-for-test middlewares for the common
+defensive layers: **BearerAuth, CORS with preflight, ETag, JSON-
+body decoding with size caps, Idempotency (Stripe-style replay),
+Pagination, RequestId, Transaction**. DI container supports
 **interface-to-implementation binding** (`$c->bind(UserRepo::class,
 PostgresUserRepo::class)`) and factory closures, so serious apps
 aren't stuck with autowire-only. An in-process **TestClient**
@@ -130,14 +151,20 @@ worker mode (full table + methodology in
 
 | Framework | GET /hello | GET /products/{id} | POST valid | POST 422 |
 |---|---:|---:|---:|---:|
-| **rxn** | **8,167** | **8,439** | **9,312** | **9,391** |
-| raw PHP (no framework) | 6,757 | 8,450 | 8,162 | 7,297 |
-| symfony micro-kernel | 4,218 | 4,158 | 4,012 | 4,022 |
-| slim 4 | 3,796 | 3,865 | 3,749 | 3,759 |
+| **rxn** | **21,530** | **21,080** | **27,160** | **25,690** |
+| symfony micro-kernel | 17,250 | 15,970 | 15,490 | 15,650 |
+| raw PHP (no framework) | 17,140 | 16,930 | 17,080 | 17,120 |
+| slim 4 | 13,800 | 13,780 | 13,460 | 13,480 |
 
-≈ **2× the throughput of Slim and Symfony**, on par with hand-rolled
-PHP, **2-3× lower p99 latency**. On routes that actually do work
-(POST + validate), Rxn beats raw PHP by 14-29%.
+**1.5–2× the throughput of Slim**, **1.25–1.75× Symfony**, and on
+binder-driven POSTs **1.5–1.6× faster than hand-rolled raw PHP**
+doing the same `json_decode` + manual validation. The
+schema-compiled fast paths (`Validator::compile`,
+`Binder::compileFor`, container factory cache) earn the gap;
+PSR-7 ingress + `Binder::bindRequest(ServerRequestInterface)`
+closes another 33–42% on POST cells vs the previous superglobal
+path. p50 latency on the binder-heavy POST cell: 0.71ms (Slim:
+1.47ms; raw PHP: 1.14ms).
 
 How that's possible (the
 [design philosophy](docs/design-philosophy.md) document is the long
@@ -185,7 +212,7 @@ cumulative scoreboard is in
 
 ```bash
 composer install
-vendor/bin/phpunit          # 371 tests, 813 assertions
+vendor/bin/phpunit          # 483 tests, 1048 assertions
 bin/rxn help                # CLI subcommands
 ```
 
@@ -266,7 +293,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Test counts:
 
-- **Rxn framework:** 371 tests / 813 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 483 tests / 1048 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
@@ -371,14 +398,21 @@ methodology is in
          relationships (`Rxn\Framework\Model\ActiveRecord`)
    - [X] Scaffolded CRUD on a record (`CrudController` + `Record`)
    - [X] FK relationship graph (`Data\Chain` + `Link`)
-- [X] HTTP middleware pipeline *(both Rxn-native and PSR-15; see
-      `Http\Pipeline` / `Http\Psr15Pipeline`)*
-   - [X] Shipped middlewares: CORS w/ preflight, request-id
-         correlation, JSON-body decoding with size caps, conditional
-         GET via weak ETags + 304 short-circuit (see
-         `Http\Middleware\{Cors,RequestId,JsonBody,ETag}`)
-- [X] PSR-7 bridge *(`Http\PsrAdapter::serverRequestFromGlobals()` /
-      `::emit()`; ecosystem middleware drops in via Psr15Pipeline)*
+- [X] HTTP middleware pipeline — **PSR-15 native end-to-end**
+      (`Http\Pipeline`; all eight shipped middlewares implement
+      `Psr\Http\Server\MiddlewareInterface`)
+   - [X] Shipped middlewares: BearerAuth, CORS w/ preflight,
+         conditional GET via weak ETags + 304 short-circuit,
+         Idempotency (Stripe-style replay), JSON-body decoding with
+         size caps, Pagination + RFC 8288 Link headers, request-id
+         correlation, Transaction (`Http\Middleware\*`)
+- [X] PSR-7 ingress — `Http\PsrAdapter::serverRequestFromGlobals()`
+      builds a `ServerRequestInterface` from PHP globals;
+      `App::serve(Router)` is the boot-free one-line front controller
+- [X] **PSR-11** container, **PSR-3** logger, **PSR-14** event
+      dispatcher — every framework interface satisfies the relevant
+      PSR; drops into existing PSR-aware codebases without an
+      adapter
 - [X] Speed and performance
    - [X] PSR-4 autoloading
    - [X] File-backed query caching

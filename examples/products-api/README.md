@@ -101,6 +101,47 @@ curl -X POST http://127.0.0.1:9871/products \
      -d '{"name":"","price":-1,"homepage":"not-a-url"}'
 ```
 
+### Fiber-await dashboard demo (`/dashboard/{id}`)
+
+A "compose a JSON response from N upstream microservices" route —
+the shape that motivates the
+[fiber-await experiment](../../bench/ab/experiments/2026-05-01-fiber-await.md).
+Same five lines of fan-out code, two completely different latency
+profiles, shown live in `meta.wall_clock_ms`.
+
+To exercise it, boot three local mock backends each sleeping
+100ms before responding (`bench/fiber/backend.php`), then call
+the dashboard route in either mode:
+
+```bash
+# In four separate shells — backends + the products-api server.
+BACKEND="$(realpath bench/fiber/backend.php)"
+BACKEND_DIR="$(dirname "$BACKEND")"
+php -S 127.0.0.1:8101 -t "$BACKEND_DIR" "$BACKEND" &
+php -S 127.0.0.1:8102 -t "$BACKEND_DIR" "$BACKEND" &
+php -S 127.0.0.1:8103 -t "$BACKEND_DIR" "$BACKEND" &
+php -S 127.0.0.1:9871 -t examples/products-api/public &
+```
+
+```bash
+# Three sleep(100ms) backends in series → ~300ms.
+curl 'http://127.0.0.1:9871/dashboard/42?mode=sequential'
+# {"data":{"inventory":...,"pricing":...,"reviews":...},
+#  "meta":{"mode":"sequential","fanout":3,"wall_clock_ms":301.4}}
+
+# Same three calls, overlapped via Scheduler + curl_multi → ~100ms.
+curl 'http://127.0.0.1:9871/dashboard/42?mode=parallel'
+# {"data":{"inventory":...,"pricing":...,"reviews":...},
+#  "meta":{"mode":"parallel","fanout":3,"wall_clock_ms":101.2}}
+```
+
+The route handler itself is ~20 lines in `public/index.php` —
+look for the `Scheduler` / `awaitAll` block. Setup is three
+lines (Scheduler, HttpClient, run); the fan-out is one
+`array_map` over `getAsync`; outside the `Scheduler::run()` body
+nothing about the route is concurrent. Sync code in adjacent
+routes pays no cost.
+
 ### Auth tokens
 
 Two demo tokens are wired up in `public/index.php`:

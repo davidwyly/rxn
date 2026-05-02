@@ -2,9 +2,13 @@
 
 namespace Rxn\Framework\Testing;
 
+use Nyholm\Psr7\Response as Psr7Response;
+use Nyholm\Psr7\ServerRequest;
+use Nyholm\Psr7\Stream;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Http\Pipeline;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
 use Rxn\Framework\Http\Router;
 
 /**
@@ -14,9 +18,10 @@ use Rxn\Framework\Http\Router;
  * so tests assert end-to-end (routing + middleware + handler)
  * without spawning a web server.
  *
- *   $client = new TestClient($router, function (array $hit, Request $req) use ($container) {
+ *   $client = new TestClient($router, function (array $hit, ServerRequestInterface $req) use ($container) {
  *       [$class, $method] = $hit['handler'];  // from #[Route] scanner
- *       return $container->get($class)->{$method}(...array_values($hit['params']));
+ *       $body = $container->get($class)->{$method}(...array_values($hit['params']));
+ *       return new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode($body));
  *   });
  *
  *   $client->get('/products/42')
@@ -24,20 +29,20 @@ use Rxn\Framework\Http\Router;
  *          ->assertJsonPath('data.id', 42);
  *
  * The dispatcher's contract is:
- *   fn(array $hit, Request $request): Response
+ *   fn(array $hit, ServerRequestInterface $request): ResponseInterface
  * where `$hit` is the `Router::match()` payload. Tests that only
  * exercise middleware can pass a trivial dispatcher that returns
- * a canned Response.
+ * a canned ResponseInterface.
  */
 final class TestClient
 {
-    /** @var \Closure(array, Request): Response */
+    /** @var \Closure(array, ServerRequestInterface): ResponseInterface */
     private \Closure $dispatcher;
 
     /** @var array<string, string> */
     private array $defaultHeaders = [];
 
-    /** @param callable(array, Request): Response $dispatcher */
+    /** @param callable(array, ServerRequestInterface): ResponseInterface $dispatcher */
     public function __construct(
         private Router $router,
         callable $dispatcher
@@ -87,10 +92,10 @@ final class TestClient
     }
 
     /**
-     * @param string                 $method
-     * @param string                 $path   may include a query string
-     * @param array|null             $body   populated into $_POST for tests
-     * @param array<string, string>  $headers
+     * @param string                $method
+     * @param string                $path   may include a query string
+     * @param array|null            $body   serialised to JSON for the request body
+     * @param array<string, string> $headers
      */
     private function request(string $method, string $path, ?array $body, array $headers): TestResponse
     {
@@ -101,13 +106,11 @@ final class TestClient
 
         $hit = $this->router->match($method, $pathOnly);
         if ($hit === null) {
-            if ($this->router->hasMethodMismatch($method, $pathOnly)) {
-                return new TestResponse((new Response())->getFailure(new \Exception('Method Not Allowed', 405)));
-            }
-            return new TestResponse((new Response())->getFailure(new \Exception('Not Found', 404)));
+            $status = $this->router->hasMethodMismatch($method, $pathOnly) ? 405 : 404;
+            return new TestResponse(self::problem($status));
         }
 
-        $request = (new \ReflectionClass(Request::class))->newInstanceWithoutConstructor();
+        $request = $this->buildPsrRequest($method, $path, $query, $body, $headers);
 
         $pipeline = new Pipeline();
         foreach ($hit['middlewares'] as $mw) {
@@ -115,14 +118,81 @@ final class TestClient
         }
 
         $dispatcher = $this->dispatcher;
-        $response = $pipeline->handle(
-            $request,
-            static fn (Request $r) => $dispatcher($hit, $r)
-        );
-        return new TestResponse($response);
+        $terminal = new class($dispatcher, $hit) implements RequestHandlerInterface {
+            public function __construct(private \Closure $dispatcher, private array $hit) {}
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                return ($this->dispatcher)($this->hit, $request);
+            }
+        };
+
+        return new TestResponse($pipeline->run($request, $terminal));
     }
 
     /**
+     * @param array<string, string>  $query
+     * @param array<string, mixed>|null $body
+     * @param array<string, string>  $headers
+     */
+    private function buildPsrRequest(
+        string $method,
+        string $path,
+        array $query,
+        ?array $body,
+        array $headers,
+    ): ServerRequestInterface {
+        $uri = 'http://test.local' . $path;
+
+        // Implicitly set Content-Type: application/json when sending a
+        // body as a PHP array and the caller hasn't specified a type.
+        // This mirrors what real HTTP clients do and ensures JsonBody
+        // (or similar) middleware sees the correct content-type.
+        if ($body !== null && self::headerValue($headers, 'content-type') === null) {
+            $headers['Content-Type'] = 'application/json';
+        }
+
+        $jsonBody = $body !== null ? json_encode($body, JSON_THROW_ON_ERROR) : null;
+
+        $request = new ServerRequest($method, $uri, $headers, $jsonBody, '1.1', $_SERVER);
+        $request = $request->withQueryParams($query);
+        if ($body !== null) {
+            // Only pre-populate parsedBody for form submissions — this matches
+            // PsrAdapter::serverRequestFromGlobals() production behaviour.
+            // JSON requests must go through JsonBody (or similar) middleware;
+            // tests that skip that middleware will correctly see null from
+            // getParsedBody() rather than silently receiving a pre-parsed value.
+            $contentType = strtolower(trim(explode(';', self::headerValue($headers, 'content-type') ?? '', 2)[0]));
+            if ($contentType === 'application/x-www-form-urlencoded'
+                || $contentType === 'multipart/form-data'
+            ) {
+                $request = $request->withParsedBody($body);
+            }
+        }
+        return $request;
+    }
+
+    /**
+     * Case-insensitive header lookup over an assoc array.
+     *
+     * @param array<string, string> $headers
+     */
+    private static function headerValue(array $headers, string $name): ?string
+    {
+        $needle = strtolower($name);
+        foreach ($headers as $k => $v) {
+            if (strtolower($k) === $needle) {
+                return $v;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Populate $_SERVER / $_GET / $_POST so middleware that still
+     * reads from globals (during transition) sees the same shape
+     * as a real request. New PSR-15 middleware should read from
+     * the ServerRequest instead.
+     *
      * @param array<string, mixed>  $body
      * @param array<string, string> $headers
      */
@@ -157,5 +227,24 @@ final class TestClient
         parse_str(substr($path, $q + 1), $query);
         /** @var array<string, string> $query */
         return [substr($path, 0, $q), $query];
+    }
+
+    private static function problem(int $status): ResponseInterface
+    {
+        $title = match ($status) {
+            404 => 'Not Found',
+            405 => 'Method Not Allowed',
+            default => 'Error',
+        };
+        $body = json_encode([
+            'type'   => 'about:blank',
+            'title'  => $title,
+            'status' => $status,
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        return new Psr7Response(
+            $status,
+            ['Content-Type' => 'application/problem+json'],
+            $body,
+        );
     }
 }
