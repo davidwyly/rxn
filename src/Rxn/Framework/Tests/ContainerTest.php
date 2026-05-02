@@ -4,13 +4,13 @@ namespace Rxn\Framework\Tests;
 
 use PHPUnit\Framework\TestCase;
 use Rxn\Framework\Container;
-use Rxn\Framework\Error\ContainerException;
 use Rxn\Framework\Tests\Fixture\Container\Clock;
 use Rxn\Framework\Tests\Fixture\Container\FrozenClock;
 use Rxn\Framework\Tests\Fixture\Container\SystemClock;
 use Rxn\Framework\Tests\Fixture\Container\Timestamper;
 use Rxn\Framework\Tests\Fixture\Container\UserRepo;
 use Rxn\Framework\Tests\Fixture\Container\MemoryUserRepo;
+use Rxn\Framework\Tests\Fixture\Container\NeedsDefaultBag;
 
 final class ContainerTest extends TestCase
 {
@@ -72,6 +72,18 @@ final class ContainerTest extends TestCase
         $c = new Container();
         $this->expectException(\Throwable::class);
         $c->get(UserRepo::class);
+    }
+
+
+    public function testDefaultObjectParameterIsNotSharedAcrossInstances(): void
+    {
+        $c = new Container();
+
+
+        $fromDefaultA = $c->get(NeedsDefaultBag::class);
+        $fromDefaultB = $c->get(NeedsDefaultBag::class);
+
+        $this->assertNotSame($fromDefaultA->bag, $fromDefaultB->bag);
     }
 
     public function testBindReturnsSelfForChaining(): void
