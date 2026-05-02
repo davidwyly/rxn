@@ -70,6 +70,7 @@ sequenceDiagram
 | [Building blocks](building-blocks.md) | Pipeline + shipped middlewares, Logger, RateLimiter, Scheduler, Auth, Migration, Chain, TestClient, SwaggerUi |
 | [PSR-7 / PSR-15 interop](psr-7-interop.md) | The framework's PSR-15 stance and the bench evidence behind the ingress cost analysis (page predates the PSR-15 native migration — see CHANGELOG) |
 | [Horizons](horizons.md) | Research directions that could reposition the framework — schema as truth taken further, observability ships in the box, fiber-aware concurrency (already proven), profile-guided compilation. Each direction sized with cost, mechanism, and ship signal. |
+| [Plugin architecture](plugin-architecture.md) | First-party plugins as the unit of trust extension. Repository / versioning conventions, the parity-harness contract. |
 | [CLI](cli.md) | `bin/rxn` — migrations, scaffolding, OpenAPI spec |
 | [Benchmarks](benchmarks.md) | `bin/bench` — microbenchmarks for the building blocks |
 | [OPcache preload](opcache-preload.md) | `bin/preload.php` — pre-compile the framework at fpm boot |
