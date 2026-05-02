@@ -2,9 +2,11 @@
 
 namespace Rxn\Framework\Http\Middleware;
 
-use Rxn\Framework\Http\Middleware;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
+use Nyholm\Psr7\Response as Psr7Response;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Service\Auth;
 
 /**
@@ -14,8 +16,8 @@ use Rxn\Framework\Service\Auth;
  *
  *  - 401 Problem Details on missing / malformed / unrecognised
  *    token, or
- *  - delegates to `$next` and exposes the resolved principal via
- *    `BearerAuth::current()` for downstream code.
+ *  - delegates to the next handler and exposes the resolved
+ *    principal via `BearerAuth::current()` for downstream code.
  *
  *   $auth->setResolver(fn (string $t) => $userRepo->findByToken($t));
  *   $pipeline->add(new BearerAuth($auth));
@@ -29,7 +31,7 @@ use Rxn\Framework\Service\Auth;
  * the pipeline decide *where* in the request lifecycle the check
  * fires.
  */
-final class BearerAuth implements Middleware
+final class BearerAuth implements MiddlewareInterface
 {
     /** @var array<string, mixed>|null */
     private static ?array $current = null;
@@ -39,18 +41,19 @@ final class BearerAuth implements Middleware
         private readonly string $headerName = 'Authorization',
     ) {}
 
-    public function handle(Request $request, callable $next): Response
-    {
-        $serverKey = 'HTTP_' . strtoupper(strtr($this->headerName, '-', '_'));
-        $header    = $_SERVER[$serverKey] ?? null;
-        $token     = is_string($header) ? $this->auth->extractBearer($header) : null;
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+    ): ResponseInterface {
+        $header    = $request->getHeaderLine($this->headerName);
+        $token     = $header !== '' ? $this->auth->extractBearer($header) : null;
         $principal = $this->auth->resolve($token);
         if ($principal === null) {
-            return $this->renderUnauthorized();
+            return self::renderUnauthorized();
         }
         self::$current = $principal;
         try {
-            return $next($request);
+            return $handler->handle($request);
         } finally {
             self::$current = null;
         }
@@ -59,7 +62,7 @@ final class BearerAuth implements Middleware
     /**
      * Returns the authenticated principal for the current request,
      * or null when no `BearerAuth` is on the pipeline (or the
-     * request hasn't reached it yet). Cleared in `handle()`'s
+     * request hasn't reached it yet). Cleared in `process()`'s
      * `finally` so a long-lived worker doesn't leak the previous
      * request's principal into the next.
      *
@@ -80,16 +83,20 @@ final class BearerAuth implements Middleware
         return self::$current;
     }
 
-    private function renderUnauthorized(): Response
+    private static function renderUnauthorized(): ResponseInterface
     {
-        // Goes through the public Problem Details factory so the
-        // 401 lands as `application/problem+json` (matching the
-        // framework's RFC 7807 commitment), instead of leaking
-        // through as an envelope-shaped 401.
-        return Response::problem(
-            code:   401,
-            title:  'Unauthorized',
-            detail: 'Authentication required',
+        // RFC 7807 Problem Details — same shape every other failure
+        // path emits, including the framework's exception handler.
+        $body = json_encode([
+            'type'   => 'about:blank',
+            'title'  => 'Unauthorized',
+            'status' => 401,
+            'detail' => 'Authentication required',
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        return new Psr7Response(
+            401,
+            ['Content-Type' => 'application/problem+json'],
+            $body,
         );
     }
 }

@@ -2,10 +2,11 @@
 
 namespace Rxn\Framework\Http\Middleware;
 
-use Rxn\Framework\Http\Middleware;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Http\Pagination\Pagination as PaginationParams;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
 
 /**
  * Parse-and-emit pagination middleware. Two responsibilities:
@@ -13,15 +14,16 @@ use Rxn\Framework\Http\Response;
  *  1. **Parse** — read `?limit=&offset=` (or `?page=&per_page=`)
  *     from the query string, clamp to the configured bounds,
  *     expose via `Pagination::current()`.
- *  2. **Emit** — after the controller runs, inspect the response
- *     for `meta.total` (set by controllers that know the total
- *     row count). When present, emit `X-Total-Count` and
- *     `Link: rel=first|prev|next|last` headers per RFC 8288.
+ *  2. **Emit** — after the downstream handler runs, inspect the
+ *     response body for `meta.total` (set by controllers that
+ *     know the total row count). When present, emit
+ *     `X-Total-Count` and `Link: rel=first|prev|next|last`
+ *     headers per RFC 8288.
  *
  * Controllers don't need to do pagination math:
  *
- *   $page = Pagination::current();        // limit/offset/page/perPage
- *   $rows = $repo->fetch(limit: $page->limit, offset: $page->offset);
+ *   $page  = Pagination::current();    // limit/offset/page/perPage
+ *   $rows  = $repo->fetch(limit: $page->limit, offset: $page->offset);
  *   $total = $repo->count();
  *   return ['data' => $rows, 'meta' => ['total' => $total]];
  *   //                                  ^^^^^^^^^^^^^^^^^
@@ -29,27 +31,22 @@ use Rxn\Framework\Http\Response;
  *
  * Defaults: limit=25, max=100, offset=0. Configurable per-instance.
  */
-final class Pagination implements Middleware
+final class Pagination implements MiddlewareInterface
 {
-    /** @var callable(string): void */
-    private $emitHeader;
-
     public function __construct(
         private readonly int $defaultLimit = 25,
         private readonly int $maxLimit     = 100,
-        ?callable $emitHeader = null,
-    ) {
-        $this->emitHeader = $emitHeader ?? static fn (string $h) => header($h);
-    }
+    ) {}
 
-    public function handle(Request $request, callable $next): Response
-    {
-        $parsed = $this->parse($_GET ?? []);
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+    ): ResponseInterface {
+        $parsed = $this->parse($request->getQueryParams());
         PaginationParams::setCurrent($parsed);
         try {
-            $response = $next($request);
-            $this->emitLinkHeaders($response, $parsed);
-            return $response;
+            $response = $handler->handle($request);
+            return $this->withLinkHeaders($response, $parsed, $request->getUri()->getPath());
         } finally {
             PaginationParams::setCurrent(null);
         }
@@ -91,34 +88,56 @@ final class Pagination implements Middleware
         return min($n, $this->maxLimit);
     }
 
-    private function emitLinkHeaders(Response $response, PaginationParams $page): void
+    private function withLinkHeaders(ResponseInterface $response, PaginationParams $page, string $basePath): ResponseInterface
     {
-        $total = is_array($response->meta) && isset($response->meta['total'])
-            ? (int) $response->meta['total']
-            : null;
+        $total = $this->extractTotal($response);
         if ($total === null) {
-            return;
+            return $response;
         }
-        ($this->emitHeader)("X-Total-Count: $total");
+        $response = $response->withHeader('X-Total-Count', (string)$total);
 
-        $links = $this->buildLinks($page, $total);
+        $links = $this->buildLinks($page, $total, $basePath);
         if ($links !== '') {
-            ($this->emitHeader)("Link: $links");
+            $response = $response->withHeader('Link', $links);
         }
+        return $response;
     }
 
-    private function buildLinks(PaginationParams $page, int $total): string
+    /**
+     * Read `meta.total` out of a JSON response envelope. Returns
+     * null when the body isn't JSON, isn't shaped `{meta: {total}}`,
+     * or `total` isn't an integer — pagination headers are
+     * advisory, never required, so a missing total is silent.
+     */
+    private function extractTotal(ResponseInterface $response): ?int
     {
-        $base       = strtok((string)($_SERVER['REQUEST_URI'] ?? '/'), '?') ?: '/';
+        $body = (string)$response->getBody();
+        // Reset stream position so downstream emit can re-read.
+        if ($response->getBody()->isSeekable()) {
+            $response->getBody()->rewind();
+        }
+        if ($body === '') {
+            return null;
+        }
+        $decoded = json_decode($body, true);
+        if (!is_array($decoded) || !isset($decoded['meta']['total'])) {
+            return null;
+        }
+        $total = $decoded['meta']['total'];
+        return is_int($total) || (is_string($total) && ctype_digit($total)) ? (int)$total : null;
+    }
+
+    private function buildLinks(PaginationParams $page, int $total, string $basePath): string
+    {
         $totalPages = $page->totalPages($total);
         $links      = [];
 
-        $build = function (int $p, string $rel) use ($base, $page): string {
+        $build = function (int $p, string $rel) use ($basePath, $page): string {
             $query = http_build_query([
                 'page'     => $p,
                 'per_page' => $page->perPage,
             ]);
-            return sprintf('<%s?%s>; rel="%s"', $base, $query, $rel);
+            return sprintf('<%s?%s>; rel="%s"', $basePath, $query, $rel);
         };
 
         if ($page->page > 1) {

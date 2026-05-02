@@ -2,6 +2,8 @@
 
 namespace Rxn\Framework\Http;
 
+use Psr\Http\Server\MiddlewareInterface;
+
 /**
  * Scoped proxy returned to the Router::group() callback. Every
  * route registered through it picks up the group's path prefix
@@ -22,7 +24,7 @@ namespace Rxn\Framework\Http;
  */
 final class RouteGroup
 {
-    /** @var Middleware[] */
+    /** @var MiddlewareInterface[] */
     private array $middlewares;
 
     public function __construct(
@@ -33,7 +35,7 @@ final class RouteGroup
         $this->middlewares = $middlewares;
     }
 
-    public function middleware(Middleware ...$middlewares): self
+    public function middleware(MiddlewareInterface ...$middlewares): self
     {
         foreach ($middlewares as $m) {
             $this->middlewares[] = $m;

@@ -14,26 +14,26 @@ class Response
 {
     const DEFAULT_SUCCESS_CODE = 200;
 
-    /**
-     * @var bool
-     */
-    protected $rendered = false;
+    private bool $rendered = false;
+
+    /** @var Response|null */
+    private ?Response $failure_response = null;
 
     /**
-     * @var array
+     * Payload returned by the controller action; serialized as-is
+     * in the JSON envelope's `data` member.
+     *
+     * @var mixed
      */
-    protected $failure_response;
+    private mixed $data = null;
 
     /**
-     * @var mixed payload returned by the controller action; serialized
-     *             as-is in the JSON envelope.
+     * RFC 7807-shaped error block: `{type, message[, file, line, trace]}`.
+     * Populated by `getFailure()` / `problem()`; null on success.
+     *
+     * @var array<string, mixed>|null
      */
-    public $data;
-
-    /**
-     * @var
-     */
-    public $errors;
+    private ?array $errors = null;
 
     /**
      * Structured per-field errors captured from a ValidationException,
@@ -41,27 +41,19 @@ class Response
      *
      * @var list<array{field: string, message: string}>|null
      */
-    public ?array $validation_errors = null;
+    private ?array $validation_errors = null;
 
     /**
-     * @var
+     * Envelope `meta` block — success flag, status code, elapsed_ms,
+     * plus any fields added via `addMetaField()`.
+     *
+     * @var array<string, mixed>|null
      */
-    public $meta;
+    private ?array $meta = null;
 
-    /**
-     * @var
-     */
-    private $code;
+    private ?int $code = null;
 
-    /**
-     * @var Request|null
-     */
-    public $request;
-
-    /**
-     * @var
-     */
-    public $elapsed_ms;
+    private ?Request $request = null;
 
     /**
      * @var array
@@ -231,14 +223,20 @@ class Response
 
     /**
      * @param \Throwable $exception
+     * Map an exception's `code` to an HTTP error status. Only
+     * 4xx / 5xx codes are honoured — anything outside that range
+     * (the default `code = 0`, an arbitrary integer like `12345`,
+     * a 2xx misuse) falls back to 500.
      *
-     * @return int|mixed|string
+     * Without the allow-list, `throw new Foo("x", 12345)` would
+     * emit `12345` as the HTTP status line, which is malformed
+     * and will trip up any well-behaved client / proxy.
      */
-    public static function getErrorCode(\Throwable $exception)
+    public static function getErrorCode(\Throwable $exception): int
     {
         $code = $exception->getCode();
-        if (empty($code)) {
-            $code = '500';
+        if (!is_int($code) || $code < 400 || $code > 599) {
+            return 500;
         }
         return $code;
     }
@@ -311,15 +309,64 @@ class Response
     /**
      * @return array
      */
-    public function stripEmptyParams()
+    /**
+     * @return array<string, mixed>
+     */
+    public function stripEmptyParams(): array
     {
-        $array = (array)$this;
-        foreach ($array as $key => $value) {
-            if (empty($value)) {
-                unset($array[$key]);
-            }
+        // Explicit array build instead of `(array)$this` — that
+        // cast leaks every private property name (with NUL-prefixed
+        // mangling for non-public ones) and ties the wire shape to
+        // class-internal field names. Listing the wire fields here
+        // keeps the contract explicit.
+        return array_filter(
+            [
+                'data'              => $this->data,
+                'errors'            => $this->errors,
+                'validation_errors' => $this->validation_errors,
+                'meta'              => $this->meta,
+            ],
+            static fn ($v) => !empty($v),
+        );
+    }
+
+    /** @return array<string, mixed>|null */
+    public function getData(): mixed
+    {
+        return $this->data;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function getMeta(): ?array
+    {
+        return $this->meta;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function getErrors(): ?array
+    {
+        return $this->errors;
+    }
+
+    /** @return list<array{field: string, message: string}>|null */
+    public function getValidationErrors(): ?array
+    {
+        return $this->validation_errors;
+    }
+
+    /**
+     * Append a field to the response's `meta` block. The convention
+     * router's env-error renderer uses this to attach
+     * `startup_errors` to a failure response without mutating
+     * meta directly.
+     */
+    public function addMetaField(string $key, mixed $value): self
+    {
+        if (!is_array($this->meta)) {
+            $this->meta = [];
         }
-        return $array;
+        $this->meta[$key] = $value;
+        return $this;
     }
 
     /**
@@ -345,7 +392,10 @@ class Response
      */
     public static function notModified(): self
     {
-        $r = (new \ReflectionClass(self::class))->newInstanceWithoutConstructor();
+        // The default constructor (`new self()` with null request)
+        // does no work — so we can build a fresh Response and assign
+        // privates from inside the class without reflection.
+        $r = new self();
         $r->rendered = true;
         $r->code     = 304;
         $r->meta     = ['success' => true, 'code' => 304];
@@ -373,7 +423,7 @@ class Response
         ?string $detail = null,
         ?array $validationErrors = null,
     ): self {
-        $r = (new \ReflectionClass(self::class))->newInstanceWithoutConstructor();
+        $r = new self();
         $r->rendered = true;
         $r->code     = $code;
         $r->errors   = [

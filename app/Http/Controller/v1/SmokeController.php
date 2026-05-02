@@ -13,8 +13,7 @@ class SmokeController extends \Rxn\Framework\Http\Controller
     public function ping_v1(): array
     {
         return [
-            'ok'  => true,
-            'env' => getenv('ENVIRONMENT') ?: 'unknown',
+            'ok' => true,
         ];
     }
 }
