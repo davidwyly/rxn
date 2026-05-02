@@ -130,6 +130,8 @@ final class TestClient
     {
         [$pathOnly, $query] = self::splitPath($path);
 
+        $this->clearRequestServerHeaders();
+
         $_SERVER['REQUEST_METHOD'] = $method;
         $_SERVER['REQUEST_URI']    = $path;
         $_GET                      = $query;
@@ -145,6 +147,18 @@ final class TestClient
                 $_SERVER['CONTENT_LENGTH'] = $value;
             }
         }
+    }
+
+
+    private function clearRequestServerHeaders(): void
+    {
+        foreach (array_keys($_SERVER) as $key) {
+            if (str_starts_with($key, 'HTTP_')) {
+                unset($_SERVER[$key]);
+            }
+        }
+
+        unset($_SERVER['CONTENT_TYPE'], $_SERVER['CONTENT_LENGTH']);
     }
 
     /** @return array{0: string, 1: array<string, string>} */
