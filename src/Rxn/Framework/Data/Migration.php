@@ -28,14 +28,16 @@ class Migration
      */
     private $directory;
 
-    public function __construct(Database $database, string $directory)
+    public function __construct(Database $database, string $directory, bool $ensureTable = true)
     {
         if (!is_dir($directory)) {
             throw new DatabaseException("Migration directory does not exist: $directory", 500);
         }
         $this->database  = $database;
         $this->directory = rtrim($directory, '/');
-        $this->ensureTable();
+        if ($ensureTable) {
+            $this->ensureTable();
+        }
     }
 
     /**
@@ -63,7 +65,14 @@ class Migration
      */
     public function applied(): array
     {
-        $rows = $this->database->fetchAll("SELECT filename FROM `" . self::TABLE . "` ORDER BY filename ASC");
+        try {
+            $rows = $this->database->fetchAll("SELECT filename FROM `" . self::TABLE . "` ORDER BY filename ASC");
+        } catch (\PDOException $exception) {
+            if ((int)$exception->getCode() === 1146) {
+                return [];
+            }
+            throw $exception;
+        }
         return array_column($rows ?: [], 'filename');
     }
 
