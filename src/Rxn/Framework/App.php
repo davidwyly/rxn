@@ -137,7 +137,7 @@ class App
             header('content-type: application/problem+json');
             echo json_encode(
                 $response->toProblemDetails($_SERVER['REQUEST_URI'] ?? null),
-                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
             );
             return;
         }
