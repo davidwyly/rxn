@@ -157,7 +157,7 @@ final class ResponseTest extends TestCase
         try {
             $response = new Response();
             $response->getFailure(new \Exception('secret db password', 500));
-            $this->assertSame('Internal Server Error', $response->errors['message']);
+            $this->assertSame('Internal Server Error', $response->getErrors()['message']);
         } finally {
             putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
         }
@@ -171,7 +171,7 @@ final class ResponseTest extends TestCase
             $response = new Response();
             $response->getFailure(new \Exception('upstream timed out', 503));
             $this->assertSame(503, $response->getCode());
-            $this->assertSame('Container Unavailable', $response->errors['message'],
+            $this->assertSame('Container Unavailable', $response->getErrors()['message'],
                 'sanitized detail should match the actual status text, not hardcode 500');
         } finally {
             putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
@@ -185,7 +185,7 @@ final class ResponseTest extends TestCase
         try {
             $response = new Response();
             $response->getFailure(new RequestException('resource not found', 404));
-            $this->assertSame('resource not found', $response->errors['message']);
+            $this->assertSame('resource not found', $response->getErrors()['message']);
         } finally {
             putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
         }
@@ -200,7 +200,7 @@ final class ResponseTest extends TestCase
             // Simulates e.g. Request::getSanitizedUrl() throwing a RequestException(510)
             // with an internal message referencing server configuration.
             $response->getFailure(new RequestException('verify Apache/Nginx virtual hosts settings', 510));
-            $this->assertSame('Not Extended', $response->errors['message'],
+            $this->assertSame('Not Extended', $response->getErrors()['message'],
                 '5xx RequestException messages must be scrubbed in production');
         } finally {
             putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
@@ -214,7 +214,7 @@ final class ResponseTest extends TestCase
         try {
             $response = new Response();
             $response->getFailure(new ValidationException([['field' => 'email', 'message' => 'invalid']]));
-            $this->assertSame('Validation failed', $response->errors['message']);
+            $this->assertSame('Validation failed', $response->getErrors()['message']);
         } finally {
             putenv($previous !== false ? "ENVIRONMENT=$previous" : 'ENVIRONMENT');
         }
