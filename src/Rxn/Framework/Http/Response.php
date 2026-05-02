@@ -166,11 +166,11 @@ class Response
     }
 
     /**
-     * @param \Exception $exception
+     * @param \Throwable $exception
      *
      * @return Response
      */
-    public function getFailure(\Exception $exception): Response
+    public function getFailure(\Throwable $exception): Response
     {
         $this->setRendered(true);
 
@@ -216,11 +216,11 @@ class Response
     }
 
     /**
-     * @param \Exception $exception
+     * @param \Throwable $exception
      *
      * @return int|mixed|string
      */
-    public static function getErrorCode(\Exception $exception)
+    public static function getErrorCode(\Throwable $exception)
     {
         $code = $exception->getCode();
         if (empty($code)) {
@@ -230,11 +230,11 @@ class Response
     }
 
     /**
-     * @param \Exception $exception
+     * @param \Throwable $exception
      *
      * @return array
      */
-    public static function getErrorTrace(\Exception $exception)
+    public static function getErrorTrace(\Throwable $exception)
     {
         $full_trace         = $exception->getTrace();
         $allowed_debug_keys = [

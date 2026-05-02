@@ -67,6 +67,8 @@ final class Binder
                     $prop->setValue($dto, $prop->getDefaultValue());
                 } elseif ($type instanceof \ReflectionNamedType && $type->allowsNull()) {
                     $prop->setValue($dto, null);
+                } else {
+                    $errors[] = ['field' => $name, 'message' => 'is required'];
                 }
                 continue;
             }
@@ -88,7 +90,11 @@ final class Binder
                 }
             }
 
-            $prop->setValue($dto, $cast);
+            try {
+                $prop->setValue($dto, $cast);
+            } catch (\TypeError) {
+                $errors[] = ['field' => $name, 'message' => 'type mismatch'];
+            }
         }
 
         if ($errors !== []) {
@@ -499,8 +505,17 @@ final class Binder
      */
     private static function cast(mixed $value, ?\ReflectionType $type): mixed
     {
+        if ($type instanceof \ReflectionUnionType) {
+            foreach ($type->getTypes() as $unionType) {
+                $cast = self::cast($value, $unionType);
+                if ($cast !== self::CAST_FAIL) {
+                    return $cast;
+                }
+            }
+            return self::CAST_FAIL;
+        }
         if (!$type instanceof \ReflectionNamedType) {
-            return $value;
+            return self::CAST_FAIL;
         }
         $name = $type->getName();
 
