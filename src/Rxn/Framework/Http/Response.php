@@ -167,10 +167,16 @@ class Response
         $this->setRendered(true);
 
         $code         = self::getErrorCode($exception);
+        $message      = $exception->getMessage();
+        if (getenv('ENVIRONMENT') === 'production'
+            && $this->isInternalThrowable($exception, (int)$code)
+        ) {
+            $message = (string)self::getResponseCodeResult((int)$code);
+        }
         $this->code   = (int)$code;
         $this->errors = [
             'type'    => self::getResponseCodeResult($code),
-            'message' => $exception->getMessage(),
+            'message' => $message,
         ];
         if ($exception instanceof ValidationException) {
             $this->validation_errors = $exception->errors();
@@ -189,6 +195,14 @@ class Response
         ];
 
         return $this;
+    }
+
+    private function isInternalThrowable(\Throwable $exception, int $code): bool
+    {
+        // ValidationException always carries user-visible field-level errors — never scrub.
+        // All other 5xx throwables (including RequestException with a 5xx code) are internal
+        // and must be sanitized so implementation details are not exposed in production.
+        return $code >= 500 && !$exception instanceof ValidationException;
     }
 
     /**
