@@ -16,6 +16,15 @@ final class Json implements Validates
         if (!is_string($value)) {
             return null;
         }
-        return json_validate($value) ? null : 'must be valid JSON';
+        if (\function_exists('json_validate')) {
+            return \json_validate($value) ? null : 'must be valid JSON';
+        }
+
+        try {
+            \json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+            return null;
+        } catch (\JsonException) {
+            return 'must be valid JSON';
+        }
     }
 }
