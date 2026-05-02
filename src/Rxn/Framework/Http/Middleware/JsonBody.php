@@ -26,7 +26,7 @@ final class JsonBody implements Middleware
     private const BODY_METHODS = ['POST', 'PUT', 'PATCH'];
 
     private int $maxBytes;
-    /** @var callable(): string */
+    /** @var callable(int): string */
     private $readBody;
 
     /**
@@ -37,7 +37,26 @@ final class JsonBody implements Middleware
     public function __construct(int $maxBytes = 1048576, ?callable $readBody = null)
     {
         $this->maxBytes = $maxBytes;
-        $this->readBody = $readBody ?? static fn (): string => (string)file_get_contents('php://input');
+        $this->readBody = $readBody ?? static function (int $maxBytes): string {
+            $stream = fopen('php://input', 'rb');
+            if ($stream === false) {
+                return '';
+            }
+
+            $remaining = $maxBytes + 1;
+            $raw = '';
+            while ($remaining > 0 && !feof($stream)) {
+                $chunk = fread($stream, min(8192, $remaining));
+                if ($chunk === false || $chunk === '') {
+                    break;
+                }
+                $raw .= $chunk;
+                $remaining -= strlen($chunk);
+            }
+            fclose($stream);
+
+            return $raw;
+        };
     }
 
     public function handle(Request $request, callable $next): Response
@@ -67,7 +86,7 @@ final class JsonBody implements Middleware
             );
         }
 
-        $raw = ($this->readBody)();
+        $raw = ($this->readBody)($this->maxBytes);
         if ($raw === '') {
             return $next($request);
         }

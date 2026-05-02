@@ -28,7 +28,7 @@ final class JsonBodyTest extends TestCase
 
     private function make(string $body, int $maxBytes = 1048576): JsonBody
     {
-        return new JsonBody($maxBytes, fn (): string => $body);
+        return new JsonBody($maxBytes, fn (int $_maxBytes): string => $body);
     }
 
     public function testDecodesValidJsonIntoPost(): void
