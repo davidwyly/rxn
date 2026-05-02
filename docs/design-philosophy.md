@@ -225,7 +225,7 @@ to read is slow to *develop in*. Time-to-first-bug-fixed is a
 real metric.
 
 Rxn fits in your head:
-- The framework is ~10k LOC of PHP excluding tests; the dispatch
+- The framework is ~12k LOC of PHP excluding tests; the dispatch
   spine — Container, Router, Pipeline, Binder, Validator,
   Request, Response — is ~3k of that, readable in one sitting.
   Middlewares, OpenAPI, scaffolding, and the legacy ActiveRecord
@@ -356,7 +356,7 @@ principles are how we keep the substrate healthy.
 | 5 — convention + escape hatch | `App::run` convention router → `Http\Router` explicit; `Container` autowire → `bind()` |
 | 6 — measure to commit | `bench/ab.php` driver, 16 experiment writeups, 4 negative-result branches preserved on origin |
 | 7 — transparent vs visible opt-in | Container's 5 stacked caches: zero API change. `Validator::compile`: visible because of the FPM tradeoff |
-| 8 — smallness as constraint | ~10k LOC framework, ~3k LOC dispatch spine (Container, Router, Pipeline, Binder, Validator, Request, Response) — readable in one sitting; the rest is opt-in subsystems |
+| 8 — smallness as constraint | ~12k LOC framework, ~3k LOC dispatch spine (Container, Router, Pipeline, Binder, Validator, Request, Response) — readable in one sitting; the rest is opt-in subsystems |
 | 9 — ergonomics are performance | `bin/preload.php`, `bench/ab/CONSOLIDATION.md`, `docs/index.md`'s topic table |
 | 10 — honesty | "alpha" status in README, `App::run` open-bugs note in `docs/benchmarks.md`, the long-lived-worker caveat in every compile-path docstring |
 | 11 — optional deps via lazy autoload | `Psr16IdempotencyStore` (typehints `\Psr\SimpleCache\CacheInterface`) and `Database::run()` / `ActiveRecord` (typehint `\Rxn\Orm\Builder\Buildable` / `Query`); both packages live in `composer.json`'s `suggest` block, framework loads cleanly without them |

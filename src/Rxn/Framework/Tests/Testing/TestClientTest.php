@@ -159,13 +159,13 @@ final class TestClientTest extends TestCase
         $router->get('/h', ['h']);
         $seen = [];
 
-        $client = new TestClient($router, function () use (&$seen) {
+        $client = new TestClient($router, function () use (&$seen): ResponseInterface {
             $seen[] = [
                 'authorization' => $_SERVER['HTTP_AUTHORIZATION'] ?? null,
                 'content_type' => $_SERVER['CONTENT_TYPE'] ?? null,
                 'content_length' => $_SERVER['CONTENT_LENGTH'] ?? null,
             ];
-            return (new Response())->getSuccess([]);
+            return self::ok([]);
         });
 
         $client->get('/h', [

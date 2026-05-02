@@ -1,7 +1,8 @@
 # Changelog
 
-All notable changes to Rxn between releases. Unreleased work lives
-on `claude/code-review-pDtRd` until cut to a tagged version.
+All notable changes to Rxn between releases. Unreleased work lands
+on short-lived `experiment/*` branches and merges to `master` via
+PR; the next tagged version cuts from `master`.
 
 The format roughly follows [Keep a Changelog](https://keepachangelog.com)
 with one Rxn-specific section: **Negative results.** Performance
@@ -11,7 +12,91 @@ read alongside the wins.
 
 ## Unreleased
 
-### PSR refactor (`experiment/psr-7-refactor`)
+### Cross-language compiled validator (`experiment/cross-lang-validator`, PR #14)
+
+A PHP `RequestDto` compiles to a vanilla ES module that agrees
+with `Binder::bind` on the set of failing fields for **0
+disagreements over 10,000 random adversarial inputs** across four
+fixture DTOs (40,000 inputs / CI run). Useful for PHP shops with
+a TypeScript or vanilla-JS frontend that want drift-free
+validation across the wire.
+
+#### Added
+
+- **`Rxn\Framework\Codegen\JsValidatorEmitter`** — `emit(string
+  $class): string` returns a self-contained ES module mirroring
+  `Binder::compileProperty()` line-for-line in JavaScript.
+  Coverage: `Required`, `NotBlank`, `Length`, `Min`, `Max`,
+  `InSet`, `Email`, `Url` plus the four scalar casts (string, int,
+  float, bool). The PHP int round-trip guard
+  (`is_numeric($v) && (string)(int)$v === (string)$v`) is mirrored
+  bit-for-bit.
+- **`Rxn\Framework\Codegen\Testing\ParityHarness`** — generic
+  cross-runtime parity harness. `ParityHarness::run($dto, $source,
+  $invoke, $iterations)` returns a `ParityResult` with disagreements
+  + samples; `ParityHarness::nodeInvoker()` is the standard
+  NDJSON-driven Node invocation.
+- **`AdversarialInputGenerator`** — DTO-driven random input
+  generator. Reflects properties + attributes; emits omissions,
+  type mismatches, boundary violations, InSet drift, malformed
+  Email/Url fixtures. 20% omit / 8% null / 4% empty string by
+  default.
+- **`Rxn\Framework\Codegen\Testing\ParityResult`** — outcome
+  value object with `describe()` for failure-message formatting.
+- **Refusal-on-unknown-attribute.** Emitter throws
+  `RuntimeException` for `Pattern`, `Uuid`, `Json`, `Date`,
+  `StartsWith`, `EndsWith` and custom `Validates` implementations.
+  Each has a known PHP/JS runtime divergence (PCRE vs JS regex,
+  parser-shape differences); silent divergence is the worst
+  failure mode, so the emitter doesn't try.
+
+#### Tests
+
+- `JsValidatorParityTest` — DataProvider over four fixture DTOs ×
+  10K iterations = **40K cross-runtime inputs per CI run**.
+  Skipped automatically when `node` isn't on PATH.
+- `JsValidatorEdgeCaseTest` — 30 hand-picked tricky inputs.
+  Caught a real PHP/JS divergence at `"  42"` for an int field
+  (PHP rejected via round-trip; JS had a leading `.trim()` that
+  let it through). Fixed by removing the trim — the edge-case
+  test caught what 10K random inputs missed.
+
+#### Docs
+
+- `docs/plugin-architecture.md` — what lives in core vs. as
+  separate Composer packages. Honest minimal scope: only
+  `davidwyly/rxn-orm` is currently extracted; no formal plugin
+  contract until there are enough plugins to justify one.
+  Documents the rolled-back cross-language ambition (audience
+  mismatch + wrong vehicle) explicitly.
+- `bench/ab/experiments/2026-05-01-cross-lang-validator.md` —
+  full writeup, coverage matrix, and the rolled-back framing.
+
+### Fiber-aware in-request parallelism (`experiment/fiber-await`, PR #8)
+
+Opt-in concurrency primitives for fan-out scenarios (dashboards,
+aggregations). Sync-first posture preserved — Fibers are an
+explicit per-handler choice, not a framework-wide rewrite.
+
+#### Added
+
+- **`Rxn\Framework\Concurrency\Scheduler`** — Fiber scheduler
+  with `await(Promise)` / `awaitAll([Promise])` / `awaitAny([Promise])`.
+- **`Rxn\Framework\Concurrency\Promise`** — Fiber-aware promise
+  primitive backed by `curl_multi` for HTTP fan-out.
+- **`Rxn\Framework\Concurrency\HttpClient`** — Fiber-friendly
+  HTTP client (`get`, `post`) returning `Promise`.
+- **`Rxn\Framework\Concurrency\await.php`** — function-level
+  helpers (`await`, `awaitAll`, `awaitAny`) for handler code.
+- **`docs/horizons.md`** — research-directions roadmap. Four
+  directions sized with cost / mechanism / ship signal: schema
+  as truth taken further, observability ships in the box,
+  fiber-aware concurrency (this experiment), profile-guided
+  compilation.
+- **Example app `/dashboard` route** — fan-out demo using three
+  parallel HTTP calls via `awaitAll`.
+
+
 
 Five PSR specs landed end-to-end across the dispatch spine, plus
 two structural refactors and an opt-in on-disk dump cache. Every
