@@ -281,6 +281,12 @@ class Container
                     $args[] = '$c->get(' . self::quoteString($directive[1]) . ')';
                     break;
                 case 'default':
+                    // var_export(object) emits `Class::__set_state(...)`,
+                    // which is not equivalent to runtime default values and
+                    // can fatal for classes that don't implement it.
+                    if (is_object($directive[1])) {
+                        return null;
+                    }
                     $args[] = var_export($directive[1], true);
                     break;
                 case 'null':
