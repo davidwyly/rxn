@@ -50,7 +50,7 @@ class Container
     /**
      * Pre-computed construction recipe per class. Each entry is a
      * directive describing how to fill the corresponding constructor
-     * parameter slot — `['autowire', $class]`, `['default', $value]`,
+     * parameter slot — `['autowire', $class]`, `['default']`,
      * `['null']`, or `['fail', $param_name]`. `null` cache entry
      * means "no constructor; use newInstanceWithoutConstructor".
      *
@@ -58,7 +58,7 @@ class Container
      * Reflection*Parameter call after the first resolution, which
      * is where the bulk of the autowire cost lives.
      *
-     * @var array<string, list<array{0: string, 1?: mixed}>|null>
+     * @var array<string, list<array{0: string, 1?: string}>|null>
      */
     private static array $constructorPlanCache = [];
 
@@ -228,7 +228,8 @@ class Container
                     $create_parameters[$key] = $this->get($directive[1]);
                     break;
                 case 'default':
-                    $create_parameters[$key] = $directive[1];
+                    $constructor = self::reflectionFor($class_name)->getConstructor();
+                    $create_parameters[$key] = $constructor->getParameters()[$key]->getDefaultValue();
                     break;
                 case 'null':
                     $create_parameters[$key] = null;
@@ -281,8 +282,10 @@ class Container
                     $args[] = '$c->get(' . self::quoteString($directive[1]) . ')';
                     break;
                 case 'default':
-                    $args[] = var_export($directive[1], true);
-                    break;
+                    // Defaults can include object-creating expressions
+                    // (e.g. `= new Bag`) and must be evaluated per
+                    // constructor call. Fall back to runtime path.
+                    return null;
                 case 'null':
                     $args[] = 'null';
                     break;
@@ -338,7 +341,7 @@ class Container
                 continue;
             }
             if ($p->isDefaultValueAvailable()) {
-                $plan[] = ['default', $p->getDefaultValue()];
+                $plan[] = ['default'];
                 continue;
             }
             if ($p->allowsNull()) {
