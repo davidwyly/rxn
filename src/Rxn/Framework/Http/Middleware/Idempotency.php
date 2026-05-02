@@ -60,6 +60,7 @@ final class Idempotency implements MiddlewareInterface
         private readonly int    $lockTtlSeconds = 30,
         /** @var list<string> */
         private readonly array  $methods        = ['POST', 'PUT', 'PATCH', 'DELETE'],
+        private readonly int    $maxBodyBytes   = 1_048_576,
         // Optional PSR-14 dispatcher. When provided, the middleware
         // emits `IdempotencyHit` on replay and `IdempotencyMiss`
         // when the cold path runs. Null → no allocation, no dispatch.
@@ -79,10 +80,18 @@ final class Idempotency implements MiddlewareInterface
             return $handler->handle($request);
         }
 
+        $scopedKey   = $this->scopedKey($key, $request);
         $fingerprint = $this->fingerprint($method, $request);
+        if ($fingerprint === null) {
+            return self::renderProblem(
+                413,
+                'idempotency_request_body_too_large',
+                'Request body exceeds idempotency fingerprint size limit.',
+            );
+        }
 
         // Replay path — cache hit.
-        $stored = $this->store->get($key);
+        $stored = $this->store->get($scopedKey);
         if ($stored !== null) {
             if ($stored->fingerprint !== $fingerprint) {
                 // Same key, different request shape → client bug.
@@ -99,7 +108,7 @@ final class Idempotency implements MiddlewareInterface
         $this->events?->dispatch(new IdempotencyMiss($key, $fingerprint));
 
         // Cold path — acquire lock, process, store.
-        if (!$this->store->lock($key, $this->lockTtlSeconds)) {
+        if (!$this->store->lock($scopedKey, $this->lockTtlSeconds)) {
             return self::renderProblem(
                 409,
                 'idempotency_key_in_use',
@@ -119,7 +128,7 @@ final class Idempotency implements MiddlewareInterface
                     $response->getBody()->rewind();
                 }
                 $this->store->put(
-                    $key,
+                    $scopedKey,
                     new StoredResponse(
                         statusCode:  $response->getStatusCode(),
                         headers:     $response->getHeaders(),
@@ -132,7 +141,7 @@ final class Idempotency implements MiddlewareInterface
             }
             return $response;
         } finally {
-            $this->store->release($key);
+            $this->store->release($scopedKey);
         }
     }
 
@@ -157,14 +166,24 @@ final class Idempotency implements MiddlewareInterface
      * + raw request body. Query params are part of the URI and so
      * captured automatically.
      */
-    private function fingerprint(string $method, ServerRequestInterface $request): string
+    private function fingerprint(string $method, ServerRequestInterface $request): ?string
     {
-        $uri  = (string)$request->getUri();
-        $body = (string)$request->getBody();
+        $uri   = (string)$request->getUri();
+        $scope = $request->getHeaderLine('Authorization');
+        $body  = (string)$request->getBody();
         if ($request->getBody()->isSeekable()) {
             $request->getBody()->rewind();
         }
-        return hash('sha256', $method . "\n" . $uri . "\n" . $body);
+        if (strlen($body) > $this->maxBodyBytes) {
+            return null;
+        }
+        return hash('sha256', $scope . "\n" . $method . "\n" . $uri . "\n" . $body);
+    }
+
+    private function scopedKey(string $incomingKey, ServerRequestInterface $request): string
+    {
+        $scope = $request->getHeaderLine('Authorization');
+        return hash('sha256', $scope . "\n" . $incomingKey);
     }
 
     private function renderStored(StoredResponse $stored): ResponseInterface

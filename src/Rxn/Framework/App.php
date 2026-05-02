@@ -234,7 +234,7 @@ class App
     {
         try {
             $response = $this->dispatch();
-        } catch (\Exception $exception) {
+        } catch (\Throwable $exception) {
             $response = $this->renderFailure($exception);
         }
         self::render($response);
@@ -267,7 +267,7 @@ class App
         return $this->api->controller->trigger();
     }
 
-    private function renderFailure(\Exception $exception): Response
+    private function renderFailure(\Throwable $exception): Response
     {
         $response = $this->container->get(Response::class);
         if ($response->isRendered()) {
@@ -332,16 +332,24 @@ class App
         }
         $response = new Response(null);
         $response->getFailure(new AppException('Environment errors on startup'));
-        $response->addMetaField('startup_errors', self::$environment_errors);
+        $response->addMetaField('startup_errors', self::isProductionEnvironment() ? [] : self::$environment_errors);
         self::render($response);
     }
 
     public static function appendEnvironmentError(\Exception $exception): void
     {
-        self::$environment_errors[] = [
-            'file'    => $exception->getFile(),
-            'line'    => $exception->getLine(),
-            'message' => $exception->getMessage(),
-        ];
+        self::$environment_errors[] = self::isProductionEnvironment()
+            ? ['message' => 'Startup error']
+            : [
+                'file'    => $exception->getFile(),
+                'line'    => $exception->getLine(),
+                'message' => $exception->getMessage(),
+            ];
+    }
+
+    private static function isProductionEnvironment(): bool
+    {
+        return getenv('ENVIRONMENT') === 'production';
     }
 }
+

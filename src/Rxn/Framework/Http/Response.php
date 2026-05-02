@@ -158,11 +158,11 @@ class Response
     }
 
     /**
-     * @param \Exception $exception
+     * @param \Throwable $exception
      *
      * @return Response
      */
-    public function getFailure(\Exception $exception): Response
+    public function getFailure(\Throwable $exception): Response
     {
         $this->setRendered(true);
 
@@ -208,7 +208,7 @@ class Response
     }
 
     /**
-     * @param \Exception $exception
+     * @param \Throwable $exception
      * Map an exception's `code` to an HTTP error status. Only
      * 4xx / 5xx codes are honoured — anything outside that range
      * (the default `code = 0`, an arbitrary integer like `12345`,
@@ -218,7 +218,7 @@ class Response
      * emit `12345` as the HTTP status line, which is malformed
      * and will trip up any well-behaved client / proxy.
      */
-    public static function getErrorCode(\Exception $exception): int
+    public static function getErrorCode(\Throwable $exception): int
     {
         $code = $exception->getCode();
         if (!is_int($code) || $code < 400 || $code > 599) {
@@ -228,11 +228,11 @@ class Response
     }
 
     /**
-     * @param \Exception $exception
+     * @param \Throwable $exception
      *
      * @return array
      */
-    public static function getErrorTrace(\Exception $exception)
+    public static function getErrorTrace(\Throwable $exception)
     {
         $full_trace         = $exception->getTrace();
         $allowed_debug_keys = [

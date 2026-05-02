@@ -172,7 +172,7 @@ final class Router
             // Covers both `{id}` and `{id:int}` forms.
             $url = preg_replace(
                 '/\{' . preg_quote($placeholder, '/') . '(?::[a-zA-Z_][a-zA-Z0-9_]*)?\}/',
-                (string)$params[$placeholder],
+                rawurlencode((string)$params[$placeholder]),
                 $url
             );
         }

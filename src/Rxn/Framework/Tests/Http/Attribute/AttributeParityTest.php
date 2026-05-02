@@ -84,10 +84,11 @@ final class AttributeParityTest extends TestCase
         $this->assertNotNull((new Date())->validate('2024-02-30'));    // phantom day
         $this->assertNotNull((new Date())->validate('04/29/2026'));    // wrong format
         $this->assertNotNull((new Date())->validate('tomorrow'));      // strtotime-ism
+        $this->assertNotNull((new Date())->validate("2026-04-29\0"));   // embedded NUL
 
         $this->assertParity(DateDto::class,
             valid:   ['birthday' => '1990-01-15'],
-            invalid: ['birthday' => 'tomorrow'],
+            invalid: ['birthday' => "1990-01-15\0"],
             field:   'birthday',
         );
     }

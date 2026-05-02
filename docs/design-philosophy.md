@@ -364,26 +364,21 @@ principles are how we keep the substrate healthy.
 ## Per-request state is sync-only by design
 
 `BearerAuth::current()` and `RequestId::current()` publish state
-through a `private static ?T $current` slot, set on `handle()`
-entry and cleared in `finally`. This is correct under any
-**synchronous** dispatch — including Swoole's default I/O-hooked
-fibers, where request handlers don't `Fiber::suspend()` between
-the set and the clear, so the static is observed only by the
-running request's own downstream code.
+through a process-wide `private static ?T $current` slot. That
+shape is only safe under strict one-request-at-a-time execution
+(e.g. PHP-FPM's process-per-request model).
 
-The shape is deliberate. The README's stated position is *"sync-
-first, process-per-request, predictable. We deliberately don't
-chase async."* Adding a per-fiber context map (one of the
-"obvious" robustness changes) would import shape the framework
-explicitly opts out of, for a hazard that only triggers when a
-handler holds principal across an explicit `Fiber::suspend()` —
-not a usage pattern the framework endorses or supports.
+It is **not** safe under concurrent coroutine/fiber workers
+(including I/O-hooked runtimes) because control can yield while
+`$current` is populated, allowing another in-flight request to
+overwrite the static before the first request resumes.
 
-If you have a handler that explicitly suspends a fiber while
-holding state, propagate that state yourself; don't rely on
-`current()`. This is the same boundary `rxn-orm` draws with
-`Record::clearConnections()` for fiber-isolated connection
-binding.
+The shape is deliberate: README positions rxn as *"sync-first,
+process-per-request, predictable. We deliberately don't chase
+async."* If you deploy on a concurrent worker model, do not rely
+on `current()`; carry request identity explicitly instead. This is
+the same boundary `rxn-orm` draws with `Record::clearConnections()`
+for fiber-isolated connection binding.
 
 ## Anti-patterns we deliberately avoid
 

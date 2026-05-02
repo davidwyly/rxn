@@ -66,14 +66,15 @@ final class BearerAuth implements MiddlewareInterface
      * `finally` so a long-lived worker doesn't leak the previous
      * request's principal into the next.
      *
-     * Sync-only by design: the framework targets PHP-FPM's
-     * process-per-request model (see README, "we deliberately don't
-     * chase async"). The clear-in-`finally` pattern is correct under
-     * any sync dispatch — including Swoole's default I/O-hooked
-     * fibers, where request handlers don't `Fiber::suspend()`
-     * between set and clear. If you have a handler that explicitly
-     * suspends a fiber while holding state, propagate the principal
-     * yourself; don't rely on this static.
+     * Sync-only by design: this static is process-wide and is only
+     * safe when requests are handled one-at-a-time (the framework's
+     * intended PHP-FPM model).
+     *
+     * In concurrent coroutine/fiber workers (including I/O-hooked
+     * runtimes), execution may yield while this value is set and
+     * another request may overwrite it before the original request
+     * resumes. In those environments, propagate identity explicitly;
+     * do not rely on this static.
      *
      * @return array<string, mixed>|null
      */

@@ -18,6 +18,9 @@ final class Date implements Validates
         if (!is_string($value)) {
             return null;
         }
+        if (\str_contains($value, "\0")) {
+            return 'must be a valid date (YYYY-MM-DD)';
+        }
         $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
         return $parsed !== false && $parsed->format('Y-m-d') === $value
             ? null

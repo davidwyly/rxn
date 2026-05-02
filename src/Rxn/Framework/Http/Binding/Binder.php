@@ -87,6 +87,8 @@ final class Binder
                     $prop->setValue($dto, $prop->getDefaultValue());
                 } elseif ($type instanceof \ReflectionNamedType && $type->allowsNull()) {
                     $prop->setValue($dto, null);
+                } else {
+                    $errors[] = ['field' => $name, 'message' => 'is required'];
                 }
                 continue;
             }
@@ -108,7 +110,11 @@ final class Binder
                 }
             }
 
-            $prop->setValue($dto, $cast);
+            try {
+                $prop->setValue($dto, $cast);
+            } catch (\TypeError) {
+                $errors[] = ['field' => $name, 'message' => 'type mismatch'];
+            }
         }
 
         if ($errors !== []) {
@@ -209,9 +215,9 @@ final class Binder
         // `$validators[$idx]`.
         $validators     = [];
         $validatorExprs = [];
-
+        $dtoFactory = static fn () => $reflection->newInstanceWithoutConstructor();
         $body = "    \$errors = [];\n";
-        $body .= "    \$dto = new \\" . ltrim($class, '\\') . "();\n";
+        $body .= "    \$dto = \$dtoFactory();\n";
         foreach ($reflection->getProperties(\ReflectionProperty::IS_PUBLIC) as $prop) {
             if ($prop->isStatic()) {
                 continue;
@@ -223,17 +229,19 @@ final class Binder
               .  "    }\n"
               .  "    return \$dto;\n";
 
-        $closureBody = "return static function (array \$bag) use (\$validators): \\" . ltrim($class, '\\')
+        $closureBody = "return static function (array \$bag) use (\$validators, \$dtoFactory): \\" . ltrim($class, '\\')
                      . " {\n" . $body . "};";
 
         if (\Rxn\Framework\Codegen\DumpCache::dir() !== null) {
-            // Dump path: prepend a literal `$validators = [...];`
-            // so the file is self-contained when `require`d. The
-            // closure's `use ($validators)` then captures the
-            // file-scope array at instantiation time, exactly as
-            // it does under eval.
+            // Dump path: prepend $validators and a serialisable
+            // $dtoFactory so the file is self-contained when
+            // `require`d. The closure's `use ($validators, $dtoFactory)`
+            // captures the file-scope variables at instantiation time.
             $exprList   = '[' . implode(', ', $validatorExprs) . ']';
-            $dumpSource = "\$validators = $exprList;\n" . $closureBody;
+            $classLit   = var_export('\\' . ltrim($class, '\\'), true);
+            $dumpSource = "\$validators = $exprList;\n"
+                        . "\$dtoFactory = static fn () => (new \\ReflectionClass($classLit))->newInstanceWithoutConstructor();\n"
+                        . $closureBody;
             $closure    = \Rxn\Framework\Codegen\DumpCache::load($dumpSource);
         } else {
             $closure = eval($closureBody);
@@ -408,17 +416,30 @@ final class Binder
 
     private static function inlineJson(string $valueExpr, string $fieldQ): string
     {
-        return "        if (\\is_string($valueExpr) && !\\json_validate($valueExpr)) {\n"
-             . "            \$errors[] = ['field' => $fieldQ, 'message' => 'must be valid JSON'];\n"
+        return "        if (\\is_string($valueExpr)) {\n"
+             . "            if (\\function_exists('json_validate')) {\n"
+             . "                if (!\\json_validate($valueExpr)) {\n"
+             . "                    \$errors[] = ['field' => $fieldQ, 'message' => 'must be valid JSON'];\n"
+             . "                }\n"
+             . "            } else {\n"
+             . "                try {\n"
+             . "                    \\json_decode($valueExpr, true, 512, \\JSON_THROW_ON_ERROR);\n"
+             . "                } catch (\\JsonException) {\n"
+             . "                    \$errors[] = ['field' => $fieldQ, 'message' => 'must be valid JSON'];\n"
+             . "                }\n"
+             . "            }\n"
              . "        }\n";
     }
 
     private static function inlineDate(string $valueExpr, string $fieldQ): string
     {
         return "        if (\\is_string($valueExpr)) {\n"
-             . "            \$dt = \\DateTimeImmutable::createFromFormat('!Y-m-d', $valueExpr);\n"
-             . "            if (\$dt === false || \$dt->format('Y-m-d') !== $valueExpr) {\n"
+             . "            if (\\str_contains($valueExpr, \"\0\")) {\n"
              . "                \$errors[] = ['field' => $fieldQ, 'message' => 'must be a valid date (YYYY-MM-DD)'];\n"
+             . "            } else {\n"
+             . "                \$dt = \\DateTimeImmutable::createFromFormat('!Y-m-d', $valueExpr);\n"             . "                if (\$dt === false || \$dt->format('Y-m-d') !== $valueExpr) {\n"
+             . "                    \$errors[] = ['field' => $fieldQ, 'message' => 'must be a valid date (YYYY-MM-DD)'];\n"
+             . "                }\n"
              . "            }\n"
              . "        }\n";
     }
@@ -572,8 +593,17 @@ final class Binder
      */
     private static function cast(mixed $value, ?\ReflectionType $type): mixed
     {
+        if ($type instanceof \ReflectionUnionType) {
+            foreach ($type->getTypes() as $unionType) {
+                $cast = self::cast($value, $unionType);
+                if ($cast !== self::CAST_FAIL) {
+                    return $cast;
+                }
+            }
+            return self::CAST_FAIL;
+        }
         if (!$type instanceof \ReflectionNamedType) {
-            return $value;
+            return self::CAST_FAIL;
         }
         $name = $type->getName();
 

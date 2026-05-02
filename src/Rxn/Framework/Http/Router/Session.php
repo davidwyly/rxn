@@ -110,7 +110,7 @@ class Session extends Service
      * Verify a CSRF token from an incoming request against the
      * session. Uses a constant-time compare.
      */
-    public static function validateToken(string $submitted): bool
+    public static function validateToken($submitted): bool
     {
         if (empty($_SESSION['_csrf']) || !is_string($submitted)) {
             return false;

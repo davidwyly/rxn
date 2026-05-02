@@ -53,7 +53,7 @@ class CrudController extends Controller implements Crud
      */
     public function create()
     {
-        $key_values = $this->request->getCollector()->getFromRequest();
+        $key_values = $this->request->getCollector()->getFromPost();
         $order      = $this->container->get($this->record_class);
         $created_id = $order->create($key_values);
         return ['created_id' => $created_id];
@@ -74,7 +74,7 @@ class CrudController extends Controller implements Crud
     public function update()
     {
         $record_id  = $this->request->getCollector()->getParamFromGet('id');
-        $key_values = $this->request->getCollector()->getFromRequest();
+        $key_values = $this->request->getCollector()->getFromPost();
         unset($key_values['id']);
         $order      = $this->container->get($this->record_class);
         $updated_id = $order->update($record_id, $key_values);

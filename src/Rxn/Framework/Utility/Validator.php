@@ -243,7 +243,7 @@ final class Validator
                     ? null
                     : "$field must be a valid IPv6 address";
             case 'json':
-                return is_string($value) && json_validate($value)
+                return self::isValidJson($value)
                     ? null
                     : "$field must be valid JSON";
             case 'date':
@@ -342,7 +342,7 @@ final class Validator
             $other[] = $rule;
         }
 
-        $src = "    // -- field: $field\n";
+        $src = "    /* field: " . self::quoteInlineComment($field) . " */\n";
         $src .= "    \$value = \$payload[$fieldQ] ?? null;\n";
         $src .= "    \$present = \\array_key_exists($fieldQ, \$payload) && \$value !== '' && \$value !== null;\n";
         $src .= "    if (!\$present) {\n";
@@ -403,7 +403,7 @@ final class Validator
             'ip'     => "        if (!(\\is_string(\$value) && \\filter_var(\$value, \\FILTER_VALIDATE_IP) !== false)) { \$errors[$fieldQ][] = " . self::quoteString("$field must be a valid IP address") . "; }\n",
             'ipv4'   => "        if (!(\\is_string(\$value) && \\filter_var(\$value, \\FILTER_VALIDATE_IP, \\FILTER_FLAG_IPV4) !== false)) { \$errors[$fieldQ][] = " . self::quoteString("$field must be a valid IPv4 address") . "; }\n",
             'ipv6'   => "        if (!(\\is_string(\$value) && \\filter_var(\$value, \\FILTER_VALIDATE_IP, \\FILTER_FLAG_IPV6) !== false)) { \$errors[$fieldQ][] = " . self::quoteString("$field must be a valid IPv6 address") . "; }\n",
-            'json'   => "        if (!(\\is_string(\$value) && \\json_validate(\$value))) { \$errors[$fieldQ][] = " . self::quoteString("$field must be valid JSON") . "; }\n",
+            'json'   => "        if (!\\Rxn\\Framework\\Utility\\Validator::isValidJson(\$value)) { \$errors[$fieldQ][] = " . self::quoteString("$field must be valid JSON") . "; }\n",
             'date'    => self::compileDateRule($field, 'Y-m-d', "$field must be a valid date (YYYY-MM-DD)"),
             'datetime'=> self::compileDateTimeRule($field),
             'not_blank' => "        if (!(\\is_string(\$value) && \\trim(\$value) !== '')) { \$errors[$fieldQ][] = " . self::quoteString("$field must not be blank") . "; }\n",
@@ -420,8 +420,12 @@ final class Validator
         $msgQ     = self::quoteString($message);
         return "        if (!\\is_string(\$value)) { \$errors[$fieldQ][] = $msgQ; }\n"
              . "        else {\n"
-             . "            \$dt = \\DateTimeImmutable::createFromFormat('!' . $formatQ, \$value);\n"
-             . "            if (\$dt === false || \$dt->format($formatQ) !== \$value) { \$errors[$fieldQ][] = $msgQ; }\n"
+             . "            try {\n"
+             . "                \$dt = \\DateTimeImmutable::createFromFormat('!' . $formatQ, \$value);\n"
+             . "                if (\$dt === false || \$dt->format($formatQ) !== \$value) { \$errors[$fieldQ][] = $msgQ; }\n"
+             . "            } catch (\\ValueError) {\n"
+             . "                \$errors[$fieldQ][] = $msgQ;\n"
+             . "            }\n"
              . "        }\n";
     }
 
@@ -435,8 +439,13 @@ final class Validator
              . "        else {\n"
              . "            \$ok = false;\n"
              . "            foreach ([\\DateTimeInterface::RFC3339, \\DateTimeInterface::ATOM, 'Y-m-d\\\\TH:i:s\\\\Z', 'Y-m-d\\\\TH:i:sP', 'Y-m-d H:i:s'] as \$f) {\n"
-             . "                \$dt = \\DateTimeImmutable::createFromFormat(\$f, \$value);\n"
-             . "                if (\$dt !== false && \$dt->format(\$f) === \$value) { \$ok = true; break; }\n"
+             . "                try {\n"
+             . "                    \$dt = \\DateTimeImmutable::createFromFormat(\$f, \$value);\n"
+             . "                    if (\$dt !== false && \$dt->format(\$f) === \$value) { \$ok = true; break; }\n"
+             . "                } catch (\\ValueError) {\n"
+             . "                    \$ok = false;\n"
+             . "                    break;\n"
+             . "                }\n"
              . "            }\n"
              . "            if (!\$ok) { \$errors[$fieldQ][] = $msgQ; }\n"
              . "        }\n";
@@ -509,6 +518,15 @@ final class Validator
         return "        if (!(\\is_string(\$value) && \\preg_match($patternQ, \$value) === 1)) { \$errors[$fieldQ][] = $msg; }\n";
     }
 
+
+    /**
+     * Sanitize text embedded in generated one-line comments.
+     */
+    private static function quoteInlineComment(string $s): string
+    {
+        return str_replace(["\r", "\n", "*/"], [' ', ' ', '* /'], $s);
+    }
+
     /**
      * Quote a string as a single-quoted PHP literal. Safe for any
      * PHP string — we escape `\` and `'`.
@@ -530,7 +548,11 @@ final class Validator
         if (!is_string($value)) {
             return false;
         }
-        $parsed = \DateTimeImmutable::createFromFormat('!' . $format, $value);
+        try {
+            $parsed = \DateTimeImmutable::createFromFormat('!' . $format, $value);
+        } catch (\ValueError) {
+            return false;
+        }
         if ($parsed === false) {
             return false;
         }
@@ -556,12 +578,30 @@ final class Validator
             'Y-m-d H:i:s',
         ];
         foreach ($formats as $format) {
-            $parsed = \DateTimeImmutable::createFromFormat($format, $value);
+            try {
+                $parsed = \DateTimeImmutable::createFromFormat($format, $value);
+            } catch (\ValueError) {
+                return false;
+            }
             if ($parsed !== false && $parsed->format($format) === $value) {
                 return true;
             }
         }
         return false;
+    }
+
+    public static function isValidJson(mixed $value): bool
+    {
+        if (!is_string($value)) {
+            return false;
+        }
+
+        if (function_exists('json_validate')) {
+            return json_validate($value);
+        }
+
+        json_decode($value);
+        return json_last_error() === JSON_ERROR_NONE;
     }
 
     /**

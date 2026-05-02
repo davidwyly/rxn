@@ -84,7 +84,10 @@ final class IdempotencyTest extends TestCase
         );
         $this->assertSame(201, $response->getStatusCode());
 
-        $stored = $store->get('k-cold');
+        $files = glob($this->tmpDir . '/*.json') ?: [];
+        $this->assertCount(1, $files);
+        $envelope = (array) json_decode((string) file_get_contents($files[0]), true);
+        $stored = StoredResponse::fromArray($envelope['data']);
         $this->assertInstanceOf(StoredResponse::class, $stored);
         $this->assertSame(201, $stored->statusCode);
         $body = json_decode($stored->body, true);
@@ -126,6 +129,53 @@ final class IdempotencyTest extends TestCase
         $this->assertSame('true', $second->getHeaderLine('Idempotent-Replayed'));
     }
 
+
+    public function testSameKeyDoesNotReplayAcrossAuthorizationScopes(): void
+    {
+        $store = $this->makeFileStore();
+
+        $alice = $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: ['Idempotency-Key' => 'k-scope', 'Authorization' => 'Bearer alice'],
+            body: '{"a":1}',
+            terminal: $this->jsonTerminal(201, ['id' => 'alice']),
+        );
+        $aliceData = json_decode((string)$alice->getBody(), true);
+        $this->assertSame(['id' => 'alice'], $aliceData['data']);
+
+        $count = 0;
+        $bob = $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: ['Idempotency-Key' => 'k-scope', 'Authorization' => 'Bearer bob'],
+            body: '{"a":1}',
+            terminal: function () use (&$count): ResponseInterface {
+                $count++;
+                return $this->jsonResponse(201, ['id' => 'bob']);
+            },
+        );
+
+        $this->assertSame(1, $count, 'request with different auth scope should not replay cached response');
+        $bobData = json_decode((string)$bob->getBody(), true);
+        $this->assertSame(['id' => 'bob'], $bobData['data']);
+    }
+
+    public function testOversizedBodyReturns413(): void
+    {
+        $store = $this->makeFileStore();
+        $response = $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: ['Idempotency-Key' => 'k-big'],
+            body: str_repeat('a', 20),
+            terminal: $this->jsonTerminal(201, ['ok' => true]),
+            maxBodyBytes: 10,
+        );
+        $this->assertSame(413, $response->getStatusCode());
+        $problem = json_decode((string)$response->getBody(), true);
+        $this->assertSame('idempotency_request_body_too_large', $problem['type']);
+    }
     public function testFingerprintMismatchReturns400(): void
     {
         $store = $this->makeFileStore();
@@ -156,7 +206,8 @@ final class IdempotencyTest extends TestCase
         $store = $this->makeFileStore();
 
         // Acquire the lock manually to simulate "request in-flight".
-        $this->assertTrue($store->lock('k-conflict', 30));
+        $scopedKey = hash('sha256', "\n" . 'k-conflict');
+        $this->assertTrue($store->lock($scopedKey, 30));
 
         $response = $this->runMiddleware(
             $store,
@@ -169,7 +220,7 @@ final class IdempotencyTest extends TestCase
         $problem = json_decode((string)$response->getBody(), true);
         $this->assertSame('idempotency_key_in_use', $problem['type']);
 
-        $store->release('k-conflict');
+        $store->release($scopedKey);
     }
 
     public function test5xxResponsesAreNotCached(): void
@@ -183,7 +234,7 @@ final class IdempotencyTest extends TestCase
             body: '{"a":1}',
             terminal: $this->jsonTerminal(503, ['error' => 'down']),
         );
-        $this->assertNull($store->get('k-5xx'),
+        $this->assertCount(0, glob($this->tmpDir . '/*.json') ?: [],
             '5xx responses should not be cached so retries can hit a healthy backend');
     }
 
@@ -371,6 +422,7 @@ final class IdempotencyTest extends TestCase
         string $body,
         callable $terminal,
         ?EventDispatcherInterface $events = null,
+        int $maxBodyBytes = 1_048_576,
     ): ResponseInterface {
         $request = new ServerRequest($method, 'http://test.local/test', $headers, $body);
         $handler = new class($terminal) implements RequestHandlerInterface {
@@ -384,6 +436,7 @@ final class IdempotencyTest extends TestCase
         };
         return (new Idempotency(
             store: $store,
+            maxBodyBytes: $maxBodyBytes,
             events: $events,
         ))->process($request, $handler);
     }

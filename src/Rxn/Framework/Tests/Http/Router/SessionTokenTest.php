@@ -37,4 +37,10 @@ final class SessionTokenTest extends TestCase
     {
         $this->assertFalse(Session::validateToken('whatever'));
     }
+
+    public function testValidateRejectsNonStringSubmittedToken(): void
+    {
+        Session::token();
+        $this->assertFalse(Session::validateToken(['token']));
+    }
 }

@@ -52,7 +52,7 @@ class Container implements ContainerInterface
     /**
      * Pre-computed construction recipe per class. Each entry is a
      * directive describing how to fill the corresponding constructor
-     * parameter slot — `['autowire', $class]`, `['default', $value]`,
+     * parameter slot — `['autowire', $class]`, `['default']`,
      * `['null']`, or `['fail', $param_name]`. `null` cache entry
      * means "no constructor; use newInstanceWithoutConstructor".
      *
@@ -60,19 +60,9 @@ class Container implements ContainerInterface
      * Reflection*Parameter call after the first resolution, which
      * is where the bulk of the autowire cost lives.
      *
-     * @var array<string, list<array{0: string, 1?: mixed}>|null>
+     * @var array<string, list<array{0: string, 1?: string}>|null>
      */
     private static array $constructorPlanCache = [];
-
-    /**
-     * Memoise normalised class names. parseClassName is a pure
-     * function (`'\\' . ltrim($input, '\\')`); same input always
-     * produces the same output, and it gets called multiple times
-     * per `get()` (entry call + recursive autowire + addInstance).
-     *
-     * @var array<string, string>
-     */
-    private static array $parsedNameCache = [];
 
     /**
      * Precomputed normalised name of the Container class itself. Used
@@ -172,6 +162,10 @@ class Container implements ContainerInterface
             throw new ContainerNotFoundException("$class_name is not a valid class name");
         }
 
+        // Canonicalise to the declared class casing so process-lifetime
+        // caches don't grow with case-variant aliases of the same class.
+        $class_name = $this->parseClassName(self::reflectionFor($class_name)->getName());
+
         // if we already stored an instance of a statically-bound service class, return it.
         // Direct isset rather than has() — PSR-11 has() now reports
         // "constructible" (class_exists), which is a different thing
@@ -258,7 +252,8 @@ class Container implements ContainerInterface
                     $create_parameters[$key] = $this->get($directive[1]);
                     break;
                 case 'default':
-                    $create_parameters[$key] = $directive[1];
+                    $constructor = self::reflectionFor($class_name)->getConstructor();
+                    $create_parameters[$key] = $constructor->getParameters()[$key]->getDefaultValue();
                     break;
                 case 'null':
                     $create_parameters[$key] = null;
@@ -339,8 +334,10 @@ class Container implements ContainerInterface
                     $args[] = '$c->get(' . self::quoteString($directive[1]) . ')';
                     break;
                 case 'default':
-                    $args[] = var_export($directive[1], true);
-                    break;
+                    // Defaults can include object-creating expressions
+                    // (e.g. `= new Bag`) and must be evaluated per
+                    // constructor call. Fall back to runtime path.
+                    return null;
                 case 'null':
                     $args[] = 'null';
                     break;
@@ -389,17 +386,15 @@ class Container implements ContainerInterface
         foreach ($constructor->getParameters() as $p) {
             $type = $p->getType();
             if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
-                // Pre-normalise the target FQCN so the recursive
-                // get($directive[1]) lands on the parseClassName cache
-                // immediately instead of paying for ltrim + concat.
+                // Pre-normalise the target FQCN so recursive
+                // get($directive[1]) skips repeated normalisation.
                 $name = $type->getName();
-                $normalised = self::$parsedNameCache[$name]
-                    ??= '\\' . ltrim($name, '\\');
+                $normalised = '\\' . ltrim($name, '\\');
                 $plan[] = ['autowire', $normalised];
                 continue;
             }
             if ($p->isDefaultValueAvailable()) {
-                $plan[] = ['default', $p->getDefaultValue()];
+                $plan[] = ['default'];
                 continue;
             }
             if ($p->allowsNull()) {
@@ -442,8 +437,7 @@ class Container implements ContainerInterface
 
     private function parseClassName($class_name)
     {
-        return self::$parsedNameCache[$class_name]
-            ??= "\\" . ltrim($class_name, '\\');
+        return "\\" . ltrim($class_name, '\\');
     }
 
     /**
