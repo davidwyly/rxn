@@ -166,16 +166,26 @@ class App
         }
         $response = new Response(null);
         $response->getFailure(new AppException('Environment errors on startup'));
-        $response->meta['startup_errors'] = self::$environment_errors;
+        $response->meta['startup_errors'] = self::isProductionEnvironment()
+            ? []
+            : self::$environment_errors;
         self::render($response);
     }
 
     public static function appendEnvironmentError(\Exception $exception): void
     {
-        self::$environment_errors[] = [
-            'file'    => $exception->getFile(),
-            'line'    => $exception->getLine(),
-            'message' => $exception->getMessage(),
-        ];
+        self::$environment_errors[] = self::isProductionEnvironment()
+            ? ['message' => 'Startup error']
+            : [
+                'file'    => $exception->getFile(),
+                'line'    => $exception->getLine(),
+                'message' => $exception->getMessage(),
+            ];
+    }
+
+    private static function isProductionEnvironment(): bool
+    {
+        return getenv('ENVIRONMENT') === 'production';
     }
 }
+
