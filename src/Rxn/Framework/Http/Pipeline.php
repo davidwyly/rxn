@@ -6,6 +6,9 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Rxn\Framework\Observability\Event\MiddlewareEntered;
+use Rxn\Framework\Observability\Event\MiddlewareExited;
+use Rxn\Framework\Observability\Events;
 
 /**
  * PSR-15 middleware pipeline. Accepts PSR-15 middlewares and a
@@ -83,7 +86,28 @@ final class Pipeline implements RequestHandlerInterface
         if ($this->index >= count($this->middlewares)) {
             return $this->terminal->handle($request);
         }
-        $middleware = $this->middlewares[$this->index++];
-        return $middleware->process($request, $this);
+        $index      = $this->index++;
+        $middleware = $this->middlewares[$index];
+
+        // Gate the entire instrumentation on a dispatcher being
+        // installed: pair-id minting (random_bytes call) and event
+        // construction both happen only when there's a listener.
+        // Apps that don't subscribe pay just this one null-check
+        // per middleware hop.
+        if (!Events::enabled()) {
+            return $middleware->process($request, $this);
+        }
+
+        $cls    = $middleware::class;
+        $pairId = Events::newPairId();
+        Events::emit(new MiddlewareEntered($pairId, $cls, $index, $request));
+        try {
+            $response = $middleware->process($request, $this);
+            Events::emit(new MiddlewareExited($pairId, $cls, $index, $response, null));
+            return $response;
+        } catch (\Throwable $e) {
+            Events::emit(new MiddlewareExited($pairId, $cls, $index, null, $e));
+            throw $e;
+        }
     }
 }

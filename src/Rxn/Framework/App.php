@@ -121,31 +121,162 @@ class App
         $method  = $request->getMethod();
         $path    = $request->getUri()->getPath();
 
-        $hit = $router->match($method, $path);
-        if ($hit === null) {
-            $status = $router->hasMethodMismatch($method, $path) ? 405 : 404;
-            \Rxn\Framework\Http\PsrAdapter::emit(self::psrProblem($status));
-            return;
+        // Gate every observability cost on a dispatcher actually
+        // being installed: pair-id minting (random_bytes), event
+        // construction, and dispatch all skip when nobody is
+        // listening. Apps that don't subscribe pay one method call
+        // per emit point — no allocations, no CSPRNG draws.
+        $eventsEnabled = \Rxn\Framework\Observability\Events::enabled();
+        $pairId        = $eventsEnabled
+            ? \Rxn\Framework\Observability\Events::newPairId()
+            : null;
+
+        try {
+            if ($eventsEnabled && $pairId !== null) {
+                \Rxn\Framework\Observability\Events::useCurrentPairId($pairId);
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\RequestReceived($pairId, $request)
+                );
+            }
+
+            $hit = $router->match($method, $path);
+            if ($hit === null) {
+                $status   = $router->hasMethodMismatch($method, $path) ? 405 : 404;
+                $response = self::psrProblem($status);
+                \Rxn\Framework\Http\PsrAdapter::emit($response);
+                if ($eventsEnabled && $pairId !== null) {
+                    \Rxn\Framework\Observability\Events::emit(
+                        new \Rxn\Framework\Observability\Event\ResponseEmitted($pairId, $response)
+                    );
+                }
+                return;
+            }
+
+            $pipeline = new \Rxn\Framework\Http\Pipeline();
+            foreach ($hit['middlewares'] as $mw) {
+                $pipeline->add($mw);
+            }
+
+            $invoker ??= self::defaultHandlerInvoker(...);
+
+            // Wrap the user invoker with HandlerInvoked entered/exited
+            // events when observability is enabled; otherwise the
+            // bare invoker runs untouched.
+            $finalInvoker = ($eventsEnabled && $pairId !== null)
+                ? self::wrapInvokerWithHandlerEvents($invoker, $pairId)
+                : $invoker;
+
+            $terminal = new class($hit, $finalInvoker) implements \Psr\Http\Server\RequestHandlerInterface {
+                /** @param callable(array, \Psr\Http\Message\ServerRequestInterface): \Psr\Http\Message\ResponseInterface $invoker */
+                public function __construct(private array $hit, private $invoker) {}
+
+                public function handle(\Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
+                {
+                    return ($this->invoker)($this->hit, $request);
+                }
+            };
+
+            $response = $pipeline->run($request, $terminal);
+
+            \Rxn\Framework\Http\PsrAdapter::emit($response);
+            if ($eventsEnabled && $pairId !== null) {
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\ResponseEmitted($pairId, $response)
+                );
+            }
+        } finally {
+            // Clear the request-scoped pair id so a long-running
+            // worker (Swoole / RoadRunner) doesn't leak it into the
+            // next request. The slot is intentionally process-wide
+            // (sync PHP serves one request at a time per worker),
+            // and we want it gone before the next request begins.
+            if ($eventsEnabled) {
+                \Rxn\Framework\Observability\Events::useCurrentPairId(null);
+            }
         }
+    }
 
-        $pipeline = new \Rxn\Framework\Http\Pipeline();
-        foreach ($hit['middlewares'] as $mw) {
-            $pipeline->add($mw);
-        }
-
-        $invoker ??= self::defaultHandlerInvoker(...);
-
-        $terminal = new class($hit, $invoker) implements \Psr\Http\Server\RequestHandlerInterface {
-            /** @param callable(array, \Psr\Http\Message\ServerRequestInterface): \Psr\Http\Message\ResponseInterface $invoker */
-            public function __construct(private array $hit, private $invoker) {}
-
-            public function handle(\Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
-            {
-                return ($this->invoker)($this->hit, $request);
+    /**
+     * Decorate `$invoker` with `HandlerInvoked` entered/exited
+     * events, both shared with the request's pair id. The exited
+     * event fires both on success and on throw; the throwable is
+     * re-thrown so the pipeline / global error handler still sees
+     * the original.
+     */
+    private static function wrapInvokerWithHandlerEvents(callable $invoker, string $pairId): callable
+    {
+        return static function (array $hit, \Psr\Http\Message\ServerRequestInterface $req) use ($invoker, $pairId): \Psr\Http\Message\ResponseInterface {
+            $handlerLabel = self::describeHandler($hit['handler'] ?? null);
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\HandlerInvoked(
+                    $pairId,
+                    \Rxn\Framework\Observability\Event\HandlerInvoked::STATE_ENTERED,
+                    $handlerLabel,
+                )
+            );
+            try {
+                $response = $invoker($hit, $req);
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\HandlerInvoked(
+                        $pairId,
+                        \Rxn\Framework\Observability\Event\HandlerInvoked::STATE_EXITED,
+                        $handlerLabel,
+                    )
+                );
+                return $response;
+            } catch (\Throwable $e) {
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\HandlerInvoked(
+                        $pairId,
+                        \Rxn\Framework\Observability\Event\HandlerInvoked::STATE_EXITED,
+                        $handlerLabel,
+                        $e,
+                    )
+                );
+                throw $e;
             }
         };
+    }
 
-        \Rxn\Framework\Http\PsrAdapter::emit($pipeline->run($request, $terminal));
+    /**
+     * Stringify a route handler for use as a span name. Mapping:
+     *
+     *   - `\Closure`                       → `"Closure"`
+     *   - `[$obj|$cls, 'method']`          → `"Class::method"`
+     *   - non-empty string handler         → passed through verbatim
+     *     (typically `"Class::method"` already)
+     *   - invokable object (`__invoke`)    → `"Class::__invoke"`
+     *   - any other object                 → bare class name
+     *   - everything else                  → the literal `"callable"`
+     *     (the caller has stuffed something exotic, but the slot
+     *     is non-null — there's nothing more useful to say without
+     *     guessing)
+     */
+    private static function describeHandler(mixed $handler): string
+    {
+        if ($handler instanceof \Closure) {
+            return 'Closure';
+        }
+        if (is_array($handler) && count($handler) === 2) {
+            $obj = $handler[0];
+            $cls = is_object($obj) ? $obj::class : (is_string($obj) ? $obj : 'callable');
+            return $cls . '::' . (string) $handler[1];
+        }
+        if (is_string($handler) && $handler !== '') {
+            return $handler;
+        }
+        if (is_object($handler)) {
+            // Invokables (`__invoke`) are the common dispatcher
+            // shape — surface them as `Class::__invoke` so the
+            // span name distinguishes them from constructor-only
+            // objects of the same class. Non-invokable objects
+            // fall back to the bare class name (the caller has
+            // probably stuffed something exotic in `handler`).
+            return is_callable($handler)
+                ? $handler::class . '::__invoke'
+                : $handler::class;
+        }
+        return 'callable';
     }
 
     /**

@@ -12,6 +12,111 @@ read alongside the wins.
 
 ## Unreleased
 
+### Observability event surface (`feat/otel-spans-via-psr14`)
+
+Eight first-party events emitted from the framework's request
+lifecycle, dispatched through PSR-14. Apps subscribe a single
+listener on the `FrameworkEvent` marker interface and receive
+the lot — request bookends, per-middleware brackets, route-match
+metadata, binder invocation + validation outcome, handler
+brackets — without bolting on per-component instrumentation.
+
+This is the foundation for [horizons.md theme 2.1](docs/horizons.md)
+(OpenTelemetry spans) and theme 2.2 (Prometheus metrics). Both
+are listeners over the same event channel; this PR ships the
+substrate. The events themselves carry no OTel / Prometheus
+dependency — they're plain value objects, so apps that don't
+subscribe pay zero runtime cost beyond a static-slot null check
+per emit.
+
+#### Added
+
+- **`Rxn\Framework\Observability\Events`** static helper:
+  `useDispatcher()` installs a PSR-14 dispatcher (no-op until
+  installed); `emit()` is the per-call-site dispatch helper that
+  short-circuits when no dispatcher is set; `newPairId()` mints
+  a 64-bit hex id for bracketing entered/exited boundaries.
+- **`Rxn\Framework\Observability\Event\FrameworkEvent`** marker
+  interface — listeners that want every event subscribe once on
+  this. The PSR-14 ListenerProvider walks implemented interfaces
+  during dispatch, so a single registration covers every concrete
+  event type.
+- **Eight concrete events** (all under `Observability\Event\*`):
+  `RequestReceived` / `ResponseEmitted` (request bookends, paired
+  by id), `MiddlewareEntered` / `MiddlewareExited` (one pair per
+  middleware in the stack, with `$index` and `$throwable` on
+  failure), `RouteMatched` (template + extracted params on a
+  successful match), `BinderInvoked` (with `path` tag —
+  `compiled` or `runtime` — for compile-cache hit-ratio
+  metrics), `ValidationCompleted` (failures grouped by field
+  name; fires on success and failure, both runtime and compiled
+  paths), `HandlerInvoked` (entered/exited with throwable on
+  handler failure).
+- **Dispatch wiring** in `Pipeline::handle` (per-middleware
+  bracket, exit-on-throw), `Router::match` (both static fast
+  lane and regex bucket), `Binder::bind` (both runtime walker
+  and compiled path), `App::serve` (request + handler
+  bookends).
+
+#### How apps wire it
+
+```php
+$provider   = new ListenerProvider();
+$dispatcher = new EventDispatcher($provider);
+
+// Register one listener for every framework event:
+$provider->listen(FrameworkEvent::class, $myListener);
+
+// Or target a specific event:
+$provider->listen(ValidationCompleted::class, function (ValidationCompleted $e): void {
+    if ($e->isFailure()) {
+        $myMetrics->increment('validation_failures', $e->failures);
+    }
+});
+
+Events::useDispatcher($dispatcher);
+```
+
+#### What it costs
+
+- **Per emit point when no dispatcher installed:** one
+  `Events::enabled()` bool read. The event object is NOT
+  constructed and `random_bytes(8)` (for pair-id minting) is
+  NOT called — the call site short-circuits before either.
+  Apps that don't subscribe pay roughly nothing per request
+  hop.
+- **Per emit with a no-op listener:** event-object allocation
+  (a few field copies) + one method call + iterator walk
+  (~50 ns total). Negligible against a request's overall cost.
+- **Hottest path preservation:** `Binder::bind()`'s compiled
+  fast path returns the closure invocation directly when
+  observability is disabled — no `try/catch` frame, no
+  intermediate `$dto` assignment.
+- **No new dependencies.** Leans on the existing PSR-14 wiring
+  (`Rxn\Framework\Event\EventDispatcher` + `ListenerProvider`).
+
+#### Tests
+
+- 8 unit tests for `Events` (no-op without dispatcher, dispatch
+  through, accessor, pair-id format, stoppable semantics, custom
+  dispatcher implementation, `enabled()` gate, `currentPairId()`
+  round-trip).
+- 5 Pipeline integration tests (one pair per middleware, ordered,
+  pair-id consistency, exit-on-throw, FQCN populated, no-op
+  without dispatcher).
+- 4 Router integration tests (static path, dynamic params, miss,
+  method-mismatch).
+- 4 Binder integration tests (runtime path, compiled path,
+  failure grouping by field, compiled path emits on failure too).
+- 6 App::serve integration tests (full success path event tree,
+  404 miss path, 405 method-mismatch path, pair-id slot
+  cleared in finally, no-op without dispatcher, invokable
+  handler label).
+
+Suite 712 → 739 / 1598.
+
+---
+
 ### Profile-guided compilation (`feat/profile-guided-compilation`)
 
 Track which DTOs are actually hot at runtime; compile only

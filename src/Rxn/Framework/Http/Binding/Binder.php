@@ -79,8 +79,57 @@ final class Binder
         // the runtime walker for cold classes the user chose not to
         // pre-compile, which is the whole point of profile-guided
         // dump: opcache memory pays only for hot DTOs.
+        // Snapshot once: every emit site below skips when no
+        // dispatcher is installed, avoiding both the
+        // event-construction cost and the pair-id lookup.
+        $eventsEnabled = \Rxn\Framework\Observability\Events::enabled();
+
         if (isset(self::$compiledCache[$class])) {
-            return (self::$compiledCache[$class])($source ?? self::gatherBag());
+            // Fast path when no listener is subscribed: the
+            // compiled closure runs untouched, no try/catch frame
+            // setup, no event allocations. This is the hottest
+            // path in the framework — it's worth the duplication
+            // to keep it a straight return.
+            if (!$eventsEnabled) {
+                return (self::$compiledCache[$class])($source ?? self::gatherBag());
+            }
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\BinderInvoked(
+                    $class,
+                    \Rxn\Framework\Observability\Event\BinderInvoked::PATH_COMPILED,
+                    \Rxn\Framework\Observability\Events::currentPairId(),
+                )
+            );
+            try {
+                $dto = (self::$compiledCache[$class])($source ?? self::gatherBag());
+            } catch (ValidationException $e) {
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\ValidationCompleted(
+                        $class,
+                        self::groupValidationFailures($e->errors()),
+                        \Rxn\Framework\Observability\Events::currentPairId(),
+                    )
+                );
+                throw $e;
+            }
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\ValidationCompleted(
+                    $class,
+                    [],
+                    \Rxn\Framework\Observability\Events::currentPairId(),
+                )
+            );
+            return $dto;
+        }
+
+        if ($eventsEnabled) {
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\BinderInvoked(
+                    $class,
+                    \Rxn\Framework\Observability\Event\BinderInvoked::PATH_RUNTIME,
+                    \Rxn\Framework\Observability\Events::currentPairId(),
+                )
+            );
         }
 
         $bag = $source ?? self::gatherBag();
@@ -137,9 +186,47 @@ final class Binder
         }
 
         if ($errors !== []) {
+            if ($eventsEnabled) {
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\ValidationCompleted(
+                        $class,
+                        self::groupValidationFailures($errors),
+                        \Rxn\Framework\Observability\Events::currentPairId(),
+                    )
+                );
+            }
             throw new ValidationException($errors);
         }
+        if ($eventsEnabled) {
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\ValidationCompleted(
+                    $class,
+                    [],
+                    \Rxn\Framework\Observability\Events::currentPairId(),
+                )
+            );
+        }
         return $dto;
+    }
+
+    /**
+     * Reshape `[{field, message}, ...]` (the `ValidationException`
+     * format) into `[field => list<message>]` (the
+     * `ValidationCompleted` event format). One field can fail
+     * multiple rules (e.g. min + pattern); the event groups by
+     * field so listeners can label metrics by field name without
+     * post-processing.
+     *
+     * @param  list<array{field: string, message: string}> $errors
+     * @return array<string, list<string>>
+     */
+    private static function groupValidationFailures(array $errors): array
+    {
+        $grouped = [];
+        foreach ($errors as $err) {
+            $grouped[$err['field']][] = $err['message'];
+        }
+        return $grouped;
     }
 
     /**
