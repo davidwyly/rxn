@@ -239,10 +239,18 @@ class App
     }
 
     /**
-     * Stringify a route handler for use as a span name. Closures
-     * become `"Closure"`; `[$obj, 'method']` becomes
-     * `"Class::method"`; `'Class::method'` strings pass through;
-     * anything else falls back to the gettype-style label.
+     * Stringify a route handler for use as a span name. Mapping:
+     *
+     *   - `\Closure`                       → `"Closure"`
+     *   - `[$obj|$cls, 'method']`          → `"Class::method"`
+     *   - non-empty string handler         → passed through verbatim
+     *     (typically `"Class::method"` already)
+     *   - invokable object (`__invoke`)    → `"Class::__invoke"`
+     *   - any other object                 → bare class name
+     *   - everything else                  → the literal `"callable"`
+     *     (the caller has stuffed something exotic, but the slot
+     *     is non-null — there's nothing more useful to say without
+     *     guessing)
      */
     private static function describeHandler(mixed $handler): string
     {

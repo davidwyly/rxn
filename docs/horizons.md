@@ -229,10 +229,12 @@ exit fires even on throw), `RouteMatched` (template + params),
 single listener on the `FrameworkEvent` marker interface and
 receive the lot.
 
-**Cost reality:** ~250 LOC of framework code + 19 tests. No new
-dependencies — leans on the existing PSR-14 dispatcher /
-provider. Per-emit cost without a dispatcher installed is one
-null check (~5 ns); with a no-op listener, ~50 ns.
+**Cost reality:** ~250 LOC of framework code + 27 tests
+(8 Events helper + 5 Pipeline + 4 Router + 4 Binder + 6
+App::serve). No new dependencies — leans on the existing
+PSR-14 dispatcher / provider. Per-emit cost without a
+dispatcher installed is one bool read (`Events::enabled()`);
+with a no-op listener, ~50 ns.
 
 **Status:** Shipped as the substrate for 2.1 (OTel) and 2.2
 (Prometheus). Both are listeners over the same channel; this
