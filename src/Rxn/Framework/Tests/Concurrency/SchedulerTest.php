@@ -156,6 +156,10 @@ final class SchedulerTest extends TestCase
 
     public function testHttpClientRejectsNonHttpSchemes(): void
     {
+        if (!extension_loaded('curl')) {
+            $this->markTestSkipped('ext-curl is not available.');
+        }
+
         $scheduler = new Scheduler();
         $client = new HttpClient($scheduler);
 
@@ -163,6 +167,7 @@ final class SchedulerTest extends TestCase
         $this->expectExceptionMessage('Only http/https URLs are allowed.');
         $client->getAsync('file:///etc/hostname');
     }
+
     public function testPromiseDoubleSettleThrows(): void
     {
         $scheduler = new Scheduler();
