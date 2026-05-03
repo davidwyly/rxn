@@ -249,6 +249,35 @@ What it correctly does NOT flag:
 - Disjoint segment counts (`/x/{id}` vs `/x/{id}/orders`).
 - Disjoint constraint character sets (`int` vs `alpha`).
 
+**Invalid routes** (unknown constraint types, malformed
+placeholders) are reported as a separate finding. The runtime
+`Router::compile()` would throw `Unknown route constraint type`
+or `Malformed route placeholder` on these — the detector
+surfaces the same diagnostic at CI time so the gate matches
+runtime semantics. A typo like `{id:nonsene}` never reaches a
+deploy.
+
+**Custom or overridden constraints.** `Router::constraint()`
+lets apps register new types and override the built-ins. When
+an app customises its constraint set, instantiate the detector
+with the same map so the analysis matches runtime:
+
+```php
+$detector = new ConflictDetector(
+    ConflictDetector::DEFAULT_CONSTRAINTS + ['hash' => '[a-f0-9]+'],
+);
+```
+
+The static matrix only applies when both types in a pair are
+still bound to their default regex. Any divergence — overridden
+built-in OR custom type — falls back to "conservative overlap"
+(treat as ambiguous). This avoids the false-negative case where
+an overridden `int` (now accepting letters) would silently
+pass the matrix's `int ∩ alpha = ∅` claim.
+
+The CLI itself uses defaults; apps that customise should call
+the detector programmatically from a test.
+
 ## Environment knobs
 
 | Variable | Purpose |

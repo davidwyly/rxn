@@ -21,23 +21,23 @@ final class ConflictDetectorTest extends TestCase
     public function testCleanControllerHasZeroConflicts(): void
     {
         $detector = new ConflictDetector();
-        $conflicts = $detector->check([Fixture\CleanController::class]);
-        $this->assertSame(
-            [],
-            $conflicts,
-            "CleanController must not produce conflicts:\n" . self::renderConflicts($conflicts)
+        $result   = $detector->check([Fixture\CleanController::class]);
+        $this->assertTrue(
+            $result->isClean(),
+            "CleanController must not produce findings:\n" . $result->describe()
         );
     }
 
     public function testIntVsSlugIsAConflict(): void
     {
         $detector = new ConflictDetector();
-        $conflicts = $detector->check([Fixture\ConflictController::class]);
-        $this->assertCount(1, $conflicts);
-        $this->assertSame('GET', $conflicts[0]->a->method);
-        $this->assertSame('GET', $conflicts[0]->b->method);
+        $result   = $detector->check([Fixture\ConflictController::class]);
+        $this->assertSame([], $result->invalid);
+        $this->assertCount(1, $result->conflicts);
+        $this->assertSame('GET', $result->conflicts[0]->a->method);
+        $this->assertSame('GET', $result->conflicts[0]->b->method);
         // Both /items/{id:int} and /items/{slug:slug} accept "123".
-        $patterns = [$conflicts[0]->a->pattern, $conflicts[0]->b->pattern];
+        $patterns = [$result->conflicts[0]->a->pattern, $result->conflicts[0]->b->pattern];
         sort($patterns);
         $this->assertSame(['/items/{id:int}', '/items/{slug:slug}'], $patterns);
     }
@@ -45,9 +45,9 @@ final class ConflictDetectorTest extends TestCase
     public function testLiteralMatchingDynamicIsAConflict(): void
     {
         $detector = new ConflictDetector();
-        $conflicts = $detector->check([Fixture\StaticVsDynamicController::class]);
-        $this->assertCount(1, $conflicts);
-        $patterns = [$conflicts[0]->a->pattern, $conflicts[0]->b->pattern];
+        $result   = $detector->check([Fixture\StaticVsDynamicController::class]);
+        $this->assertCount(1, $result->conflicts);
+        $patterns = [$result->conflicts[0]->a->pattern, $result->conflicts[0]->b->pattern];
         sort($patterns);
         $this->assertSame(['/users/me', '/users/{name:any}'], $patterns);
     }
@@ -133,16 +133,98 @@ final class ConflictDetectorTest extends TestCase
 
     public function testCustomConstraintTypeIsConservativelyOverlapping(): void
     {
-        // The detector doesn't know what regex a custom type
-        // resolves to, so it must conservatively assume overlap —
-        // false positives are preferable to false negatives in a
-        // CI gate.
+        // When the detector is told about a custom type via the
+        // constructor, that type is no longer "unknown" (so it
+        // doesn't get filtered as invalid), but it's also not in
+        // the static matrix — so the typesOverlap() check falls
+        // back to conservative `true`. False positives are
+        // preferable to false negatives in a CI gate.
+        $detector = new ConflictDetector(
+            ConflictDetector::DEFAULT_CONSTRAINTS + ['hash' => '[a-f0-9]+'],
+        );
         $entries = [
             self::entry('GET', '/x/{a:hash}'),
             self::entry('GET', '/x/{b:int}'),
         ];
-        $conflicts = (new ConflictDetector())->detect($entries);
-        $this->assertCount(1, $conflicts);
+        $this->assertCount(1, $detector->detect($entries));
+    }
+
+    public function testOverriddenBuiltinFallsBackToConservativeOverlap(): void
+    {
+        // If an app overrides `int` to a different regex, the
+        // static matrix's "int ∩ alpha = ∅" claim no longer holds —
+        // an overridden int could accept letters. Detector must
+        // detect this and fall back to conservative overlap.
+        $overridden = ConflictDetector::DEFAULT_CONSTRAINTS;
+        $overridden['int'] = '[A-Z][0-9]+'; // not the default \d+
+        $detector = new ConflictDetector($overridden);
+
+        $entries = [
+            self::entry('GET', '/x/{id:int}'),
+            self::entry('GET', '/x/{name:alpha}'),
+        ];
+        // With default constraints these would not conflict; with
+        // the override the detector can no longer trust the matrix
+        // and conservatively flags overlap.
+        $this->assertCount(1, $detector->detect($entries));
+    }
+
+    public function testStandardConstraintsStillUseMatrixWhenSomeAreOverridden(): void
+    {
+        // Overriding `int` must not poison the slug-vs-uuid pair —
+        // those are still bound to their defaults, so the matrix
+        // applies and the pair is still a conflict (slug ⊃ uuid).
+        $overridden = ConflictDetector::DEFAULT_CONSTRAINTS;
+        $overridden['int'] = '[A-Z][0-9]+';
+        $detector = new ConflictDetector($overridden);
+
+        $entries = [
+            self::entry('GET', '/x/{a:slug}'),
+            self::entry('GET', '/x/{b:uuid}'),
+        ];
+        $this->assertCount(1, $detector->detect($entries));
+    }
+
+    public function testUnknownConstraintTypeIsReportedAsInvalid(): void
+    {
+        // `{id:nonsense}` would make Router::compile() throw at
+        // registration. The detector reports the same diagnostic
+        // at CI time so the gate matches runtime semantics.
+        $entries = [
+            self::entry('GET', '/x/{id:nonsense}'),
+        ];
+        $invalid = (new ConflictDetector())->validate($entries);
+        $this->assertCount(1, $invalid);
+        $this->assertStringContainsString('nonsense', $invalid[0]->reason);
+    }
+
+    public function testInvalidRoutesAreSkippedFromConflictDetection(): void
+    {
+        // An unknown-type route can't be reasoned about — its
+        // pattern wouldn't even register at runtime. The detector
+        // skips it from the pairwise overlap check (so the user
+        // sees the InvalidRoute finding without spurious
+        // Conflict findings about a route that doesn't really
+        // exist).
+        $entries = [
+            self::entry('GET', '/x/{id:nonsense}'),
+            self::entry('GET', '/x/{id:int}'),
+        ];
+        $detector = new ConflictDetector();
+        $this->assertCount(1, $detector->validate($entries));
+        $this->assertSame([], $detector->detect($entries));
+    }
+
+    public function testMalformedPlaceholderIsReportedAsInvalid(): void
+    {
+        // Same grammar Router::compile() enforces — `{1bad:int}`
+        // doesn't match [a-zA-Z_][a-zA-Z0-9_]* at the leading char.
+        $entries = [
+            self::entry('GET', '/x/{1bad:int}'),
+        ];
+        $invalid = (new ConflictDetector())->validate($entries);
+        $this->assertCount(1, $invalid);
+        $this->assertStringContainsString('malformed placeholder', $invalid[0]->reason);
     }
 
     public function testLiteralNotMatchingTypeIsNotAConflict(): void
@@ -203,12 +285,30 @@ final class ConflictDetectorTest extends TestCase
 
     public function testDescribeProducesReadableOutput(): void
     {
-        $conflicts = (new ConflictDetector())->check([Fixture\ConflictController::class]);
-        $this->assertCount(1, $conflicts);
-        $output = $conflicts[0]->describe();
+        $result = (new ConflictDetector())->check([Fixture\ConflictController::class]);
+        $this->assertCount(1, $result->conflicts);
+        $output = $result->conflicts[0]->describe();
         $this->assertStringContainsString('Ambiguous routes', $output);
         $this->assertStringContainsString('GET /items/{id:int}', $output);
         $this->assertStringContainsString('GET /items/{slug:slug}', $output);
+    }
+
+    public function testResultDescribeRendersBothInvalidAndConflicts(): void
+    {
+        $entries = [
+            self::entry('GET', '/x/{id:nonsense}'),
+            self::entry('GET', '/y/{id:int}'),
+            self::entry('GET', '/y/{slug:slug}'),
+        ];
+        $detector = new ConflictDetector();
+        $result   = new \Rxn\Framework\Http\Routing\DetectorResult(
+            invalid:   $detector->validate($entries),
+            conflicts: $detector->detect($entries),
+        );
+        $output = $result->describe();
+        $this->assertStringContainsString('invalid route', $output);
+        $this->assertStringContainsString('route conflict', $output);
+        $this->assertStringContainsString("unknown constraint type 'nonsense'", $output);
     }
 
     private static function entry(string $method, string $pattern): RouteEntry
@@ -221,11 +321,5 @@ final class ConflictDetectorTest extends TestCase
             file: '<test>',
             line: 0,
         );
-    }
-
-    /** @param list<\Rxn\Framework\Http\Routing\Conflict> $conflicts */
-    private static function renderConflicts(array $conflicts): string
-    {
-        return implode("\n", array_map(static fn ($c) => $c->describe(), $conflicts));
     }
 }

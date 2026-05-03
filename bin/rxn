@@ -328,18 +328,13 @@ try {
                 : $projectRoot;
             $discoverer = new Http\OpenApi\Discoverer($scanRoot, $ns, requireFiles: true);
             $detector   = new Http\Routing\ConflictDetector();
-            $conflicts  = $detector->check($discoverer->all());
+            $result     = $detector->check($discoverer->all());
 
-            if ($conflicts === []) {
+            if ($result->isClean()) {
                 echo "No route conflicts.\n";
                 exit(0);
             }
-            echo 'Found ' . count($conflicts) . " route conflict(s):\n\n";
-            foreach ($conflicts as $c) {
-                echo $c->describe() . "\n\n";
-            }
-            echo "Each pair is a runtime-silent ambiguity — whichever route\n";
-            echo "was registered first wins; the other is dead code.\n";
+            echo $result->describe();
             exit(1);
 
         case 'help':
