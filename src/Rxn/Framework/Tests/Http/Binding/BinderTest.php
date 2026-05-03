@@ -9,6 +9,7 @@ use Rxn\Framework\Http\Binding\ValidationException;
 use Rxn\Framework\Http\Middleware\JsonBody;
 use Rxn\Framework\Tests\Http\Binding\Fixture\Address;
 use Rxn\Framework\Tests\Http\Binding\Fixture\CreateProduct;
+use Rxn\Framework\Tests\Http\Binding\Fixture\ObjectArgDto;
 
 final class BinderTest extends TestCase
 {
@@ -527,5 +528,37 @@ final class BinderTest extends TestCase
             glob($this->dumpDir . '/*.php') ?: [],
             'no files should land in the dump dir when DumpCache is not configured',
         );
+    }
+
+    public function testCompileForFallsBackToEvalWhenValidatorArgsContainObjects(): void
+    {
+        DumpCache::useDir($this->dumpDir);
+        Binder::clearCache();
+
+        $bind = Binder::compileFor(ObjectArgDto::class);
+
+        // Happy path: validator passes, DTO hydrates.
+        $dto = $bind(['code' => 'ok']);
+        $this->assertSame('ok', $dto->code);
+
+        // No dump file written — the eval-only fallback skipped it.
+        $this->assertEmpty(
+            glob($this->dumpDir . '/*.php') ?: [],
+            'object-valued validator args should bypass dump generation',
+        );
+
+        // Crucially: the validator itself must still run on the eval
+        // fallback path. If a future refactor accidentally bypassed
+        // it, this assertion fails — happy-path-only coverage would
+        // miss that regression.
+        try {
+            $bind(['code' => 'wrong']);
+            $this->fail('expected ValidationException — validator was bypassed on eval fallback');
+        } catch (ValidationException $e) {
+            $errors = $e->errors();
+            $this->assertCount(1, $errors);
+            $this->assertSame('code', $errors[0]['field']);
+            $this->assertSame('must match expected', $errors[0]['message']);
+        }
     }
 }

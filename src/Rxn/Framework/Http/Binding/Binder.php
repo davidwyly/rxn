@@ -233,7 +233,11 @@ final class Binder
         $closureBody = "return static function (array \$bag) use (\$validators, \$dtoFactory): \\" . ltrim($class, '\\')
                      . " {\n" . $body . "};";
 
-        if (\Rxn\Framework\Codegen\DumpCache::dir() !== null) {
+        if (
+            \Rxn\Framework\Codegen\DumpCache::dir() !== null
+            && $validatorExprs !== null
+            && count($validatorExprs) === count($validators)
+        ) {
             // Dump path: prepend $validators and a serialisable
             // $dtoFactory so the file is self-contained when
             // `require`d. The closure's `use ($validators, $dtoFactory)`
@@ -258,13 +262,14 @@ final class Binder
      * Generate the PHP fragment that hydrates and validates one
      * property of the DTO.
      *
-     * @param array<int, object> $validators     instances side-table for the eval path
-     * @param array<int, string> $validatorExprs construction-expression side-table for the dump path
+     * @param array<int, object>  $validators     instances side-table for the eval path
+     * @param ?array<int, string> $validatorExprs construction-expression side-table for the dump path;
+     *                                            null means "force eval path" (an undumpable arg was found)
      */
     private static function compileProperty(
         \ReflectionProperty $prop,
         array &$validators,
-        array &$validatorExprs,
+        ?array &$validatorExprs,
     ): string {
         $name   = $prop->getName();
         $nameQ  = self::quoteString($name);
@@ -310,7 +315,15 @@ final class Binder
             if (is_subclass_of($attrName, Validates::class) || in_array(Validates::class, class_implements($attrName) ?: [], true)) {
                 $instance = $attr->newInstance();
                 $idx = array_push($validators, $instance) - 1;
-                $validatorExprs[$idx] = self::validatorConstructionExpr($attrName, $attr->getArguments());
+                $expr = self::validatorConstructionExpr($attrName, $attr->getArguments());
+                if ($expr === null) {
+                    // Attribute args include values we can't safely
+                    // render into dump source (e.g. object-valued
+                    // constructor expressions). Force eval path.
+                    $validatorExprs = null;
+                } elseif ($validatorExprs !== null) {
+                    $validatorExprs[$idx] = $expr;
+                }
                 $validateBlock .= "        \$msg = \$validators[$idx]->validate(\$cast);\n"
                                .  "        if (\$msg !== null) { \$errors[] = ['field' => $nameQ, 'message' => \$msg]; }\n";
             }
@@ -545,10 +558,10 @@ final class Binder
 
     /**
      * Render a `new \Foo\Bar(arg, ...)` expression for the dump
-     * path's `$validators = [...]` prelude. Attribute arguments
-     * are restricted by PHP to const expressions (scalars, enum
-     * cases, class constants, arrays of those), all of which
-     * `var_export` round-trips correctly.
+     * path's `$validators = [...]` prelude. Returns `null` when
+     * any argument is not safely renderable (e.g. object-valued
+     * constructor args that would require `__set_state` support),
+     * signalling to the caller that the dump path must be skipped.
      *
      * Handles three argument shapes:
      *   - all positional: `new Foo('US', 1)`
@@ -559,15 +572,57 @@ final class Binder
      *                     `name: value` and positional bare.
      *
      * @param array<int|string, mixed> $args from `ReflectionAttribute::getArguments()`
+     * @return string|null construction expression, or null if args are not safely dumpable
      */
-    private static function validatorConstructionExpr(string $class, array $args): string
+    private static function validatorConstructionExpr(string $class, array $args): ?string
     {
         $parts = [];
         foreach ($args as $key => $val) {
+            if (!self::isDumpableAttributeArg($val)) {
+                return null;
+            }
             $literal = var_export($val, true);
             $parts[] = is_string($key) ? "$key: $literal" : $literal;
         }
         return 'new \\' . ltrim($class, '\\') . '(' . implode(', ', $parts) . ')';
+    }
+
+    /**
+     * Decide whether `$value` can survive a `var_export()` round-trip
+     * for inclusion in the dump-cache file.
+     *
+     * Safe shapes:
+     *   - null, scalars (string/int/float/bool)
+     *   - arrays whose every element recursively passes
+     *   - UnitEnum / BackedEnum cases (rendered as `\Ns\Enum::CASE`)
+     *
+     * Unsafe shapes — these force the dump path to be skipped and
+     * the eval path to be taken instead:
+     *   - generic objects (var_export emits `__set_state`, which
+     *     most classes don't implement)
+     *   - resources, closures
+     *
+     * Falling back to eval is correct (the validator still runs;
+     * see `testCompileForFallsBackToEvalWhenValidatorArgsContainObjects`)
+     * — it just forfeits the dump-cache speedup.
+     */
+    private static function isDumpableAttributeArg(mixed $value): bool
+    {
+        if (is_null($value) || is_scalar($value)) {
+            return true;
+        }
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                if (!self::isDumpableAttributeArg($item)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if ($value instanceof \UnitEnum) {
+            return true;
+        }
+        return false;
     }
 
     private static function ensureIdentifier(string $name): string
