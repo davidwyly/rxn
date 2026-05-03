@@ -88,8 +88,18 @@ final class Pipeline implements RequestHandlerInterface
         }
         $index      = $this->index++;
         $middleware = $this->middlewares[$index];
-        $cls        = $middleware::class;
-        $pairId     = Events::newPairId();
+
+        // Gate the entire instrumentation on a dispatcher being
+        // installed: pair-id minting (random_bytes call) and event
+        // construction both happen only when there's a listener.
+        // Apps that don't subscribe pay just this one null-check
+        // per middleware hop.
+        if (!Events::enabled()) {
+            return $middleware->process($request, $this);
+        }
+
+        $cls    = $middleware::class;
+        $pairId = Events::newPairId();
         Events::emit(new MiddlewareEntered($pairId, $cls, $index, $request));
         try {
             $response = $middleware->process($request, $this);

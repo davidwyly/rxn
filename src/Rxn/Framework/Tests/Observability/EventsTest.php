@@ -95,6 +95,33 @@ final class EventsTest extends TestCase
         $this->assertTrue($stoppedEvent->stopped);
     }
 
+    public function testEnabledReportsDispatcherPresence(): void
+    {
+        // Used by hot call sites (Pipeline, Router, Binder, App)
+        // to skip pair-id minting + event construction entirely
+        // when no dispatcher is installed. Without this gate the
+        // no-subscriber case still pays for `random_bytes(8)` on
+        // every middleware hop.
+        $this->assertFalse(Events::enabled());
+
+        Events::useDispatcher(new EventDispatcher(new ListenerProvider()));
+        $this->assertTrue(Events::enabled());
+
+        Events::useDispatcher(null);
+        $this->assertFalse(Events::enabled());
+    }
+
+    public function testCurrentPairIdRoundTrips(): void
+    {
+        $this->assertNull(Events::currentPairId());
+
+        Events::useCurrentPairId('abc123');
+        $this->assertSame('abc123', Events::currentPairId());
+
+        Events::useCurrentPairId(null);
+        $this->assertNull(Events::currentPairId());
+    }
+
     public function testCustomDispatcherImplementationIsAccepted(): void
     {
         // Apps wiring their own PSR-14 dispatcher (e.g. a Symfony

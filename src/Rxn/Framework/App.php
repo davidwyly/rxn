@@ -121,33 +121,91 @@ class App
         $method  = $request->getMethod();
         $path    = $request->getUri()->getPath();
 
-        $pairId = \Rxn\Framework\Observability\Events::newPairId();
-        \Rxn\Framework\Observability\Events::emit(
-            new \Rxn\Framework\Observability\Event\RequestReceived($pairId, $request)
-        );
+        // Gate every observability cost on a dispatcher actually
+        // being installed: pair-id minting (random_bytes), event
+        // construction, and dispatch all skip when nobody is
+        // listening. Apps that don't subscribe pay one method call
+        // per emit point — no allocations, no CSPRNG draws.
+        $eventsEnabled = \Rxn\Framework\Observability\Events::enabled();
+        $pairId        = $eventsEnabled
+            ? \Rxn\Framework\Observability\Events::newPairId()
+            : null;
 
-        $hit = $router->match($method, $path);
-        if ($hit === null) {
-            $status   = $router->hasMethodMismatch($method, $path) ? 405 : 404;
-            $response = self::psrProblem($status);
+        try {
+            if ($eventsEnabled && $pairId !== null) {
+                \Rxn\Framework\Observability\Events::useCurrentPairId($pairId);
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\RequestReceived($pairId, $request)
+                );
+            }
+
+            $hit = $router->match($method, $path);
+            if ($hit === null) {
+                $status   = $router->hasMethodMismatch($method, $path) ? 405 : 404;
+                $response = self::psrProblem($status);
+                \Rxn\Framework\Http\PsrAdapter::emit($response);
+                if ($eventsEnabled && $pairId !== null) {
+                    \Rxn\Framework\Observability\Events::emit(
+                        new \Rxn\Framework\Observability\Event\ResponseEmitted($pairId, $response)
+                    );
+                }
+                return;
+            }
+
+            $pipeline = new \Rxn\Framework\Http\Pipeline();
+            foreach ($hit['middlewares'] as $mw) {
+                $pipeline->add($mw);
+            }
+
+            $invoker ??= self::defaultHandlerInvoker(...);
+
+            // Wrap the user invoker with HandlerInvoked entered/exited
+            // events when observability is enabled; otherwise the
+            // bare invoker runs untouched.
+            $finalInvoker = ($eventsEnabled && $pairId !== null)
+                ? self::wrapInvokerWithHandlerEvents($invoker, $pairId)
+                : $invoker;
+
+            $terminal = new class($hit, $finalInvoker) implements \Psr\Http\Server\RequestHandlerInterface {
+                /** @param callable(array, \Psr\Http\Message\ServerRequestInterface): \Psr\Http\Message\ResponseInterface $invoker */
+                public function __construct(private array $hit, private $invoker) {}
+
+                public function handle(\Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
+                {
+                    return ($this->invoker)($this->hit, $request);
+                }
+            };
+
+            $response = $pipeline->run($request, $terminal);
+
             \Rxn\Framework\Http\PsrAdapter::emit($response);
-            \Rxn\Framework\Observability\Events::emit(
-                new \Rxn\Framework\Observability\Event\ResponseEmitted($pairId, $response, null)
-            );
-            return;
+            if ($eventsEnabled && $pairId !== null) {
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\ResponseEmitted($pairId, $response)
+                );
+            }
+        } finally {
+            // Clear the request-scoped pair id so a long-running
+            // worker (Swoole / RoadRunner) doesn't leak it into the
+            // next request. The slot is intentionally process-wide
+            // (sync PHP serves one request at a time per worker),
+            // and we want it gone before the next request begins.
+            if ($eventsEnabled) {
+                \Rxn\Framework\Observability\Events::useCurrentPairId(null);
+            }
         }
+    }
 
-        $pipeline = new \Rxn\Framework\Http\Pipeline();
-        foreach ($hit['middlewares'] as $mw) {
-            $pipeline->add($mw);
-        }
-
-        $invoker ??= self::defaultHandlerInvoker(...);
-
-        // Wrap the user invoker with HandlerInvoked entered/exited
-        // events. Same `$pairId` brackets the boundary; failures
-        // propagate so the pipeline sees the original exception.
-        $observingInvoker = static function (array $hit, \Psr\Http\Message\ServerRequestInterface $req) use ($invoker, $pairId): \Psr\Http\Message\ResponseInterface {
+    /**
+     * Decorate `$invoker` with `HandlerInvoked` entered/exited
+     * events, both shared with the request's pair id. The exited
+     * event fires both on success and on throw; the throwable is
+     * re-thrown so the pipeline / global error handler still sees
+     * the original.
+     */
+    private static function wrapInvokerWithHandlerEvents(callable $invoker, string $pairId): callable
+    {
+        return static function (array $hit, \Psr\Http\Message\ServerRequestInterface $req) use ($invoker, $pairId): \Psr\Http\Message\ResponseInterface {
             $handlerLabel = self::describeHandler($hit['handler'] ?? null);
             \Rxn\Framework\Observability\Events::emit(
                 new \Rxn\Framework\Observability\Event\HandlerInvoked(
@@ -178,23 +236,6 @@ class App
                 throw $e;
             }
         };
-
-        $terminal = new class($hit, $observingInvoker) implements \Psr\Http\Server\RequestHandlerInterface {
-            /** @param callable(array, \Psr\Http\Message\ServerRequestInterface): \Psr\Http\Message\ResponseInterface $invoker */
-            public function __construct(private array $hit, private $invoker) {}
-
-            public function handle(\Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
-            {
-                return ($this->invoker)($this->hit, $request);
-            }
-        };
-
-        $response = $pipeline->run($request, $terminal);
-
-        \Rxn\Framework\Http\PsrAdapter::emit($response);
-        \Rxn\Framework\Observability\Events::emit(
-            new \Rxn\Framework\Observability\Event\ResponseEmitted($pairId, $response)
-        );
     }
 
     /**

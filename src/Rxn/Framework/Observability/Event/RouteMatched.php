@@ -15,6 +15,15 @@ namespace Rxn\Framework\Observability\Event;
  * Not emitted for unmatched routes — the absence of a
  * `RouteMatched` event between `RequestReceived` and the first
  * `MiddlewareEntered` is itself the signal.
+ *
+ * `$pairId` carries the request's pair id (the same id on the
+ * surrounding `RequestReceived` / `ResponseEmitted`) when the
+ * request flowed through `App::serve()`. Listeners use it to
+ * attribute the route to the right in-flight request on
+ * concurrent-worker setups (Swoole / RoadRunner). It's null
+ * when callers drive the Router directly without going through
+ * `App::serve()` — in that case there's no request scope to
+ * attribute to.
  */
 final class RouteMatched implements FrameworkEvent
 {
@@ -23,5 +32,6 @@ final class RouteMatched implements FrameworkEvent
         public readonly string $method,
         public readonly string $template,
         public readonly array $params,
+        public readonly ?string $pairId = null,
     ) {}
 }

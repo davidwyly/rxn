@@ -89,9 +89,10 @@ Events::useDispatcher($dispatcher);
 
 #### Tests
 
-- 6 unit tests for `Events` (no-op without dispatcher, dispatch
+- 8 unit tests for `Events` (no-op without dispatcher, dispatch
   through, accessor, pair-id format, stoppable semantics, custom
-  dispatcher implementation).
+  dispatcher implementation, `enabled()` gate, `currentPairId()`
+  round-trip).
 - 5 Pipeline integration tests (one pair per middleware, ordered,
   pair-id consistency, exit-on-throw, FQCN populated, no-op
   without dispatcher).
@@ -99,8 +100,11 @@ Events::useDispatcher($dispatcher);
   method-mismatch).
 - 4 Binder integration tests (runtime path, compiled path,
   failure grouping by field, compiled path emits on failure too).
+- 5 App::serve integration tests (full success path event tree,
+  404 miss path, 405 method-mismatch path, pair-id slot
+  cleared in finally, no-op without dispatcher).
 
-Suite 712 → 731 / 1569.
+Suite 712 → 738 / 1596.
 
 ---
 

@@ -6,16 +6,27 @@ use Psr\Http\Message\ResponseInterface;
 
 /**
  * Last event for a request — emitted by `App::serve()` after the
- * pipeline returns and immediately before the response is written
- * to the wire. Pairs with `RequestReceived` (same `$pairId`).
+ * response has been written to the wire. Pairs with
+ * `RequestReceived` (same `$pairId`).
  *
- * Only emitted on the success path. If the pipeline throws and
- * the exception propagates past `App::serve()`, no
- * `ResponseEmitted` fires — listeners infer "request died" from
- * the absence of an exit event for the same pair id. Apps that
- * want failed-request observability install an exception-handling
- * middleware in the pipeline; the middleware's own
- * `MiddlewareExited` event carries the throwable.
+ * Fires once per response that `App::serve()` writes:
+ *   - Successful pipeline runs (the common case).
+ *   - 404 / 405 misses (pipeline never built; psrProblem
+ *     short-circuits — listeners still want to close the
+ *     request span).
+ *
+ * Does NOT fire when an exception escapes the pipeline past
+ * `App::serve()`. Listeners infer "request died" from the
+ * absence of a `ResponseEmitted` carrying the same pair id.
+ * Apps that want fully-symmetric observability install an
+ * exception-handling middleware in the pipeline; that
+ * middleware's own `MiddlewareExited` carries the throwable.
+ *
+ * Listeners that want to instrument BEFORE the wire write
+ * (e.g. injecting a server-timing header) should hook into the
+ * outermost middleware's `MiddlewareExited` instead — that event
+ * fires after the response is built but before
+ * `PsrAdapter::emit()` writes it.
  */
 final class ResponseEmitted implements FrameworkEvent
 {

@@ -14,6 +14,10 @@ namespace Rxn\Framework\Observability\Event;
  * This is the only framework event that fires *during* an
  * exception's bubbling — it's emitted from the binder's catch
  * block and re-throws.
+ *
+ * `$pairId` carries the request's pair id when the validation
+ * happened inside an `App::serve()` request. Null when the
+ * binder is driven outside a request scope.
  */
 final class ValidationCompleted implements FrameworkEvent
 {
@@ -24,6 +28,7 @@ final class ValidationCompleted implements FrameworkEvent
     public function __construct(
         public readonly string $class,
         public readonly array $failures,
+        public readonly ?string $pairId = null,
     ) {}
 
     public function isFailure(): bool

@@ -79,36 +79,56 @@ final class Binder
         // the runtime walker for cold classes the user chose not to
         // pre-compile, which is the whole point of profile-guided
         // dump: opcache memory pays only for hot DTOs.
+        // Snapshot once: every emit site below skips when no
+        // dispatcher is installed, avoiding both the
+        // event-construction cost and the pair-id lookup.
+        $eventsEnabled = \Rxn\Framework\Observability\Events::enabled();
+
         if (isset(self::$compiledCache[$class])) {
-            \Rxn\Framework\Observability\Events::emit(
-                new \Rxn\Framework\Observability\Event\BinderInvoked(
-                    $class,
-                    \Rxn\Framework\Observability\Event\BinderInvoked::PATH_COMPILED,
-                )
-            );
+            if ($eventsEnabled) {
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\BinderInvoked(
+                        $class,
+                        \Rxn\Framework\Observability\Event\BinderInvoked::PATH_COMPILED,
+                        \Rxn\Framework\Observability\Events::currentPairId(),
+                    )
+                );
+            }
             try {
                 $dto = (self::$compiledCache[$class])($source ?? self::gatherBag());
             } catch (ValidationException $e) {
+                if ($eventsEnabled) {
+                    \Rxn\Framework\Observability\Events::emit(
+                        new \Rxn\Framework\Observability\Event\ValidationCompleted(
+                            $class,
+                            self::groupValidationFailures($e->errors()),
+                            \Rxn\Framework\Observability\Events::currentPairId(),
+                        )
+                    );
+                }
+                throw $e;
+            }
+            if ($eventsEnabled) {
                 \Rxn\Framework\Observability\Events::emit(
                     new \Rxn\Framework\Observability\Event\ValidationCompleted(
                         $class,
-                        self::groupValidationFailures($e->errors()),
+                        [],
+                        \Rxn\Framework\Observability\Events::currentPairId(),
                     )
                 );
-                throw $e;
             }
-            \Rxn\Framework\Observability\Events::emit(
-                new \Rxn\Framework\Observability\Event\ValidationCompleted($class, [])
-            );
             return $dto;
         }
 
-        \Rxn\Framework\Observability\Events::emit(
-            new \Rxn\Framework\Observability\Event\BinderInvoked(
-                $class,
-                \Rxn\Framework\Observability\Event\BinderInvoked::PATH_RUNTIME,
-            )
-        );
+        if ($eventsEnabled) {
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\BinderInvoked(
+                    $class,
+                    \Rxn\Framework\Observability\Event\BinderInvoked::PATH_RUNTIME,
+                    \Rxn\Framework\Observability\Events::currentPairId(),
+                )
+            );
+        }
 
         $bag = $source ?? self::gatherBag();
         $ref = new \ReflectionClass($class);
@@ -164,17 +184,26 @@ final class Binder
         }
 
         if ($errors !== []) {
+            if ($eventsEnabled) {
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\ValidationCompleted(
+                        $class,
+                        self::groupValidationFailures($errors),
+                        \Rxn\Framework\Observability\Events::currentPairId(),
+                    )
+                );
+            }
+            throw new ValidationException($errors);
+        }
+        if ($eventsEnabled) {
             \Rxn\Framework\Observability\Events::emit(
                 new \Rxn\Framework\Observability\Event\ValidationCompleted(
                     $class,
-                    self::groupValidationFailures($errors),
+                    [],
+                    \Rxn\Framework\Observability\Events::currentPairId(),
                 )
             );
-            throw new ValidationException($errors);
         }
-        \Rxn\Framework\Observability\Events::emit(
-            new \Rxn\Framework\Observability\Event\ValidationCompleted($class, [])
-        );
         return $dto;
     }
 
