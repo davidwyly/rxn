@@ -44,7 +44,7 @@ final class CreateProduct implements RequestDto {
 }
 ```
 
-This one declaration drives *four* consumers:
+This one declaration drives *seven* consumers:
 
 1. **Binder** — hydrates `$dto = Binder::bind(CreateProduct::class)`
    from the request bag, casting strings to typed properties.
@@ -55,10 +55,25 @@ This one declaration drives *four* consumers:
 4. **Compiled fast path** — `Binder::compileFor($class)` reads the
    same reflection and emits straight-line PHP with the per-property
    work inlined (6.4× speedup on this DTO shape).
+5. **JS validator twin** — `Codegen\JsValidatorEmitter` emits a
+   vanilla ES module that agrees with `Binder::bind` on 0
+   disagreements / 10K random inputs across four fixture DTOs per
+   CI run. PHP shops with a TS / vanilla-JS frontend get
+   drift-free validation across the wire.
+6. **Polyparity YAML spec** — `Codegen\PolyparityExporter` emits a
+   [polyparity](https://github.com/davidwyly/polyparity) spec
+   that polyparity's TS / Python / future-language siblings
+   consume. Same coverage matrix as the JS emitter.
+7. **OpenAPI snapshot contract** — `Codegen\Snapshot\OpenApiSnapshot`
+   serialises the generated spec to a stable byte sequence and
+   classifies drift between two snapshots as breaking vs
+   additive. `bin/rxn openapi:check` closes the loop in CI:
+   regenerate → diff against the committed snapshot → fail the
+   build on contract breaks unless the PR opts in.
 
 In Slim / Laravel / Symfony those are typically three or four
 separate libraries with three or four config formats. Adding a
-property in Rxn automatically updates all four consumers, because
+property in Rxn automatically updates all seven consumers, because
 they all start from the same PHP class.
 
 This is the structural reason `Binder::compileFor` exists at all
@@ -225,7 +240,7 @@ to read is slow to *develop in*. Time-to-first-bug-fixed is a
 real metric.
 
 Rxn fits in your head:
-- The framework is ~12k LOC of PHP excluding tests; the dispatch
+- The framework is ~13k LOC of PHP excluding tests; the dispatch
   spine — Container, Router, Pipeline, Binder, Validator,
   Request, Response — is ~3k of that, readable in one sitting.
   Middlewares, OpenAPI, scaffolding, and the legacy ActiveRecord
@@ -350,13 +365,13 @@ principles are how we keep the substrate healthy.
 | Principle | Concrete example |
 |---|---|
 | 1 — opinionated narrowing | `Response::__construct` produces JSON; `App::run` rolls every uncaught exception into RFC 7807; no Accept header branch anywhere |
-| 2 — schema as truth | `Binding\RequestDto` + `#[Required]` etc. → consumed by `Binder`, `Validator`, `OpenApi\Generator`, `Binder::compileFor` |
+| 2 — schema as truth | `Binding\RequestDto` + `#[Required]` etc. → consumed by `Binder`, `Validator`, `OpenApi\Generator`, `Binder::compileFor`, `Codegen\JsValidatorEmitter`, `Codegen\PolyparityExporter`, `Codegen\Snapshot\OpenApiSnapshot` (gate) |
 | 3 — same code, two profiles | `Validator::check` / `Validator::compile`; `Binder::bind` / `Binder::compileFor`; `Container::get` (transparent) |
 | 4 — schema-compile PHP, not C | `bench/ab/experiments/2026-04-29-compiled-json-encoder.md` — negative result that produced the rule |
 | 5 — convention + escape hatch | `App::run` convention router → `Http\Router` explicit; `Container` autowire → `bind()` |
 | 6 — measure to commit | `bench/ab.php` driver, 16 experiment writeups, 4 negative-result branches preserved on origin |
 | 7 — transparent vs visible opt-in | Container's 5 stacked caches: zero API change. `Validator::compile`: visible because of the FPM tradeoff |
-| 8 — smallness as constraint | ~12k LOC framework, ~3k LOC dispatch spine (Container, Router, Pipeline, Binder, Validator, Request, Response) — readable in one sitting; the rest is opt-in subsystems |
+| 8 — smallness as constraint | ~13k LOC framework, ~3k LOC dispatch spine (Container, Router, Pipeline, Binder, Validator, Request, Response) — readable in one sitting; the rest is opt-in subsystems |
 | 9 — ergonomics are performance | `bin/preload.php`, `bench/ab/CONSOLIDATION.md`, `docs/index.md`'s topic table |
 | 10 — honesty | "alpha" status in README, `App::run` open-bugs note in `docs/benchmarks.md`, the long-lived-worker caveat in every compile-path docstring |
 | 11 — optional deps via lazy autoload | `Psr16IdempotencyStore` (typehints `\Psr\SimpleCache\CacheInterface`) and `Database::run()` / `ActiveRecord` (typehint `\Rxn\Orm\Builder\Buildable` / `Query`); both packages live in `composer.json`'s `suggest` block, framework loads cleanly without them |

@@ -106,18 +106,23 @@ Opinionated pieces worth naming:
 - **Typed route constraints** (`{id:int}`, `{slug:slug}`,
   `{id:uuid}`, custom) so `/users/foo` falls through to 404
   instead of reaching a controller that has to validate and throw.
-- **Reflection-driven OpenAPI** — the framework knows your
-  controllers; why duplicate that in a YAML file? DTO validation
-  attributes map one-to-one to JSON Schema keywords, so the spec
-  *can't* drift from the runtime behaviour — both sides read the
-  same class.
+- **Reflection-driven OpenAPI + snapshot contract gate** — the
+  framework knows your controllers; why duplicate that in a YAML
+  file? DTO validation attributes map one-to-one to JSON Schema
+  keywords, so the spec *can't* drift from the runtime behaviour
+  — both sides read the same class. `bin/rxn openapi:check`
+  closes the loop in CI: regenerate spec → diff against the
+  committed snapshot → fail the build on breaking changes
+  (operation removed, type changed, constraint tightened, …)
+  unless the PR opts in. Schema-as-truth becomes
+  schema-as-governance.
 - **Production-safe by default** — stack traces never ship outside
   dev, boundary input sanitisation is one env flag, session
   cookies auto-flip to `Secure` behind an HTTPS proxy.
 
 ### Simplicity
 
-Small enough to read end to end — **~12K LOC of framework code
+Small enough to read end to end — **~13K LOC of framework code
 ships what a comparably-featured Slim or Mezzio composition
 reaches in 70–100K LOC of vendor packages** (DTO binding +
 attribute-driven validation, OpenAPI from reflection, idempotency
@@ -212,7 +217,7 @@ cumulative scoreboard is in
 
 ```bash
 composer install
-vendor/bin/phpunit          # 560 tests, 1159 assertions
+vendor/bin/phpunit          # 626 tests, 1310 assertions
 bin/rxn help                # CLI subcommands
 ```
 
@@ -293,7 +298,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Test counts:
 
-- **Rxn framework:** 560 tests / 1159 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 626 tests / 1310 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
@@ -440,6 +445,24 @@ methodology is in
          `#[Pattern]` → `pattern`, `#[InSet]` → `enum`) — the same
          class drives both validation and the spec, so they can't
          drift
+   - [X] Snapshot-tested contract gate (`bin/rxn openapi:check`;
+         `Codegen\Snapshot\OpenApiSnapshot`) — diffs the generated
+         spec against a committed `openapi.snapshot.json` and
+         classifies drift as breaking (operation/parameter/property
+         removals, type changes, tightened constraints, required-
+         toggles) or additive (new operations, new optional fields,
+         loosened constraints). Three exit codes for CI gating:
+         0 clean, 1 additive only or `--allow-breaking` override,
+         2 breaking detected
+   - [X] Cross-language validator twin (`Codegen\JsValidatorEmitter`)
+         — emits a vanilla ES module that agrees with `Binder::bind`
+         on 0 disagreements / 10K random inputs across four fixture
+         DTOs per CI run
+   - [X] [Polyparity](https://github.com/davidwyly/polyparity)
+         YAML exporter (`Codegen\PolyparityExporter`) — same DTO
+         drives Rxn's PHP server, the JS twin, AND a polyparity
+         spec consumable by polyparity's TS / Python / future-
+         language siblings
 - [X] In-process HTTP test client + fluent response assertions
       (`Testing\TestClient` + `TestResponse`) — no web server, no
       curl, PHPUnit-integrated failures
