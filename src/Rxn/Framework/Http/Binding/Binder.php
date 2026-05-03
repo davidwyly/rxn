@@ -586,6 +586,25 @@ final class Binder
         return 'new \\' . ltrim($class, '\\') . '(' . implode(', ', $parts) . ')';
     }
 
+    /**
+     * Decide whether `$value` can survive a `var_export()` round-trip
+     * for inclusion in the dump-cache file.
+     *
+     * Safe shapes:
+     *   - null, scalars (string/int/float/bool)
+     *   - arrays whose every element recursively passes
+     *   - UnitEnum / BackedEnum cases (rendered as `\Ns\Enum::CASE`)
+     *
+     * Unsafe shapes — these force the dump path to be skipped and
+     * the eval path to be taken instead:
+     *   - generic objects (var_export emits `__set_state`, which
+     *     most classes don't implement)
+     *   - resources, closures
+     *
+     * Falling back to eval is correct (the validator still runs;
+     * see `testCompileForFallsBackToEvalWhenValidatorArgsContainObjects`)
+     * — it just forfeits the dump-cache speedup.
+     */
     private static function isDumpableAttributeArg(mixed $value): bool
     {
         if (is_null($value) || is_scalar($value)) {
@@ -599,13 +618,9 @@ final class Binder
             }
             return true;
         }
-        // Enum cases (UnitEnum / BackedEnum) are safely round-tripped
-        // by `var_export()` as `\Ns\EnumClass::CaseName`.
         if ($value instanceof \UnitEnum) {
             return true;
         }
-        // Arbitrary objects may emit `__set_state` calls via
-        // `var_export()` that are not supported by most classes.
         return false;
     }
 
