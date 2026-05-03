@@ -108,6 +108,77 @@ Pipe the output into Swagger UI, Redocly, or any OpenAPI
 consumer — or pair with `Http\OpenApi\SwaggerUi::html($specUrl)`
 for one-line interactive docs.
 
+## `bin/rxn openapi:check`
+
+CI gate that catches schema drift on PR open. Regenerates the
+OpenAPI spec the same way `bin/rxn openapi` does, then diffs it
+against `openapi.snapshot.json` (or whatever path
+`--snapshot=PATH` names) committed in the repo. Exits with one
+of three codes so CI policy can decide what to do:
+
+| Exit | Meaning |
+|---|---|
+| `0` | No drift. |
+| `1` | Additive changes only (new operations, new optional fields, loosened constraints). Or breaking changes when `--allow-breaking` is passed. |
+| `2` | Breaking changes detected and not opted-in. |
+
+Seed the snapshot with `--update`:
+
+```
+$ bin/rxn openapi:check --update
+Updated snapshot at /path/to/repo/openapi.snapshot.json
+```
+
+Then commit the file. On the next PR that changes a DTO, the
+gate runs:
+
+```
+$ bin/rxn openapi:check
+Breaking changes (2):
+  [breaking] components.schemas.CreateProduct.properties.price — maximum tightened from 1000000 to 100000
+  [breaking] paths./v1.1/products/show.parameters.query.id — parameter became required
+Additive changes (1):
+  [additive] components.schemas.Product.properties.thumbnail_url — optional property added
+
+If the changes are intentional, refresh the snapshot:
+  bin/rxn openapi:check --update
+```
+
+Flags:
+
+| Flag | Purpose |
+|---|---|
+| `--snapshot=<PATH>` | Snapshot file path. Default: `openapi.snapshot.json` in the project root. |
+| `--update` | Overwrite the snapshot with the current spec; exits 0. |
+| `--allow-breaking` | Downgrade exit `2` to exit `1` (the diff still prints). For PRs explicitly authorised to break the contract — e.g. behind a `breaking-change` review label. |
+| `--ns=<NS>` | App PSR-4 prefix. Defaults to `APP_NAMESPACE`. |
+| `--root=<DIR>` | Alternative project root to scan. |
+
+Classification rules (mirrors `Codegen\Snapshot\OpenApiSnapshot::diff`):
+
+- **Operations / paths**: removed → BREAKING, added → ADDITIVE.
+- **Parameters** (keyed by `(name, in)` — query `id` and header
+  `id` are different parameters): removed or made required →
+  BREAKING; new required → BREAKING; new optional → ADDITIVE;
+  type changed → BREAKING.
+- **Schema properties**: removed → BREAKING (conservative — the
+  snapshot doesn't track request- vs response-side ref usage);
+  new required → BREAKING; new optional → ADDITIVE; type changed
+  → BREAKING; became required → BREAKING.
+- **Constraints** (`minimum`, `maximum`, `minLength`,
+  `maxLength`, `enum`, `pattern`, `format`, `nullable`,
+  `default`): tightening → BREAKING; loosening → ADDITIVE;
+  `default` changes → ADDITIVE either way.
+- **Conservative on ambiguity**: when the rule can't disambiguate
+  (e.g. nullable flips, regex pattern changes), flag BREAKING so
+  the gate fails loudly rather than silently passing real
+  regressions.
+
+Pairs naturally with `JsValidatorEmitter` (PHP↔JS validator
+parity) and `PolyparityExporter` (cross-language YAML spec):
+three downstream artifacts from one `RequestDto` source of
+truth, three drift-detection mechanisms in one repo.
+
 ## Environment knobs
 
 | Variable | Purpose |
