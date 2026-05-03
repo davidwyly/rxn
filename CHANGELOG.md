@@ -12,6 +12,53 @@ read alongside the wins.
 
 ## Unreleased
 
+### Compile-time route conflict detection (`feat/route-conflict-detector`)
+
+`bin/rxn routes:check` finds overlapping `#[Route]` patterns at
+CI time, not at first request. Closes
+[horizons.md theme 3.2](docs/horizons.md). Most PHP frameworks
+resolve route ambiguity at first-match-after-cache-warm — a
+typo manifests as a silently-dead route the developer thinks is
+wired up. This catches the typo before the deploy.
+
+#### Added
+
+- **`Rxn\Framework\Http\Routing\ConflictDetector`** — reflects
+  every `#[Route]` attribute across a list of controller classes
+  and runs a pairwise overlap check. The algorithm uses a static
+  compatibility matrix derived from the constraint regexes (e.g.
+  `int = \d+` and `alpha = [a-zA-Z]+` have empty intersection;
+  `slug = [a-z0-9-]+` and `uuid = [0-9a-f]{8}-...` overlap
+  because lowercase hex + dashes are slug-legal). Custom
+  constraint types (added via `Router::constraint()`) are
+  conservatively treated as overlapping with everything — false
+  positives are preferable to false negatives in a CI gate.
+- **`bin/rxn routes:check`** subcommand — exit 0 = no conflicts,
+  exit 1 = conflicts found (printed with both source files +
+  line numbers). Matches the discovery shape of `bin/rxn
+  openapi`: `--ns=NS` and `--root=DIR` flags work the same way.
+- `ConflictDetector` test suite (17 tests) covering each rule:
+  the matrix corners (int vs alpha, alpha vs uuid, slug vs
+  uuid, any vs everything), static-vs-dynamic literal matching,
+  trailing-slash normalisation, custom-type conservatism,
+  reported-once invariant on N-way conflict triplets,
+  description rendering. Plus 2 CLI integration tests covering
+  the clean and conflicting fixture flows.
+
+#### Why this matters
+
+A `#[Route]` typo today fails silently — the wrong route wins,
+production swallows the bug as "this endpoint doesn't get hit,"
+and the developer notices it next sprint when a customer
+complains. With `routes:check` in CI, the typo blocks the
+merge. Routing ambiguity becomes a compile-time concern instead
+of a runtime mystery.
+
+Pairs with the existing schema-as-truth gates (`openapi:check`,
+the cross-language validator parity test): three structural
+linters that catch three classes of silent-regression bugs
+before deploy, all framework-native, all dependency-free.
+
 ### OpenAPI snapshot contract (`feat/openapi-snapshot-contract`)
 
 The cheapest possible governance layer for schema-as-truth:

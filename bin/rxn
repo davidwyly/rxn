@@ -12,6 +12,7 @@ namespace Rxn\Framework;
  *   bin/rxn make:record     <NsPrefix> <Name> <table_name>
  *   bin/rxn openapi         [--out=path.json] [--title=t] [--version=v] [--ns=App]
  *   bin/rxn openapi:check   [--snapshot=path.json] [--update] [--allow-breaking]
+ *   bin/rxn routes:check    [--ns=App] [--root=DIR]
  *
  * Environment knobs:
  *   APP_MIGRATION_DIR     default: <project>/app/migrations
@@ -120,6 +121,12 @@ Commands:
                                             drift, 1 = additive only, 2 =
                                             breaking changes (gate). --update
                                             overwrites the snapshot.
+  routes:check [--ns=NS] [--root=DIR]
+                                            scan #[Route] attributes for
+                                            ambiguous patterns (e.g. /x/{id:int}
+                                            vs /x/{slug:slug} both accepting
+                                            "123"). exit 0 = clean, 1 =
+                                            conflicts found.
 
 Environment:
   APP_MIGRATION_DIR     default: <project>/app/migrations
@@ -306,6 +313,33 @@ try {
             if ($diff->hasBreaking() && !$allowBreaking) {
                 exit(2);
             }
+            exit(1);
+
+        case 'routes:check':
+            $opts = rxn_parse_flags($argv);
+            rxn_load_env($projectRoot);
+            $ns = $opts['ns'] ?? (getenv('APP_NAMESPACE') ?: null);
+            if (!is_string($ns) || $ns === '') {
+                fwrite(STDERR, "routes:check: need an app namespace — pass --ns=Name or set APP_NAMESPACE\n");
+                exit(2);
+            }
+            $scanRoot = isset($opts['root']) && is_string($opts['root'])
+                ? $opts['root']
+                : $projectRoot;
+            $discoverer = new Http\OpenApi\Discoverer($scanRoot, $ns, requireFiles: true);
+            $detector   = new Http\Routing\ConflictDetector();
+            $conflicts  = $detector->check($discoverer->all());
+
+            if ($conflicts === []) {
+                echo "No route conflicts.\n";
+                exit(0);
+            }
+            echo 'Found ' . count($conflicts) . " route conflict(s):\n\n";
+            foreach ($conflicts as $c) {
+                echo $c->describe() . "\n\n";
+            }
+            echo "Each pair is a runtime-silent ambiguity — whichever route\n";
+            echo "was registered first wins; the other is dead code.\n";
             exit(1);
 
         case 'help':
