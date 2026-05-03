@@ -54,6 +54,15 @@ final class JsValidatorParityTest extends TestCase
         $this->assertSame(0, $result->disagreements, $result->describe());
     }
 
+
+    public function testEmitterRefusesCustomValidatesAttribute(): void
+    {
+        $emitter = new JsValidatorEmitter();
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/implements.*Validates.*no JS twin/i');
+        $emitter->emit(Fixture\CustomUnsupportedDto::class);
+    }
+
     public function testEmitterRefusesUnsupportedAttribute(): void
     {
         $emitter = new JsValidatorEmitter();

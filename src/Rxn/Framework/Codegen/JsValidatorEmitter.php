@@ -11,6 +11,7 @@ use Rxn\Framework\Http\Attribute\Required;
 use Rxn\Framework\Http\Attribute\Url;
 use Rxn\Framework\Http\Attribute\Email;
 use Rxn\Framework\Http\Binding\RequestDto;
+use Rxn\Framework\Http\Binding\Validates;
 
 /**
  * Emit a vanilla ES module that validates an input object against
@@ -207,14 +208,13 @@ final class JsValidatorEmitter
     private function refuse(string $attrName): string
     {
         // Generic / non-Validates attributes: ignore (the runtime
-        // walker also skips them). Only refuse known-Validates
-        // attributes we haven't implemented yet — those would be
-        // silent divergences.
-        $known = ['Pattern', 'Uuid', 'Json', 'Date', 'StartsWith', 'EndsWith'];
-        $short = (new \ReflectionClass($attrName))->getShortName();
-        if (in_array($short, $known, true)) {
+        // walker also skips them). Refuse every Validates
+        // implementation we cannot mirror — silent divergence
+        // between generated JS and Binder is the worst failure mode.
+        $ref = new \ReflectionClass($attrName);
+        if ($ref->implementsInterface(Validates::class)) {
             throw new \RuntimeException(
-                "JsValidatorEmitter: $attrName is a known validator but has no JS twin yet. "
+                "JsValidatorEmitter: $attrName implements " . Validates::class . " but has no JS twin yet. "
                 . "Refusing to emit silently-divergent code. "
                 . "Add an emit method or document the DTO as PHP-only.",
             );
