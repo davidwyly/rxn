@@ -7,23 +7,39 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 /**
  * Static slot for the framework's observability dispatcher. Keeps
  * the call sites in `Pipeline`, `Router`, `Binder`, `App::serve()`
- * decoupled from any concrete dispatcher — they emit through
- * `Events::emit()`, which is a no-op until the app installs one.
+ * decoupled from any concrete dispatcher — every emit site reads
+ * `Events::enabled()` and skips event allocation entirely when no
+ * dispatcher is installed.
  *
  * Same posture as `RequestId` / `BearerAuth` / `TraceContext` /
- * `DumpCache`: PHP's single-threaded request lifecycle scopes the
- * static slot. Apps that share a worker across requests (Swoole,
- * RoadRunner) install the dispatcher once at boot — listeners are
- * responsible for using event payload state (e.g. `$pairId`) to
- * separate concurrent requests rather than ambient slots.
+ * `DumpCache`: a process-wide static slot scoped to PHP's standard
+ * synchronous request lifecycle (one request per worker at a time).
+ *
+ * **Sync-only.** Under runtimes that interleave requests within a
+ * single PHP process (Swoole / RoadRunner / OpenSwoole / Fiber-based
+ * concurrency), the `currentPairId()` slot can be overwritten while
+ * a request's Router/Binder calls are still in flight, attributing
+ * the event to the wrong pair id. The dispatcher slot itself is
+ * fine to share — it doesn't change per-request — but the per-
+ * request pair id is not safe across coroutine boundaries. A future
+ * fiber-aware variant would thread the pair id explicitly through
+ * the call sites or store it on the PSR-7 request attribute bag.
  *
  *   $provider = new ListenerProvider();
  *   $provider->listen(FrameworkEvent::class, $myListener);
  *   Events::useDispatcher(new EventDispatcher($provider));
  *
- * Without an installed dispatcher, `Events::emit()` short-circuits
- * — the event-construction cost is paid by callers but the
- * dispatch cost is zero.
+ * Recommended pattern at the call site:
+ *
+ *   if (Events::enabled()) {
+ *       Events::emit(new MyEvent(...));   // construct only when needed
+ *   }
+ *
+ * Without an installed dispatcher, `Events::emit()` is itself a
+ * safe no-op — but the gate above also avoids constructing the
+ * event object in the first place, which matters on hot paths
+ * (per-middleware, per-bind) where an unnecessary value-object
+ * allocation adds up.
  */
 final class Events
 {
@@ -31,10 +47,14 @@ final class Events
 
     /**
      * Per-request pair id, set by `App::serve()` between
-     * `RequestReceived` and `ResponseEmitted`. Read by emit
-     * sites that don't carry the id directly (Router, Binder)
-     * so listeners on concurrent-worker setups can attribute
-     * the event to a specific in-flight request.
+     * `RequestReceived` and `ResponseEmitted` and cleared in a
+     * `finally` block when the response is written. Read by emit
+     * sites that don't carry the id directly (Router, Binder).
+     *
+     * Sync-only — see the class docblock. Under coroutine-based
+     * runtimes (Swoole, fibers) two requests can be in flight in
+     * the same process and the slot doesn't separate them. PHP's
+     * standard SAPI serialises requests so the slot is safe there.
      */
     private static ?string $currentPairId = null;
 

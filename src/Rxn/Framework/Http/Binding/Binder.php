@@ -85,38 +85,40 @@ final class Binder
         $eventsEnabled = \Rxn\Framework\Observability\Events::enabled();
 
         if (isset(self::$compiledCache[$class])) {
-            if ($eventsEnabled) {
-                \Rxn\Framework\Observability\Events::emit(
-                    new \Rxn\Framework\Observability\Event\BinderInvoked(
-                        $class,
-                        \Rxn\Framework\Observability\Event\BinderInvoked::PATH_COMPILED,
-                        \Rxn\Framework\Observability\Events::currentPairId(),
-                    )
-                );
+            // Fast path when no listener is subscribed: the
+            // compiled closure runs untouched, no try/catch frame
+            // setup, no event allocations. This is the hottest
+            // path in the framework — it's worth the duplication
+            // to keep it a straight return.
+            if (!$eventsEnabled) {
+                return (self::$compiledCache[$class])($source ?? self::gatherBag());
             }
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\BinderInvoked(
+                    $class,
+                    \Rxn\Framework\Observability\Event\BinderInvoked::PATH_COMPILED,
+                    \Rxn\Framework\Observability\Events::currentPairId(),
+                )
+            );
             try {
                 $dto = (self::$compiledCache[$class])($source ?? self::gatherBag());
             } catch (ValidationException $e) {
-                if ($eventsEnabled) {
-                    \Rxn\Framework\Observability\Events::emit(
-                        new \Rxn\Framework\Observability\Event\ValidationCompleted(
-                            $class,
-                            self::groupValidationFailures($e->errors()),
-                            \Rxn\Framework\Observability\Events::currentPairId(),
-                        )
-                    );
-                }
-                throw $e;
-            }
-            if ($eventsEnabled) {
                 \Rxn\Framework\Observability\Events::emit(
                     new \Rxn\Framework\Observability\Event\ValidationCompleted(
                         $class,
-                        [],
+                        self::groupValidationFailures($e->errors()),
                         \Rxn\Framework\Observability\Events::currentPairId(),
                     )
                 );
+                throw $e;
             }
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\ValidationCompleted(
+                    $class,
+                    [],
+                    \Rxn\Framework\Observability\Events::currentPairId(),
+                )
+            );
             return $dto;
         }
 

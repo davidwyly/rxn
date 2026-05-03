@@ -79,11 +79,19 @@ Events::useDispatcher($dispatcher);
 
 #### What it costs
 
-- **Per emit when no dispatcher installed:** one null check
-  (~5 ns). Events are constructed regardless — the cost is the
-  value-object allocation, not the dispatch.
-- **Per emit with a no-op listener:** one method call + iterator
-  walk (~50 ns). Negligible against a request's overall cost.
+- **Per emit point when no dispatcher installed:** one
+  `Events::enabled()` bool read. The event object is NOT
+  constructed and `random_bytes(8)` (for pair-id minting) is
+  NOT called — the call site short-circuits before either.
+  Apps that don't subscribe pay roughly nothing per request
+  hop.
+- **Per emit with a no-op listener:** event-object allocation
+  (a few field copies) + one method call + iterator walk
+  (~50 ns total). Negligible against a request's overall cost.
+- **Hottest path preservation:** `Binder::bind()`'s compiled
+  fast path returns the closure invocation directly when
+  observability is disabled — no `try/catch` frame, no
+  intermediate `$dto` assignment.
 - **No new dependencies.** Leans on the existing PSR-14 wiring
   (`Rxn\Framework\Event\EventDispatcher` + `ListenerProvider`).
 
@@ -100,11 +108,12 @@ Events::useDispatcher($dispatcher);
   method-mismatch).
 - 4 Binder integration tests (runtime path, compiled path,
   failure grouping by field, compiled path emits on failure too).
-- 5 App::serve integration tests (full success path event tree,
+- 6 App::serve integration tests (full success path event tree,
   404 miss path, 405 method-mismatch path, pair-id slot
-  cleared in finally, no-op without dispatcher).
+  cleared in finally, no-op without dispatcher, invokable
+  handler label).
 
-Suite 712 → 738 / 1596.
+Suite 712 → 739 / 1598.
 
 ---
 

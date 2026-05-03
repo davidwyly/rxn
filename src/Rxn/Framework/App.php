@@ -258,7 +258,15 @@ class App
             return $handler;
         }
         if (is_object($handler)) {
-            return $handler::class;
+            // Invokables (`__invoke`) are the common dispatcher
+            // shape — surface them as `Class::__invoke` so the
+            // span name distinguishes them from constructor-only
+            // objects of the same class. Non-invokable objects
+            // fall back to the bare class name (the caller has
+            // probably stuffed something exotic in `handler`).
+            return is_callable($handler)
+                ? $handler::class . '::__invoke'
+                : $handler::class;
         }
         return 'callable';
     }

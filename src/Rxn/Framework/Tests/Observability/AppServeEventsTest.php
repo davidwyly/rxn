@@ -203,6 +203,48 @@ final class AppServeEventsTest extends TestCase
         $this->assertNull(Events::currentPairId());
     }
 
+    public function testHandlerLabelForInvokableObjectIncludesInvokeSuffix(): void
+    {
+        // Invokable controllers (__invoke) are a common dispatcher
+        // shape — the span name needs to distinguish them from
+        // plain objects of the same class. The describeHandler()
+        // contract calls these out with the `::__invoke` suffix.
+        $invokable = new class {
+            public function __invoke(array $params, $req): \Psr\Http\Message\ResponseInterface
+            {
+                return new Response(200);
+            }
+        };
+        $invokableClass = $invokable::class;
+
+        $router = new Router();
+        $router->get('/inv', $invokable);
+        $this->setRequest('GET', '/inv');
+
+        ob_start();
+        try {
+            App::serve($router, static function (array $hit, $req) {
+                return ($hit['handler'])($hit['params'] ?? [], $req);
+            });
+        } finally {
+            ob_end_clean();
+        }
+
+        $entered = null;
+        foreach ($this->captured as $ev) {
+            if ($ev instanceof HandlerInvoked && $ev->state === HandlerInvoked::STATE_ENTERED) {
+                $entered = $ev;
+                break;
+            }
+        }
+        $this->assertNotNull($entered);
+        $this->assertSame(
+            $invokableClass . '::__invoke',
+            $entered->handler,
+            'invokable handlers must surface as Class::__invoke for span readability',
+        );
+    }
+
     public function testNoEventsEmittedWhenDispatcherIsAbsent(): void
     {
         // Detach the dispatcher BEFORE calling serve(). This is

@@ -18,12 +18,15 @@ namespace Rxn\Framework\Observability\Event;
  *
  * `$pairId` carries the request's pair id (the same id on the
  * surrounding `RequestReceived` / `ResponseEmitted`) when the
- * request flowed through `App::serve()`. Listeners use it to
- * attribute the route to the right in-flight request on
- * concurrent-worker setups (Swoole / RoadRunner). It's null
- * when callers drive the Router directly without going through
- * `App::serve()` — in that case there's no request scope to
- * attribute to.
+ * request flowed through `App::serve()`. It's null when callers
+ * drive the Router directly without going through `App::serve()`
+ * — in that case there's no request scope to attribute to.
+ *
+ * The pair id is read from the process-wide static slot
+ * `Events::currentPairId()` — see the `Events` class docblock for
+ * the sync-only contract. Standard PHP SAPIs (php-fpm / mod_php
+ * / cli-server) serialise requests; coroutine runtimes (Swoole /
+ * fiber bridges) need a request-scoped pair id source instead.
  */
 final class RouteMatched implements FrameworkEvent
 {
