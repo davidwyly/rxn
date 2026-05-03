@@ -141,6 +141,74 @@ final class TraceContextTest extends TestCase
         $this->assertNull(TraceContext::currentTraceState());
     }
 
+    public function testDiscardsTraceStateWhenInboundTraceparentMissing(): void
+    {
+        // W3C spec: tracestate is meaningful only paired with a
+        // valid inbound traceparent. If we generated a fresh
+        // context, vendor state from an unrelated upstream would
+        // attach stale metadata to a brand-new trace.
+        $response = (new TraceContext())->process(
+            $this->request(['tracestate' => 'rojo=00f067aa0ba902b7']),
+            $this->terminal(),
+        );
+
+        $this->assertSame('', $response->getHeaderLine('tracestate'));
+        $this->assertNull(TraceContext::currentTraceState());
+    }
+
+    public function testDiscardsTraceStateWhenInboundTraceparentMalformed(): void
+    {
+        // Same rule applies: if the parser rejects the inbound
+        // traceparent, the paired tracestate is also dropped — we
+        // generated a fresh context, so any vendor state is from
+        // some unrelated/invalid upstream.
+        $response = (new TraceContext())->process(
+            $this->request([
+                'traceparent' => 'not-a-valid-traceparent',
+                'tracestate'  => 'rojo=00f067aa0ba902b7',
+            ]),
+            $this->terminal(),
+        );
+
+        $this->assertSame('', $response->getHeaderLine('tracestate'));
+        $this->assertNull(TraceContext::currentTraceState());
+    }
+
+    public function testSanitiserRejectsControlCharacters(): void
+    {
+        // PSR-7 already rejects raw CTL chars in headers, so a
+        // CRLF injection attempt fails at request construction
+        // before the middleware sees it. The sanitiser is the
+        // second line of defence: non-HTTP entrypoints (CLI jobs,
+        // test harnesses, library code) can write to the static
+        // slot directly, bypassing PSR-7. Verify the sanitiser
+        // catches every CTL byte (0x00-0x1f and 0x7f).
+        foreach (["\r\nX-Injected: yes", "vt:foo\x0bbar", "null:foo\x00bar", "del:foo\x7fbar"] as $bad) {
+            $this->assertNull(
+                TraceContext::sanitiseTraceState($bad),
+                'Sanitiser must reject CTL-bearing value: ' . bin2hex($bad)
+            );
+        }
+    }
+
+    public function testSanitiserRejectsOversizeInput(): void
+    {
+        $this->assertNull(TraceContext::sanitiseTraceState(str_repeat('a', 513)));
+    }
+
+    public function testSanitiserAcceptsValidInput(): void
+    {
+        $valid = 'rojo=00f067aa0ba902b7,congo=t61rcWkgMzE';
+        $this->assertSame($valid, TraceContext::sanitiseTraceState($valid));
+    }
+
+    public function testSanitiserRejectsEmptyString(): void
+    {
+        // Empty input is "no tracestate" — null is more honest
+        // than an empty string echoed back as a header.
+        $this->assertNull(TraceContext::sanitiseTraceState(''));
+    }
+
     public function testCurrentReturnsNullBeforeMiddlewareRuns(): void
     {
         // Force the slot back to null via reflection so this test

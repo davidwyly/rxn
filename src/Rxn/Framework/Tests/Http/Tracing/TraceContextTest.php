@@ -80,6 +80,17 @@ final class TraceContextTest extends TestCase
         $this->assertNotNull(TraceContext::fromHeader($extended));
     }
 
+    public function testRejectsExtraFieldsOnVersionZeroZero(): void
+    {
+        // W3C spec: version `00` MUST be exactly 4 fields. Trailing
+        // segments are only allowed on versions > 00 (forward-compat
+        // for future field additions). Accepting trailing fields on
+        // `00` would let us continue traces fully-compliant peers
+        // correctly drop, creating inconsistent propagation.
+        $invalid = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-someextra';
+        $this->assertNull(TraceContext::fromHeader($invalid));
+    }
+
     public function testNormalisesCaseToLower(): void
     {
         // Spec: hex MUST be lowercase on the wire, but parsers

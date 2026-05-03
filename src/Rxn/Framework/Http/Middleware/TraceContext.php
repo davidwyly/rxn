@@ -44,17 +44,21 @@ final class TraceContext implements MiddlewareInterface
         ServerRequestInterface $request,
         RequestHandlerInterface $handler,
     ): ResponseInterface {
-        $incoming = $request->getHeaderLine('traceparent');
-        $context  = $incoming !== ''
-            ? (TraceCtx::fromHeader($incoming) ?? TraceCtx::generate())
-            : TraceCtx::generate();
+        $incoming       = $request->getHeaderLine('traceparent');
+        $inboundContext = $incoming !== '' ? TraceCtx::fromHeader($incoming) : null;
+        $context        = $inboundContext ?? TraceCtx::generate();
 
-        // Vendor-specific tracestate is opaque to us — propagate
-        // verbatim. Per spec, max length 512 chars; longer values
-        // are dropped (degrades gracefully rather than emitting an
-        // oversized header that gateways may reject).
-        $rawState = $request->getHeaderLine('tracestate');
-        self::$traceState = ($rawState !== '' && strlen($rawState) <= 512) ? $rawState : null;
+        // Per W3C spec: `tracestate` is meaningful only when paired
+        // with a valid inbound `traceparent`. If we generated a
+        // fresh context (no inbound traceparent or it was malformed),
+        // discard any vendor state — propagating it would attach
+        // stale metadata to a brand-new trace that's no longer
+        // related to the upstream context. Plus: validate against
+        // header-injection attacks (CRLF / control characters)
+        // before storing or echoing it.
+        self::$traceState = $inboundContext !== null
+            ? self::sanitiseTraceState($request->getHeaderLine('tracestate'))
+            : null;
 
         self::$current = $context;
         $request = $request->withAttribute(self::REQUEST_ATTR, $context);
@@ -91,5 +95,38 @@ final class TraceContext implements MiddlewareInterface
     public static function currentTraceState(): ?string
     {
         return self::$traceState;
+    }
+
+    /**
+     * Validate an inbound `tracestate` value before we trust it
+     * enough to echo it on the response or stash it for outbound
+     * propagation. Three rules:
+     *
+     *   1. Non-empty.
+     *   2. ≤ 512 characters (W3C MAY-drop threshold; gateways
+     *      commonly reject larger headers).
+     *   3. No ASCII control characters (0x00-0x1f, 0x7f). The
+     *      W3C grammar restricts list-member values to printable
+     *      ASCII anyway; rejecting CTL chars defends against
+     *      `\r\n` header-injection attacks before any downstream
+     *      consumer sees the value.
+     *
+     * Returns the value if it passes; null to indicate "drop".
+     * Same posture as oversized values — degrade gracefully.
+     *
+     * Public so HttpClient (and tests) can apply the same rule
+     * as a defence-in-depth check on the static slot, which
+     * non-HTTP entrypoints could write to without going through
+     * `process()`.
+     */
+    public static function sanitiseTraceState(string $value): ?string
+    {
+        if ($value === '' || strlen($value) > 512) {
+            return null;
+        }
+        if (preg_match('/[\x00-\x1f\x7f]/', $value) === 1) {
+            return null;
+        }
+        return $value;
     }
 }

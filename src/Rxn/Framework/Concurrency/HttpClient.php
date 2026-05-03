@@ -120,8 +120,19 @@ final class HttpClient
         if (!self::hasHeaderCaseInsensitive($headers, 'traceparent')) {
             $headers['traceparent'] = $context->withNewParent()->toHeader();
         }
+        // Defence in depth: the middleware sanitises tracestate on
+        // ingress, but the static slot can be set from non-HTTP
+        // entrypoints (CLI jobs, test harnesses) that bypass that
+        // path. Strip CTL chars again here before letting the value
+        // reach curl's raw `"$k: $v"` header builder, where CRLF
+        // would smuggle extra headers into the outbound request.
         $state = TraceContext::currentTraceState();
-        if ($state !== null && !self::hasHeaderCaseInsensitive($headers, 'tracestate')) {
+        if (
+            $state !== null
+            && !self::hasHeaderCaseInsensitive($headers, 'tracestate')
+            && preg_match('/[\x00-\x1f\x7f]/', $state) !== 1
+            && strlen($state) <= 512
+        ) {
             $headers['tracestate'] = $state;
         }
         return $headers;

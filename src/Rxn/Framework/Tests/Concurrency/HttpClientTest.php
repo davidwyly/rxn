@@ -126,6 +126,41 @@ final class HttpClientTest extends TestCase
         $this->assertSame('rojo=00f067aa0ba902b7,congo=t61rcWkgMzE', $headers['tracestate']);
     }
 
+    public function testApplyTraceContextDropsControlCharsDefensively(): void
+    {
+        // Defence in depth: the middleware sanitises tracestate on
+        // ingress, but a CLI job or test harness could set the
+        // static slot directly without going through middleware.
+        // HttpClient must not pass a CRLF-bearing value through
+        // to curl's raw `"$k: $v"` header builder, where it would
+        // smuggle extra headers into the outbound request.
+        $this->processInboundTrace(
+            '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+        );
+
+        // Bypass the middleware's sanitiser — simulate something
+        // (test harness, bug, library code) that wrote an unsafe
+        // value into the static slot.
+        $ref = new \ReflectionClass(\Rxn\Framework\Http\Middleware\TraceContext::class);
+        $ref->getProperty('traceState')->setValue(null, "rojo=foo\r\nX-Injected: yes");
+
+        $headers = HttpClient::applyTraceContext([]);
+        $this->assertArrayNotHasKey('tracestate', $headers);
+    }
+
+    public function testApplyTraceContextDropsOversizeTraceStateDefensively(): void
+    {
+        $this->processInboundTrace(
+            '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+        );
+
+        $ref = new \ReflectionClass(\Rxn\Framework\Http\Middleware\TraceContext::class);
+        $ref->getProperty('traceState')->setValue(null, str_repeat('a', 600));
+
+        $headers = HttpClient::applyTraceContext([]);
+        $this->assertArrayNotHasKey('tracestate', $headers);
+    }
+
     private function processInboundTrace(string $traceparent, ?string $traceState = null): void
     {
         $headers = ['traceparent' => $traceparent];

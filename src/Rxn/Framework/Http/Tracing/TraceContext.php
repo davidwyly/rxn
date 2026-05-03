@@ -66,7 +66,10 @@ final class TraceContext
         if ($header === '') {
             return null;
         }
-        $parts = explode('-', $header);
+        // Bound the split so a malicious header can't blow up memory
+        // by including thousands of dashes. 5 = at most version + 4
+        // mandatory fields with everything else collapsed.
+        $parts = explode('-', $header, 5);
         if (count($parts) < 4) {
             return null;
         }
@@ -78,6 +81,14 @@ final class TraceContext
 
         // Spec: version `ff` is reserved for "invalid" — reject it.
         if ($version === 'ff' || preg_match('/^[0-9a-f]{2}$/', $version) !== 1) {
+            return null;
+        }
+        // Spec: version `00` MUST be exactly 4 fields. Trailing
+        // segments are only allowed on versions > 00 (forward-compat
+        // for future field additions). Accepting trailing fields on
+        // `00` would let us continue traces that fully-compliant
+        // peers correctly drop, creating inconsistent propagation.
+        if ($version === '00' && count($parts) !== 4) {
             return null;
         }
         if (preg_match(self::TRACEID_RE,  $traceId)  !== 1) { return null; }
