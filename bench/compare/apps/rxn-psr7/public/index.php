@@ -90,6 +90,10 @@ $terminal = new class ($router) implements RequestHandlerInterface {
             return $this->problem(422, 'Validation failed', $e->errors());
         }
 
+        if (!is_finite($dto->price)) {
+            return $this->problem(422, 'Validation failed', ['price' => ['must be a finite number']]);
+        }
+
         return $this->json(
             201,
             json_encode(['id' => 1, 'name' => $dto->name, 'price' => $dto->price]),
