@@ -2,6 +2,8 @@
 
 namespace Rxn\Framework\Concurrency;
 
+use Rxn\Framework\Http\Middleware\TraceContext;
+
 /**
  * Tiny async HTTP client that submits curl handles to the
  * Scheduler. Synchronous in spirit (call returns a Promise that
@@ -40,6 +42,8 @@ final class HttpClient
             throw new \InvalidArgumentException('Only http/https URLs are allowed.');
         }
 
+        $headers = self::applyTraceContext($headers);
+
         $handle = curl_init();
         $opts = [
             CURLOPT_URL            => $url,
@@ -76,5 +80,61 @@ final class HttpClient
             $out[] = $k . ': ' . $v;
         }
         return $out;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function hasHeaderCaseInsensitive(array $headers, string $name): bool
+    {
+        $lowered = strtolower($name);
+        foreach ($headers as $k => $_) {
+            if (strtolower($k) === $lowered) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Inject the request-scoped W3C Trace Context (if any) into an
+     * outbound headers map. Caller-supplied `traceparent` /
+     * `tracestate` keys win — apps that explicitly set their own
+     * tracing on a per-call basis aren't overridden. This server
+     * advances the parent-id (`withNewParent()`) so the receiving
+     * service sees `parent = me`.
+     *
+     * Public so it can be exercised in isolation by unit tests
+     * without spinning up curl. Stateful via `TraceContext::current()`
+     * — same per-request scoping as `RequestId`.
+     *
+     * @param array<string, string> $headers
+     * @return array<string, string>
+     */
+    public static function applyTraceContext(array $headers): array
+    {
+        $context = TraceContext::current();
+        if ($context === null) {
+            return $headers;
+        }
+        if (!self::hasHeaderCaseInsensitive($headers, 'traceparent')) {
+            $headers['traceparent'] = $context->withNewParent()->toHeader();
+        }
+        // Defence in depth: the middleware sanitises tracestate on
+        // ingress, but the static slot can be set from non-HTTP
+        // entrypoints (CLI jobs, test harnesses) that bypass that
+        // path. Strip CTL chars again here before letting the value
+        // reach curl's raw `"$k: $v"` header builder, where CRLF
+        // would smuggle extra headers into the outbound request.
+        $state = TraceContext::currentTraceState();
+        if (
+            $state !== null
+            && !self::hasHeaderCaseInsensitive($headers, 'tracestate')
+            && preg_match('/[\x00-\x1f\x7f]/', $state) !== 1
+            && strlen($state) <= 512
+        ) {
+            $headers['tracestate'] = $state;
+        }
+        return $headers;
     }
 }

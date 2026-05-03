@@ -15,7 +15,9 @@ contract to be useful. When there are, this doc grows.
 **In core:**
 
 - Router, Pipeline, Container, Binder, Response, App
-- All eight shipped middlewares
+- All nine shipped middlewares (BearerAuth, CORS, ETag,
+  Idempotency, JsonBody, Pagination, RequestId, Transaction,
+  TraceContext)
 - The Validator + the schema-compiled fast path
 - The PSR-7/15/11/3/14 conformance bits
 - The OpenAPI generator

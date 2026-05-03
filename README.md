@@ -77,7 +77,7 @@ generators). Drop in `Http\OpenApi\SwaggerUi::html($specUrl)`
 from a route handler for instant interactive docs.
 
 **PSR-native end-to-end.** PSR-7 ingress (default), PSR-15
-middleware (the contract for all eight shipped middlewares),
+middleware (the contract for all nine shipped middlewares),
 PSR-11 container, PSR-3 logger, PSR-14 events — every framework
 interface satisfies the relevant PSR. Any third-party CORS /
 OAuth / OpenTelemetry / JWT / rate-limit middleware drops into
@@ -223,7 +223,7 @@ cumulative scoreboard is in
 
 ```bash
 composer install
-vendor/bin/phpunit          # 645 tests, 1371 assertions
+vendor/bin/phpunit          # 678 tests, 1448 assertions
 bin/rxn help                # CLI subcommands
 ```
 
@@ -304,7 +304,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Test counts:
 
-- **Rxn framework:** 645 tests / 1371 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 678 tests / 1448 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
@@ -420,13 +420,15 @@ methodology is in
    - [X] Scaffolded CRUD on a record (`CrudController` + `Record`)
    - [X] FK relationship graph (`Data\Chain` + `Link`)
 - [X] HTTP middleware pipeline — **PSR-15 native end-to-end**
-      (`Http\Pipeline`; all eight shipped middlewares implement
+      (`Http\Pipeline`; all nine shipped middlewares implement
       `Psr\Http\Server\MiddlewareInterface`)
    - [X] Shipped middlewares: BearerAuth, CORS w/ preflight,
          conditional GET via weak ETags + 304 short-circuit,
          Idempotency (Stripe-style replay), JSON-body decoding with
          size caps, Pagination + RFC 8288 Link headers, request-id
-         correlation, Transaction (`Http\Middleware\*`)
+         correlation, Transaction, **W3C Trace Context** (auto-
+         propagation to outbound `Concurrency\HttpClient` calls)
+         (`Http\Middleware\*`)
 - [X] PSR-7 ingress — `Http\PsrAdapter::serverRequestFromGlobals()`
       builds a `ServerRequestInterface` from PHP globals;
       `App::serve(Router)` is the boot-free one-line front controller

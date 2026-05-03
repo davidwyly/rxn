@@ -12,6 +12,79 @@ read alongside the wins.
 
 ## Unreleased
 
+### W3C Trace Context propagation (`feat/trace-context-propagation`)
+
+[W3C Trace Context](https://www.w3.org/TR/trace-context/) — the
+cross-vendor protocol every distributed-tracing backend
+(Jaeger, Honeycomb, Datadog, Tempo, …) speaks — now Just Works
+without any app code. Drop the middleware in the pipeline and:
+
+- Inbound `traceparent` is parsed, validated, and made
+  available via `TraceContext::current()` and the request
+  attribute `rxn.trace_context`.
+- Malformed or absent inbound headers fall back to a freshly-
+  generated context (W3C-compliant random 32-hex trace-id +
+  16-hex parent-id).
+- Outbound calls via `Concurrency\HttpClient` automatically
+  carry `traceparent` (with a freshly-advanced parent-id, per
+  spec — the current server becomes the parent of the next
+  hop) AND `tracestate` (verbatim pass-through).
+- The response echoes `traceparent` so calling services can
+  verify trace continuity.
+
+Closes [horizons.md theme 2.3](docs/horizons.md). Foundation
+for themes 2.1 (OTel spans via PSR-14) and 2.2 (Prometheus
+metrics) — every span/metric emitted by those needs a trace-id.
+
+#### Added
+
+- **`Rxn\Framework\Http\Tracing\TraceContext`** — W3C-
+  compliant value object with `fromHeader()`, `generate()`,
+  `withNewParent()`, `toHeader()`, `isSampled()`. Validates
+  the version-aware traceparent format, accepts higher
+  versions (forward-compat per spec), rejects the all-zero
+  sentinels (the spec's "invalid" markers), normalises hex
+  to lowercase. Re-emits `00` regardless of inbound version.
+- **`Rxn\Framework\Http\Middleware\TraceContext`** — PSR-15
+  middleware. Static `current()` slot for downstream code
+  (HttpClient propagation, future logger correlation).
+  Tracestate verbatim pass-through with a 512-char cap to
+  avoid emitting headers gateways will reject.
+- **`Concurrency\HttpClient::applyTraceContext()`** —
+  outbound header injector. Caller-supplied `traceparent`
+  wins (including case-variant `Traceparent`) so explicit
+  per-call tracing isn't stomped on.
+- 26 tests across 3 files: 13 for the value object's spec
+  compliance (each parsing rule, sentinel rejections, version
+  forward-compat, round-trip property, sampling bit), 7 for
+  the middleware (header-absent fallback, valid-header
+  honour, malformed-header fallback, request-attribute,
+  tracestate pass-through, oversize tracestate dropped,
+  static-slot reset), 6 for HttpClient propagation (no-op,
+  injection, caller-supplied wins, case-insensitive
+  preservation, tracestate forwarding).
+
+#### Why this matters
+
+Distributed tracing is the difference between "the request
+took 4 seconds, idk why" and "spent 3.7 seconds in the slow
+JOIN on the orders service." Every modern observability
+stack assumes you've got trace context propagation working.
+
+PHP frameworks historically punt this to userspace: Symfony
+needs `OpenTelemetryBundle`, Laravel has third-party
+packages, Slim has nothing native. With this in core, an
+Rxn app drops the middleware in and is immediately a good
+citizen of the distributed-tracing world — wired to whatever
+OTel-compatible exporter the ops team picks, without writing
+tracing code.
+
+Pairs naturally with `RequestId` (per-request correlation
+id), `BearerAuth` (request-scoped principal), and the
+existing PSR-14 event surface. All four are sync-only static
+slots — the ergonomics that make per-request data accessible
+without threading it through every function signature.
+
 ### Compile-time route conflict detection (`feat/route-conflict-detector`)
 
 `bin/rxn routes:check` finds overlapping `#[Route]` patterns at
