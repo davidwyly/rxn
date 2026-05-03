@@ -35,6 +35,11 @@ final class HttpClient
      */
     public function getAsync(string $url, array $headers = []): Promise
     {
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if ($scheme !== 'http' && $scheme !== 'https') {
+            throw new \InvalidArgumentException('Only http/https URLs are allowed.');
+        }
+
         $handle = curl_init();
         curl_setopt_array($handle, [
             CURLOPT_URL            => $url,
@@ -42,6 +47,8 @@ final class HttpClient
             CURLOPT_HTTPHEADER     => $this->headerLines($headers),
             CURLOPT_TIMEOUT_MS     => $this->timeoutMs,
             CURLOPT_CONNECTTIMEOUT_MS => $this->timeoutMs,
+            CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
         ]);
         return $this->scheduler->submitCurl($handle);
     }

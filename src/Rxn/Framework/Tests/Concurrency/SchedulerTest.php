@@ -3,6 +3,7 @@
 namespace Rxn\Framework\Tests\Concurrency;
 
 use PHPUnit\Framework\TestCase;
+use Rxn\Framework\Concurrency\HttpClient;
 use Rxn\Framework\Concurrency\Promise;
 use Rxn\Framework\Concurrency\Scheduler;
 
@@ -152,6 +153,16 @@ final class SchedulerTest extends TestCase
         $scheduler->run(fn () => awaitAny([$a, $b]));
     }
 
+
+    public function testHttpClientRejectsNonHttpSchemes(): void
+    {
+        $scheduler = new Scheduler();
+        $client = new HttpClient($scheduler);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Only http/https URLs are allowed.');
+        $client->getAsync('file:///etc/hostname');
+    }
     public function testPromiseDoubleSettleThrows(): void
     {
         $scheduler = new Scheduler();
