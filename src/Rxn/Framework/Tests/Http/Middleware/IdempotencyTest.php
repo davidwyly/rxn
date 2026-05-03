@@ -129,6 +129,42 @@ final class IdempotencyTest extends TestCase
         $this->assertSame('true', $second->getHeaderLine('Idempotent-Replayed'));
     }
 
+    public function testReplayDoesNotReturnSensitiveHeaders(): void
+    {
+        $store = $this->makeFileStore();
+
+        $terminal = function (): ResponseInterface {
+            return new Psr7Response(
+                201,
+                [
+                    'Content-Type' => 'application/json',
+                    'Set-Cookie'   => 'session=victim',
+                    'X-Token'      => 'victim-token',
+                ],
+                '{"data":{"id":7}}',
+            );
+        };
+
+        $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: ['Idempotency-Key' => 'k-sensitive'],
+            body: '{"a":1}',
+            terminal: $terminal,
+        );
+        $replayed = $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: ['Idempotency-Key' => 'k-sensitive'],
+            body: '{"a":1}',
+            terminal: $this->jsonTerminal(201, ['id' => 8]),
+        );
+
+        $this->assertSame('application/json', $replayed->getHeaderLine('Content-Type'));
+        $this->assertSame('', $replayed->getHeaderLine('Set-Cookie'));
+        $this->assertSame('', $replayed->getHeaderLine('X-Token'));
+    }
+
 
     public function testSameKeyDoesNotReplayAcrossAuthorizationScopes(): void
     {
