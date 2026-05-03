@@ -12,6 +12,28 @@ read alongside the wins.
 
 ## Unreleased
 
+### Polyparity exporter (`feature/polyparity-exporter`)
+
+#### Added
+
+- **`Rxn\Framework\Codegen\PolyparityExporter`** — emits a
+  [polyparity](https://github.com/davidwyly/polyparity) YAML
+  spec from any `RequestDto`. Same coverage matrix as
+  `JsValidatorEmitter` (Required, NotBlank, Length, Min, Max,
+  InSet, Email, Url + scalar types), same refusal on out-of-
+  scope attributes. The bridge that lets one DTO drive Rxn's
+  PHP server, the JS twin, AND polyparity's TS / Python /
+  future-language siblings.
+- `PolyparityExporterTest` — snapshot tests for `ParityDto`,
+  `KitchenSinkDto`, `NumericEdgeDto`. Refusal test for
+  `UnsupportedDto` (uses `#[Pattern]`).
+- Verified end-to-end: a smoke test ran the exporter's YAML
+  through `polyparity-php`'s `Validator::compile()` and
+  confirmed the seven exercised cases (valid full payload,
+  missing required, invalid InSet, invalid Length, invalid
+  url, invalid email, int round-trip rejection) match the
+  expected polyparity verdicts.
+
 ### Cross-language compiled validator (`experiment/cross-lang-validator`, PR #14)
 
 A PHP `RequestDto` compiles to a vanilla ES module that agrees
