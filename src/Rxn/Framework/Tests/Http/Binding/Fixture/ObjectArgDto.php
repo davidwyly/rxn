@@ -3,8 +3,9 @@
 namespace Rxn\Framework\Tests\Http\Binding\Fixture;
 
 use Rxn\Framework\Http\Attribute\Required;
+use Rxn\Framework\Http\Binding\RequestDto;
 
-final class ObjectArgDto
+final class ObjectArgDto implements RequestDto
 {
     #[Required]
     #[ObjectArgValidator(new RuleObj('ok'))]

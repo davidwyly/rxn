@@ -234,6 +234,7 @@ final class Binder
 
         if (
             \Rxn\Framework\Codegen\DumpCache::dir() !== null
+            && $validatorExprs !== null
             && count($validatorExprs) === count($validators)
         ) {
             // Dump path: prepend $validators and a serialisable
@@ -260,13 +261,14 @@ final class Binder
      * Generate the PHP fragment that hydrates and validates one
      * property of the DTO.
      *
-     * @param array<int, object> $validators     instances side-table for the eval path
-     * @param array<int, string> $validatorExprs construction-expression side-table for the dump path
+     * @param array<int, object>  $validators     instances side-table for the eval path
+     * @param ?array<int, string> $validatorExprs construction-expression side-table for the dump path;
+     *                                            null means "force eval path" (an undumpable arg was found)
      */
     private static function compileProperty(
         \ReflectionProperty $prop,
         array &$validators,
-        array &$validatorExprs,
+        ?array &$validatorExprs,
     ): string {
         $name   = $prop->getName();
         $nameQ  = self::quoteString($name);
@@ -317,8 +319,8 @@ final class Binder
                     // Attribute args include values we can't safely
                     // render into dump source (e.g. object-valued
                     // constructor expressions). Force eval path.
-                    $validatorExprs = [];
-                } elseif ($validatorExprs !== []) {
+                    $validatorExprs = null;
+                } elseif ($validatorExprs !== null) {
                     $validatorExprs[$idx] = $expr;
                 }
                 $validateBlock .= "        \$msg = \$validators[$idx]->validate(\$cast);\n"
@@ -555,10 +557,10 @@ final class Binder
 
     /**
      * Render a `new \Foo\Bar(arg, ...)` expression for the dump
-     * path's `$validators = [...]` prelude. Attribute arguments
-     * are restricted by PHP to const expressions (scalars, enum
-     * cases, class constants, arrays of those), all of which
-     * `var_export` round-trips correctly.
+     * path's `$validators = [...]` prelude. Returns `null` when
+     * any argument is not safely renderable (e.g. object-valued
+     * constructor args that would require `__set_state` support),
+     * signalling to the caller that the dump path must be skipped.
      *
      * Handles three argument shapes:
      *   - all positional: `new Foo('US', 1)`
@@ -569,6 +571,7 @@ final class Binder
      *                     `name: value` and positional bare.
      *
      * @param array<int|string, mixed> $args from `ReflectionAttribute::getArguments()`
+     * @return string|null construction expression, or null if args are not safely dumpable
      */
     private static function validatorConstructionExpr(string $class, array $args): ?string
     {
