@@ -304,8 +304,9 @@ Flags:
 | `--cache=<DIR>` | DumpCache directory. Default: `<project>/var/cache/rxn`. Created if missing. |
 
 Exit codes: `0` on success (including empty profile no-op),
-`2` for missing flag / missing profile file, `4` if the cache
-directory can't be created.
+`2` for missing flag / missing profile file / corrupted profile
+(unparseable JSON or wrong shape), `4` if the cache directory
+can't be created.
 
 Workflow:
 
