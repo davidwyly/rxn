@@ -123,6 +123,25 @@ final class BinderProfileTest extends TestCase
         $this->assertSame([], $warmed); // class_exists filtered them
     }
 
+    public function testWarmFromProfileSkipsClassesNotImplementingRequestDto(): void
+    {
+        // A class that exists at the profiled FQCN but no longer
+        // implements `RequestDto` (e.g. someone renamed a regular
+        // class onto a previously-DTO name) would make
+        // `compileFor()` throw and brick the entire `dump:hot`
+        // run. The filter must skip it the same way it skips
+        // class_exists failures.
+        DumpCache::useDir($this->tmpDir);
+        $profilePath = $this->tmpDir . '/profile.json';
+        file_put_contents($profilePath, json_encode([
+            \stdClass::class                  => 1000, // exists but not a DTO
+            Fixture\CreateProduct::class      => 50,   // valid
+        ]));
+
+        $warmed = Binder::warmFromProfile($profilePath, 5);
+        $this->assertSame([Fixture\CreateProduct::class], $warmed);
+    }
+
     public function testWarmFromProfileResetsCounter(): void
     {
         // After warming, the in-memory counter starts fresh — so

@@ -92,31 +92,63 @@ final class BindProfile
     }
 
     /**
-     * Persist the in-memory counter to `$path` as JSON. Atomic
-     * via temp-file + `rename(2)` so a concurrent reader never
-     * sees a half-written file.
+     * Persist the in-memory counter to `$path` as JSON. Three
+     * concurrency guarantees layered together:
      *
-     * Merges with any existing counter at `$path` first, so
-     * incremental flushes accumulate across processes (workers
-     * and request-handlers each contribute hits without stomping
-     * on each other).
+     *   1. **Atomic write** via temp-file + `rename(2)`: a reader
+     *      either sees the old file or the new one, never a half-
+     *      written one.
+     *
+     *   2. **Inter-process exclusion** via `flock(LOCK_EX)` on a
+     *      sibling lock file: the read-merge-write sequence is
+     *      serialised across workers, so two processes can't
+     *      both read the same baseline, merge their separate
+     *      hits, and have the later rename clobber the earlier
+     *      one (which would lose the earlier worker's
+     *      increments). The lock file is created on first flush
+     *      and intentionally NOT unlinked — preserving it means
+     *      subsequent flushes don't race on lock-file creation
+     *      (which can itself lose to concurrent unlinks).
+     *
+     *   3. **Empty-state safety**: when neither an existing
+     *      profile nor in-memory hits exist, the persisted file
+     *      is `{}`, not `null`. A `null`-shaped file would crash
+     *      the next `loadFrom()` call with a misleading error.
      */
     public static function flushTo(string $path): void
     {
-        $existing = self::tryLoad($path);
-        $merged = $existing;
-        foreach (self::$counts as $class => $count) {
-            $merged[$class] = ($merged[$class] ?? 0) + $count;
+        $lockPath = $path . '.lock';
+        $lockFh = fopen($lockPath, 'c');
+        if ($lockFh === false) {
+            throw new \RuntimeException("BindProfile: cannot open lock $lockPath");
         }
-        $tmp = $path . '.' . getmypid() . '.' . bin2hex(random_bytes(4)) . '.tmp';
-        $json = json_encode($merged, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}';
-        if (file_put_contents($tmp, $json . "\n", LOCK_EX) === false) {
-            @unlink($tmp);
-            throw new \RuntimeException("BindProfile: failed to write $tmp");
-        }
-        if (!@rename($tmp, $path)) {
-            @unlink($tmp);
-            throw new \RuntimeException("BindProfile: failed to rename $tmp -> $path");
+        try {
+            if (!flock($lockFh, LOCK_EX)) {
+                throw new \RuntimeException("BindProfile: failed to acquire lock on $lockPath");
+            }
+            // Re-read AFTER acquiring the lock so we merge against
+            // whatever the previous lock-holder wrote, not the
+            // baseline we read before queueing.
+            $merged = self::tryLoad($path) ?? [];
+            foreach (self::$counts as $class => $count) {
+                $merged[$class] = ($merged[$class] ?? 0) + $count;
+            }
+            $tmp = $path . '.' . getmypid() . '.' . bin2hex(random_bytes(4)) . '.tmp';
+            $json = json_encode($merged, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            if ($json === false) {
+                throw new \RuntimeException('BindProfile: failed to encode counter');
+            }
+            if (file_put_contents($tmp, $json . "\n") === false) {
+                @unlink($tmp);
+                throw new \RuntimeException("BindProfile: failed to write $tmp");
+            }
+            if (!@rename($tmp, $path)) {
+                @unlink($tmp);
+                throw new \RuntimeException("BindProfile: failed to rename $tmp -> $path");
+            }
+        } finally {
+            flock($lockFh, LOCK_UN);
+            fclose($lockFh);
         }
     }
 
@@ -125,12 +157,22 @@ final class BindProfile
      * existing data. Used by long-running workers on startup,
      * and by the `dump:hot` CLI to read what the request workers
      * have written.
+     *
+     * Distinguishes missing from corrupted to give the user a
+     * useful error: "no profile at" means run a flushTo first;
+     * "corrupted profile at" means the file is there but
+     * unparseable (manual fix or delete).
      */
     public static function loadFrom(string $path): void
     {
+        if (!is_file($path)) {
+            throw new \RuntimeException("BindProfile: no profile at $path");
+        }
         $loaded = self::tryLoad($path);
         if ($loaded === null) {
-            throw new \RuntimeException("BindProfile: no profile at $path");
+            throw new \RuntimeException(
+                "BindProfile: corrupted profile at $path (unparseable JSON or wrong shape)"
+            );
         }
         self::$counts = $loaded;
     }

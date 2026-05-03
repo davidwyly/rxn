@@ -126,22 +126,24 @@ final class BindProfileTest extends TestCase
         $this->assertSame(['App\\Loaded' => 5], BindProfile::counts());
     }
 
-    public function testLoadFromMissingFileThrows(): void
+    public function testLoadFromMissingFileThrowsWithClearMessage(): void
     {
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches('/no profile at/');
         BindProfile::loadFrom($this->tmpDir . '/nonexistent.json');
     }
 
-    public function testLoadFromCorruptedFileTreatsAsEmpty(): void
+    public function testLoadFromCorruptedFileThrowsDistinctMessage(): void
     {
-        // A garbled file (perhaps interrupted write before atomic
-        // rename was added — but defensive nonetheless) should not
-        // crash the next reader. Drop unparseable content.
+        // A garbled file (interrupted write, manual edit, schema
+        // drift) should produce a DIFFERENT error from a missing
+        // file — the user can tell whether they need to run a
+        // flush or delete a broken file.
         $path = $this->tmpDir . '/profile.json';
         file_put_contents($path, 'not valid json {');
+
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessageMatches('/no profile at/');
+        $this->expectExceptionMessageMatches('/corrupted profile at/');
         BindProfile::loadFrom($path);
     }
 
@@ -160,6 +162,61 @@ final class BindProfileTest extends TestCase
 
         BindProfile::loadFrom($path);
         $this->assertSame(['App\\Good' => 10], BindProfile::counts());
+    }
+
+    public function testFlushToWritesEmptyObjectWhenCounterEmpty(): void
+    {
+        // No prior file, no in-memory hits → must NOT write `null`
+        // (which json_encode does for null/empty input). The next
+        // loadFrom() would otherwise classify the file as
+        // corrupted, breaking the idle-first-flush case.
+        $path = $this->tmpDir . '/profile.json';
+        BindProfile::flushTo($path);
+
+        $this->assertFileExists($path);
+        $contents = trim((string) file_get_contents($path));
+        $this->assertSame('[]', $contents, 'Empty profile must serialise as a JSON array `[]` (json_encode of `[]`), never `null`');
+
+        // And it must round-trip cleanly (no corruption error).
+        BindProfile::loadFrom($path);
+        $this->assertSame([], BindProfile::counts());
+    }
+
+    public function testFlushToCreatesLockFile(): void
+    {
+        // The lock file is intentionally preserved across flushes
+        // so subsequent flushes don't race on lock-file creation.
+        $path = $this->tmpDir . '/profile.json';
+        BindProfile::record('App\\Foo');
+        BindProfile::flushTo($path);
+
+        $this->assertFileExists($path . '.lock');
+    }
+
+    public function testConcurrentFlushesPreserveAllIncrements(): void
+    {
+        // Simulate two workers each contributing distinct hits.
+        // With the lock, both increments must land in the merged
+        // file. Without it (old behaviour), the later rename
+        // could clobber the earlier worker's increment.
+        $path = $this->tmpDir . '/profile.json';
+
+        // Worker A: 3 hits on Foo
+        BindProfile::reset();
+        for ($i = 0; $i < 3; $i++) {
+            BindProfile::record('App\\Foo');
+        }
+        BindProfile::flushTo($path);
+
+        // Worker B: 5 hits on Bar (independent in-memory state).
+        BindProfile::reset();
+        for ($i = 0; $i < 5; $i++) {
+            BindProfile::record('App\\Bar');
+        }
+        BindProfile::flushTo($path);
+
+        $decoded = json_decode((string) file_get_contents($path), true);
+        $this->assertSame(['App\\Foo' => 3, 'App\\Bar' => 5], $decoded);
     }
 
     public function testResetEmptiesCounter(): void

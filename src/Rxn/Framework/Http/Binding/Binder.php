@@ -241,14 +241,25 @@ final class Binder
         // would double-count what we just loaded.
         BindProfile::reset();
 
-        // Track what actually got compiled — class_exists rejects
-        // names from a stale profile (refactored / removed since
-        // the file was captured). Stale entries are silently
-        // skipped so a class rename doesn't permanently break the
-        // dump:hot CLI.
+        // Track what actually got compiled. Two filters:
+        //
+        //   - class_exists: rejects names from a stale profile
+        //     (refactored / removed since the file was captured).
+        //   - is_subclass_of(..., RequestDto::class): rejects
+        //     classes that exist under the profiled name but no
+        //     longer satisfy the DTO contract (e.g. a class was
+        //     renamed onto an existing non-DTO class). Without
+        //     this guard, `compileFor()` throws and the entire
+        //     dump:hot run dies on the first bad entry.
+        //
+        // Stale or invalid entries are silently skipped so a class
+        // rename / refactor doesn't permanently break the CLI.
         $warmed = [];
         foreach ($hot as $class) {
             if (!class_exists($class)) {
+                continue;
+            }
+            if (!is_subclass_of($class, RequestDto::class)) {
                 continue;
             }
             self::compileFor($class);
