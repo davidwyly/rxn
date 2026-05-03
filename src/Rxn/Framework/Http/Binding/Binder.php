@@ -16,6 +16,7 @@ use Rxn\Framework\Http\Attribute\Required;
 use Rxn\Framework\Http\Attribute\StartsWith;
 use Rxn\Framework\Http\Attribute\Url;
 use Rxn\Framework\Http\Attribute\Uuid;
+use Rxn\Framework\Codegen\Profile\BindProfile;
 use Rxn\Framework\Http\Middleware\JsonBody;
 
 /**
@@ -65,6 +66,23 @@ final class Binder
      */
     public static function bind(string $class, ?array $source = null): RequestDto
     {
+        // Profile-guided compilation feeds off this counter — at
+        // deploy / cron time, `bin/rxn dump:hot` reads it to pick
+        // the top-K classes worth compiling. ~50ns increment, runs
+        // even when no profile is configured (the counter exists
+        // in memory but nobody flushes it).
+        BindProfile::record($class);
+
+        // If a compiled binder for this class already lives in the
+        // in-memory cache (because `compileFor()` was called during
+        // boot — see `warmFromProfile()`), use it. Falls through to
+        // the runtime walker for cold classes the user chose not to
+        // pre-compile, which is the whole point of profile-guided
+        // dump: opcache memory pays only for hot DTOs.
+        if (isset(self::$compiledCache[$class])) {
+            return (self::$compiledCache[$class])($source ?? self::gatherBag());
+        }
+
         $bag = $source ?? self::gatherBag();
         $ref = new \ReflectionClass($class);
         $dto = $ref->newInstanceWithoutConstructor();
@@ -187,6 +205,73 @@ final class Binder
     {
         self::$compiledCache = [];
         \Rxn\Framework\Codegen\DumpCache::purgeFiles();
+    }
+
+    /**
+     * Pre-warm the compiled-binder cache from a profile file.
+     * Reads `$path` (a JSON map of class-name → hit-count produced
+     * by `BindProfile::flushTo()`), picks the top-`$topK` classes
+     * by hits, and calls `compileFor()` on each. Each compileFor
+     * populates the in-memory `$compiledCache`, and (best-effort)
+     * writes a `.php` file via `DumpCache` when one is configured.
+     * Dumping is conditional: closures with arguments the dumper
+     * can't represent (rare — typically validator constructor
+     * args containing objects) fall back to runtime `eval`, which
+     * is still fast in-process but doesn't survive worker boot.
+     * That fallback is invisible to the caller — `warmFromProfile()`
+     * still reports the class as warmed because the in-memory cache
+     * is populated.
+     *
+     * Apps wire this into their bootstrap when `DumpCache::useDir()`
+     * is set:
+     *
+     *     DumpCache::useDir('/var/cache/rxn');
+     *     if (file_exists('/var/cache/rxn/profile.json')) {
+     *         Binder::warmFromProfile('/var/cache/rxn/profile.json', 20);
+     *     }
+     *
+     * Cold classes (rank > $topK) stay on the runtime walker —
+     * their hits still get counted, so the next deploy's profile
+     * may include them if they've grown hot.
+     *
+     * @return list<class-string> the classes that were warmed,
+     *  in compile order
+     */
+    public static function warmFromProfile(string $path, int $topK): array
+    {
+        BindProfile::loadFrom($path);
+        $hot = BindProfile::topK($topK);
+        // Reset so the freshly-warmed worker doesn't conflate the
+        // *seed* counts (loaded from disk) with new request counts
+        // it'll start collecting. Otherwise the first flushTo()
+        // would double-count what we just loaded.
+        BindProfile::reset();
+
+        // Track what actually got compiled. Two filters:
+        //
+        //   - class_exists: rejects names from a stale profile
+        //     (refactored / removed since the file was captured).
+        //   - is_subclass_of(..., RequestDto::class): rejects
+        //     classes that exist under the profiled name but no
+        //     longer satisfy the DTO contract (e.g. a class was
+        //     renamed onto an existing non-DTO class). Without
+        //     this guard, `compileFor()` throws and the entire
+        //     dump:hot run dies on the first bad entry.
+        //
+        // Stale or invalid entries are silently skipped so a class
+        // rename / refactor doesn't permanently break the CLI.
+        $warmed = [];
+        foreach ($hot as $class) {
+            if (!class_exists($class)) {
+                continue;
+            }
+            if (!is_subclass_of($class, RequestDto::class)) {
+                continue;
+            }
+            self::compileFor($class);
+            $warmed[] = $class;
+        }
+        return $warmed;
     }
 
     /**

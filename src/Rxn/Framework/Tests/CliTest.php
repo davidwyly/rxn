@@ -369,6 +369,74 @@ final class CliTest extends TestCase
         $this->assertStringContainsString('runtime-silent', $result['stdout']);
     }
 
+    public function testDumpHotRequiresProfileFlag(): void
+    {
+        $result = $this->runCli(['dump:hot']);
+        $this->assertSame(2, $result['status']);
+        $this->assertStringContainsString('--profile=PATH', $result['stderr']);
+    }
+
+    public function testDumpHotExitsTwoWhenProfileFileMissing(): void
+    {
+        $result = $this->runCli([
+            'dump:hot',
+            '--profile=' . $this->sandbox . '/nope.json',
+        ]);
+        $this->assertSame(2, $result['status']);
+        $this->assertStringContainsString('no profile at', $result['stderr']);
+    }
+
+    public function testDumpHotCompilesTopKAndReportsThem(): void
+    {
+        // Drop a fixture DTO into the sandbox so dump:hot can
+        // compile something real. Use the framework's existing
+        // CreateProduct fixture (already on the autoload path),
+        // which means any namespace works for the JSON profile.
+        $profilePath = $this->sandbox . '/profile.json';
+        $cacheDir    = $this->sandbox . '/cache';
+        mkdir($cacheDir, 0777, true);
+
+        // Hand-craft a profile pointing at the existing test
+        // fixture class — proves the CLI can read a profile,
+        // resolve names through the autoloader, and emit
+        // compiled .php files.
+        file_put_contents($profilePath, json_encode([
+            'Rxn\\Framework\\Tests\\Http\\Binding\\Fixture\\CreateProduct' => 100,
+        ]));
+
+        $result = $this->runCli([
+            'dump:hot',
+            '--profile=' . $profilePath,
+            '--cache='   . $cacheDir,
+            '--top=5',
+        ]);
+
+        $this->assertSame(0, $result['status'], $result['stderr']);
+        $this->assertStringContainsString('Compiled 1 hot DTO', $result['stdout']);
+        $this->assertStringContainsString('CreateProduct', $result['stdout']);
+
+        // The cache dir contains at least one compiled .php file.
+        $files = glob($cacheDir . '/*.php');
+        $this->assertNotEmpty(
+            $files,
+            'dump:hot must write at least one compiled .php into the cache dir'
+        );
+    }
+
+    public function testDumpHotEmptyProfileSucceedsWithNoOp(): void
+    {
+        $profilePath = $this->sandbox . '/profile.json';
+        file_put_contents($profilePath, '{}');
+
+        $result = $this->runCli([
+            'dump:hot',
+            '--profile=' . $profilePath,
+            '--cache='   . $this->sandbox,
+        ]);
+        $this->assertSame(0, $result['status'], $result['stderr']);
+        $this->assertStringContainsString('nothing to compile', $result['stdout']);
+    }
+
     public function testRoutesCheckExitsOneOnInvalidConstraintType(): void
     {
         $controllerDir = $this->sandbox . '/app/Http/Controller/v1';
