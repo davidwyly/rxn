@@ -599,9 +599,13 @@ final class Binder
             }
             return true;
         }
-        // Objects can be valid at runtime attribute construction
-        // time, but `var_export()` may emit `__set_state` calls
-        // that are not supported by arbitrary classes.
+        // Enum cases (UnitEnum / BackedEnum) are safely round-tripped
+        // by `var_export()` as `\Ns\EnumClass::CaseName`.
+        if ($value instanceof \UnitEnum) {
+            return true;
+        }
+        // Arbitrary objects may emit `__set_state` calls via
+        // `var_export()` that are not supported by most classes.
         return false;
     }
 
