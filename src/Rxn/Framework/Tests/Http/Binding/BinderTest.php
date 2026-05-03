@@ -348,11 +348,13 @@ final class BinderTest extends TestCase
 
     public function testGatherFromRequestSkipsOversizedJsonFromDeclaredLength(): void
     {
+        $body = json_encode(['name' => 'too-big']);
+        $this->assertNotFalse($body, 'fixture json_encode must succeed');
         $request = (new \Nyholm\Psr7\ServerRequest(
             'POST',
             'http://test.local/?q=1',
             ['Content-Type' => 'application/json', 'Content-Length' => (string)(JsonBody::DEFAULT_MAX_BYTES + 1)],
-            json_encode(['name' => 'too-big']) ?: '',
+            $body,
         ))->withQueryParams(['q' => '1']);
 
         $bag = Binder::gatherFromRequest($request);
@@ -369,6 +371,27 @@ final class BinderTest extends TestCase
             'http://test.local/?q=1',
             ['Content-Type' => 'application/json'],
             $payload,
+        ))->withQueryParams(['q' => '1']);
+
+        $bag = Binder::gatherFromRequest($request);
+        $this->assertSame(['q' => '1'], $bag);
+    }
+
+    public function testGatherFromRequestSkipsOversizedJsonFromUnknownSizeStream(): void
+    {
+        $maxJsonBytes = JsonBody::DEFAULT_MAX_BYTES;
+        $payload      = json_encode(['blob' => str_repeat('a', $maxJsonBytes + 1)]);
+        $this->assertNotFalse($payload);
+
+        // Stream returns null from getSize() — exercises the loop-read
+        // cap directly. Without the cap, `(string)$body` would buffer
+        // the full payload before the post-read length check fires.
+        $stream  = new \Rxn\Framework\Tests\Http\Binding\Fixture\UnknownSizeStream($payload);
+        $request = (new \Nyholm\Psr7\ServerRequest(
+            'POST',
+            'http://test.local/?q=1',
+            ['Content-Type' => 'application/json'],
+            $stream,
         ))->withQueryParams(['q' => '1']);
 
         $bag = Binder::gatherFromRequest($request);
