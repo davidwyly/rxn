@@ -3,6 +3,7 @@
 namespace Rxn\Framework\Data;
 
 use Rxn\Framework\Error\DatabaseException;
+use Rxn\Framework\Error\QueryException;
 
 /**
  * Minimal, file-based schema migration runner.
@@ -67,13 +68,33 @@ class Migration
     {
         try {
             $rows = $this->database->fetchAll("SELECT filename FROM `" . self::TABLE . "` ORDER BY filename ASC");
-        } catch (\PDOException $exception) {
-            if ((int)$exception->getCode() === 1146) {
+        } catch (\PDOException | QueryException $exception) {
+            if ($this->isMissingMigrationsTable($exception)) {
                 return [];
             }
             throw $exception;
         }
         return array_column($rows ?: [], 'filename');
+    }
+
+    private function isMissingMigrationsTable(\Throwable $exception): bool
+    {
+        if ($this->exceptionIndicatesMissingTable($exception)) {
+            return true;
+        }
+        $previous = $exception->getPrevious();
+        return $previous !== null && $this->exceptionIndicatesMissingTable($previous);
+    }
+
+    private function exceptionIndicatesMissingTable(\Throwable $exception): bool
+    {
+        $message = $exception->getMessage();
+        $code    = (string)$exception->getCode();
+
+        return $code === '42S02'
+            || strpos($message, '42S02') !== false
+            || strpos($message, '1146') !== false
+            || stripos($message, 'no such table') !== false;
     }
 
     /**
