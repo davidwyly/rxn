@@ -12,6 +12,7 @@ use Rxn\Framework\Tests\Fixture\Container\Timestamper;
 use Rxn\Framework\Tests\Fixture\Container\UserRepo;
 use Rxn\Framework\Tests\Fixture\Container\MemoryUserRepo;
 use Rxn\Framework\Tests\Fixture\Container\NeedsDefaultBag;
+use Rxn\Framework\Utility\Logger;
 
 final class ContainerTest extends TestCase
 {
@@ -120,6 +121,13 @@ final class ContainerTest extends TestCase
     {
         $c = new Container();
         $this->assertFalse($c->has('Definitely\\Not\\A\\Real\\ClassName'));
+    }
+
+
+    public function testHasReturnsFalseForClassWithRequiredScalarConstructorParameter(): void
+    {
+        $c = new Container();
+        $this->assertFalse($c->has(Logger::class));
     }
 
     public function testHasReturnsFalseForAbstractClass(): void

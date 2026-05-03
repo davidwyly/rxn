@@ -436,10 +436,24 @@ class Container implements ContainerInterface
         if (!class_exists($class_name)) {
             return false;
         }
-        // Abstract classes satisfy class_exists() but cannot be
-        // instantiated by the autowirer, so get() would throw.
-        // has() must only return true when get() would succeed.
-        return !self::reflectionFor($class_name)->isAbstract();
+
+        $reflection = self::reflectionFor($class_name);
+        if ($reflection->isAbstract()) {
+            return false;
+        }
+
+        $plan = self::constructorPlanFor($class_name);
+        if ($plan === null) {
+            return true;
+        }
+
+        foreach ($plan as $directive) {
+            if ($directive[0] === 'fail') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function parseClassName($class_name)
