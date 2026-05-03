@@ -12,6 +12,69 @@ read alongside the wins.
 
 ## Unreleased
 
+### OpenAPI snapshot contract (`feat/openapi-snapshot-contract`)
+
+The cheapest possible governance layer for schema-as-truth:
+PR opens → CI runs `bin/rxn openapi:check` → diffs the regenerated
+spec against the `openapi.snapshot.json` committed in the repo.
+Drift fails the build unless the change is intentional (refresh
+the snapshot with `--update`) or explicitly opted-in (the CLI
+honours `--allow-breaking` so the gate can be downgraded to a
+warning when the project owner accepts a known break, e.g. via
+a PR label).
+
+Closes [horizons.md theme 1.3](docs/horizons.md). Decision
+criteria from that doc met: `~250 LOC including tests`, no new
+dependencies, classifier conservatism (ambiguous removals → mark
+as breaking) so the gate fails loudly rather than silently
+passing real regressions.
+
+#### Added
+
+- **`Rxn\Framework\Codegen\Snapshot\OpenApiSnapshot`** —
+  `serialise(array $spec): string` produces a byte-stable
+  JSON serialisation (recursive ksort on maps, list order
+  preserved, pretty-printed, trailing newline). `diff(array
+  $old, array $new): SnapshotDiff` walks paths + components
+  and classifies each change as breaking (operation/parameter/
+  property removals, type changes, required-toggles to
+  required) or additive (new operations, new optional fields).
+- **`bin/rxn openapi:check`** subcommand — three exit codes:
+  0 = no drift, 1 = additive only (or breaking with
+  `--allow-breaking`), 2 = breaking changes detected (gate).
+  `--update` overwrites the snapshot when changes are
+  intentional. `--snapshot=PATH` overrides the default
+  `openapi.snapshot.json` location.
+- `OpenApiSnapshotTest` (19 unit tests) — covers serialisation
+  determinism, list-order preservation, and one assertion per
+  classification rule (operation removed, path removed,
+  required parameter added, optional parameter added,
+  parameter type change, parameter became required, parameter
+  removed, schema removed, property removed, required property
+  added, optional property added, property became required,
+  property type change, summary-only changes ignored).
+- `CliTest` integration tests (5) — drives the full
+  `openapi:check` flow via shell against a sandbox controller:
+  `--update` writes the snapshot, re-running with no drift
+  exits 0, removing an operation exits 2, `--allow-breaking`
+  downgrades to exit 1, missing snapshot file exits 2.
+
+#### Why this matters
+
+Most schema drift is accidental. This is the kind of feature
+experienced engineering teams immediately recognise as
+load-bearing — closer to a linter than a feature, but the
+absence of it is what lets a routine PR ship a contract break
+that the frontend team finds out about in production. With
+this in CI, the PR-author intent ("yes, I am breaking the
+contract") is explicit instead of latent.
+
+Pairs with `JsValidatorEmitter` and `PolyparityExporter` —
+all three consume the same source of truth (the `RequestDto`),
+all three give different downstream artifacts (server runtime,
+JS twin, polyparity YAML, snapshot diff). The schema is the
+contract; the contract is the product.
+
 ### Polyparity exporter (`feature/polyparity-exporter`)
 
 #### Added

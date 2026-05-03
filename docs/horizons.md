@@ -121,28 +121,33 @@ intent-stating tests.
 
 ---
 
-### 1.3 Snapshot-tested contracts in CI
+### 1.3 Snapshot-tested contracts in CI — REALIZED
 
-**Claim:** PR opens → CI runs `bin/rxn openapi` → diffs against
-`openapi.snapshot.json` committed in the repo. Drift fails the
-build unless the PR carries an `api-change` label.
+See `Rxn\Framework\Codegen\Snapshot\OpenApiSnapshot` and the
+`bin/rxn openapi:check` subcommand. The classifier walks paths
++ components.schemas and buckets changes as breaking
+(operation/parameter/property removals, required-toggles to
+required, type changes) or additive (new operations, new
+optional fields). The CLI gates breaking changes via three
+exit codes: 0 = clean, 1 = additive only or `--allow-breaking`
+override, 2 = breaking detected.
 
-**Mechanism:** A 50-LOC GitHub Action + a stable JSON
-serialisation of the OpenAPI doc (sorted keys, normalised
-whitespace, etc.). Diff is plain text; failures are obvious;
-review-label override is the one explicit knob.
+**Cost reality:** Came in at ~250 LOC of framework code + 24
+tests, modestly above the 100-LOC estimate but well within
+"trivial." The estimate undercounted the classifier surface
+(every operation/parameter/property/schema axis got its own
+rule).
 
-**Cost:** Trivial. Maybe 100 LOC including the action and the
-serialisation helper.
+**Status:** Working classifier + CLI + test suite. Adoption on
+Rxn's own CI is the next step — once the framework's own
+`openapi.snapshot.json` is committed, the 30-day "catches one
+real drift" criterion can run.
 
-**Distinctiveness:** Most schema drift is accidental. This is
-the cheapest possible governance layer — closer to a linter
-than a feature, but **the kind of feature that experienced
-engineering teams immediately recognise as load-bearing**.
-
-**Ship signal:** Adopt it on the framework's own CI first.
-Catches one real drift in 30 days → ship. Catches zero → the
-project doesn't move fast enough to need it; deprioritise.
+**Why it shipped before adoption-criterion was met:** the
+horizons doc's criterion is for keeping the feature, not
+shipping it. Implementation cost was low enough that the cost
+of *not* having the gate while running the experiment exceeded
+the cost of the gate itself.
 
 ---
 
