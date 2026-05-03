@@ -61,6 +61,8 @@ final class Idempotency implements MiddlewareInterface
         /** @var list<string> */
         private readonly array  $methods        = ['POST', 'PUT', 'PATCH', 'DELETE'],
         private readonly int    $maxBodyBytes   = 1_048_576,
+        /** @var list<string> */
+        private readonly array  $replayHeaderAllowlist = ['Content-Type'],
         // Optional PSR-14 dispatcher. When provided, the middleware
         // emits `IdempotencyHit` on replay and `IdempotencyMiss`
         // when the cold path runs. Null → no allocation, no dispatch.
@@ -131,7 +133,7 @@ final class Idempotency implements MiddlewareInterface
                     $scopedKey,
                     new StoredResponse(
                         statusCode:  $response->getStatusCode(),
-                        headers:     $response->getHeaders(),
+                        headers:     $this->filterReplayHeaders($response->getHeaders()),
                         body:        $body,
                         fingerprint: $fingerprint,
                         createdAt:   time(),
@@ -143,6 +145,32 @@ final class Idempotency implements MiddlewareInterface
         } finally {
             $this->store->release($scopedKey);
         }
+    }
+
+    /**
+     * @param array<string, list<string>> $headers
+     * @return array<string, list<string>>
+     */
+    private function filterReplayHeaders(array $headers): array
+    {
+        // Build a lowercase-keyed index so allowlist matching is
+        // case-insensitive, mirroring PSR-7's case-insensitivity guarantee.
+        $normalized = [];
+        foreach ($headers as $name => $values) {
+            $normalized[strtolower($name)] = $values;
+        }
+
+        $filtered = [];
+        foreach ($this->replayHeaderAllowlist as $header) {
+            $lower = strtolower($header);
+            if (!isset($normalized[$lower])) {
+                continue;
+            }
+            // Store under lowercase keys to match PSR-7 normalisation
+            // conventions (see StoredResponse docblock).
+            $filtered[$lower] = $normalized[$lower];
+        }
+        return $filtered;
     }
 
     private function incomingKey(ServerRequestInterface $request): ?string
@@ -188,9 +216,12 @@ final class Idempotency implements MiddlewareInterface
 
     private function renderStored(StoredResponse $stored): ResponseInterface
     {
+        // Re-apply the allowlist filter so that any StoredResponse
+        // persisted before this change (which may still contain
+        // unfiltered headers) does not replay sensitive headers.
         $response = new Psr7Response(
             $stored->statusCode,
-            $stored->headers,
+            $this->filterReplayHeaders($stored->headers),
             $stored->body,
         );
         return $response->withHeader('Idempotent-Replayed', 'true');
