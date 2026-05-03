@@ -79,10 +79,20 @@ class Migration
 
     private function isMissingMigrationsTable(\Throwable $exception): bool
     {
+        if ($this->exceptionIndicatesMissingTable($exception)) {
+            return true;
+        }
+        $previous = $exception->getPrevious();
+        return $previous !== null && $this->exceptionIndicatesMissingTable($previous);
+    }
+
+    private function exceptionIndicatesMissingTable(\Throwable $exception): bool
+    {
         $message = $exception->getMessage();
         $code    = (string)$exception->getCode();
 
-        return strpos($code, '42S02') !== false
+        return $code === '42S02'
+            || strpos($message, '42S02') !== false
             || strpos($message, '1146') !== false
             || stripos($message, 'no such table') !== false;
     }
