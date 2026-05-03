@@ -410,18 +410,34 @@ class Container implements ContainerInterface
      * PSR-11 `has()`: return true iff `get($id)` would resolve
      * without throwing.
      *
-     * Rxn's container autowires any constructible class, so for a
-     * class-string identifier this is equivalent to "class exists,
-     * isn't abstract, and isn't already failing as a binding."
-     * We also short-circuit on the self-lookup key, declared
-     * bindings, and the instance cache so the lookup is O(1) for
-     * the hot paths.
+     * Rxn's container autowires any constructible class. This
+     * check verifies that the class exists, is instantiable
+     * (not abstract/interface/trait/non-public constructor),
+     * has no required non-autowireable constructor parameters,
+     * and that all autowired constructor dependencies are
+     * themselves resolvable (checked recursively to catch
+     * unbound interface/abstract dependencies).
      *
-     * Doesn't catch circular-dependency failures — those are
-     * detectable only at construction time. PSR-11 explicitly
-     * permits this.
+     * Fast paths: self-lookup, declared bindings, and cached
+     * instances short-circuit to true without further checking.
+     *
+     * Circular dependencies that pass through a binding or
+     * cached instance are not caught — those are only detectable
+     * at construction time. PSR-11 explicitly permits this.
      */
     public function has(string $id): bool
+    {
+        return $this->canResolve($id, []);
+    }
+
+    /**
+     * Internal recursive implementation of `has()`.
+     *
+     * @param array<string, true> $visited  Canonical class names already
+     *                                       in the current resolution chain,
+     *                                       used for cycle detection.
+     */
+    private function canResolve(string $id, array $visited): bool
     {
         $class_name = $this->parseClassName($id);
         if ($class_name === self::SELF_KEY) {
@@ -436,10 +452,48 @@ class Container implements ContainerInterface
         if (!class_exists($class_name)) {
             return false;
         }
-        // Abstract classes satisfy class_exists() but cannot be
-        // instantiated by the autowirer, so get() would throw.
-        // has() must only return true when get() would succeed.
-        return !self::reflectionFor($class_name)->isAbstract();
+
+        // Canonicalise to the declared class casing using a one-shot
+        // ReflectionClass so the reflectionFor() cache is only populated
+        // under the canonical key, not a case-variant alias key.
+        $class_name = $this->parseClassName((new \ReflectionClass($class_name))->getName());
+
+        // Cycle detection: if this class is already in the current
+        // resolution chain, get() would throw a circular-dependency error.
+        if (isset($visited[$class_name])) {
+            return false;
+        }
+
+        $reflection = self::reflectionFor($class_name);
+        if (!$reflection->isInstantiable()) {
+            return false;
+        }
+
+        $plan = self::constructorPlanFor($class_name);
+        if ($plan === null) {
+            return true;
+        }
+
+        // Mark this class as in-progress before recursing so that
+        // transitive dependencies looping back here are caught.
+        $visited[$class_name] = true;
+        foreach ($plan as $directive) {
+            switch ($directive[0]) {
+                case 'fail':
+                    return false;
+                case 'autowire':
+                    if (!$this->canResolve($directive[1], $visited)) {
+                        return false;
+                    }
+                    break;
+                default:
+                    // 'default' and 'null' directives don't prevent
+                    // construction; intentionally skip them.
+                    break;
+            }
+        }
+
+        return true;
     }
 
     private function parseClassName($class_name)

@@ -12,6 +12,7 @@ use Rxn\Framework\Tests\Fixture\Container\Timestamper;
 use Rxn\Framework\Tests\Fixture\Container\UserRepo;
 use Rxn\Framework\Tests\Fixture\Container\MemoryUserRepo;
 use Rxn\Framework\Tests\Fixture\Container\NeedsDefaultBag;
+use Rxn\Framework\Utility\Logger;
 
 final class ContainerTest extends TestCase
 {
@@ -120,6 +121,25 @@ final class ContainerTest extends TestCase
     {
         $c = new Container();
         $this->assertFalse($c->has('Definitely\\Not\\A\\Real\\ClassName'));
+    }
+
+
+    public function testHasReturnsFalseForClassWithRequiredScalarConstructorParameter(): void
+    {
+        $c = new Container();
+        $this->assertFalse($c->has(Logger::class));
+    }
+
+    public function testHasReturnsFalseForUnboundInterfaceDependency(): void
+    {
+        // Timestamper's constructor requires Clock (an unbound interface).
+        // get(Timestamper) would throw, so has() must return false.
+        $c = new Container();
+        $this->assertFalse($c->has(Timestamper::class), 'unbound interface dep must make has() return false');
+
+        // Once Clock is bound, the dependency is resolvable and has() returns true.
+        $c->bind(Clock::class, SystemClock::class);
+        $this->assertTrue($c->has(Timestamper::class), 'bound dep must allow has() to return true');
     }
 
     public function testHasReturnsFalseForAbstractClass(): void
