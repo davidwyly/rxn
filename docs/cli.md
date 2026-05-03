@@ -151,6 +151,8 @@ Flags:
 | `--snapshot=<PATH>` | Snapshot file path. Default: `openapi.snapshot.json` in the project root. |
 | `--update` | Overwrite the snapshot with the current spec; exits 0. |
 | `--allow-breaking` | Downgrade exit `2` to exit `1` (the diff still prints). For PRs explicitly authorised to break the contract — e.g. behind a `breaking-change` review label. |
+| `--title=<T>` | `info.title` for the regenerated spec. Default: `Rxn API`. Match this to the value used in your `bin/rxn openapi --update` flow so the snapshot doesn't drift on metadata. |
+| `--version=<V>` | `info.version` for the regenerated spec. Default: `0.1.0`. Same matching caveat as `--title`. |
 | `--ns=<NS>` | App PSR-4 prefix. Defaults to `APP_NAMESPACE`. |
 | `--root=<DIR>` | Alternative project root to scan. |
 
@@ -165,14 +167,20 @@ Classification rules (mirrors `Codegen\Snapshot\OpenApiSnapshot::diff`):
   snapshot doesn't track request- vs response-side ref usage);
   new required → BREAKING; new optional → ADDITIVE; type changed
   → BREAKING; became required → BREAKING.
-- **Constraints** (`minimum`, `maximum`, `minLength`,
-  `maxLength`, `enum`, `pattern`, `format`, `nullable`,
-  `default`): tightening → BREAKING; loosening → ADDITIVE;
-  `default` changes → ADDITIVE either way.
-- **Conservative on ambiguity**: when the rule can't disambiguate
-  (e.g. nullable flips, regex pattern changes), flag BREAKING so
-  the gate fails loudly rather than silently passing real
-  regressions.
+- **Numeric / set constraints** (`minimum`, `maximum`,
+  `minLength`, `maxLength`, `enum`): tightening → BREAKING;
+  loosening → ADDITIVE.
+- **Opaque scalars** (`pattern`, `format`): first-time appearance
+  or any change → BREAKING (regex/format identity is hard to
+  reason about); removal → ADDITIVE.
+- **`nullable`**: any flip → BREAKING in either direction. The
+  snapshot doesn't know whether a referenced schema is reached
+  via a request body or a response, and one of those breaks in
+  each direction (request: nullable→non-nullable rejects nulls
+  the client used to send; response: non-nullable→nullable lets
+  through nulls the client may not handle). Conservative.
+- **`default`**: ADDITIVE either way (defaults document intent;
+  the wire contract isn't bound by them).
 
 Pairs naturally with `JsValidatorEmitter` (PHP↔JS validator
 parity) and `PolyparityExporter` (cross-language YAML spec):
