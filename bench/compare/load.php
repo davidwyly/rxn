@@ -163,7 +163,13 @@ final class Load
         if (count($windowCounts) > 0) {
             ksort($windowCounts);
             $firstBin = (int) array_key_first($windowCounts);
-            $lastBin = (int) array_key_last($windowCounts);
+            // Clamp to the last bin that falls within the intended timed run.
+            // Without this, a single slow request completing well after the
+            // deadline (up to CURLOPT_TIMEOUT_MS later) would cause the range
+            // loop to synthesise a large block of zero-count bins that aren't
+            // part of the run, dragging the median down toward 0.
+            $maxBin  = (int) ceil($duration * 1000.0 / $windowMs) - 1;
+            $lastBin = min((int) array_key_last($windowCounts), $maxBin);
             $bins = [];
             for ($b = $firstBin; $b <= $lastBin; $b++) {
                 $bins[] = $windowCounts[$b] ?? 0;
