@@ -1,7 +1,8 @@
 {
-  "name": "davidwyly/sample",
-  "description": "Rxn PHP Sample Project",
+  "name": "davidwyly/rxn",
+  "description": "Rxn — an opinionated, PSR-15-native JSON-only API micro-framework for PHP 8.2+. Schema-compiled DTO binding, RFC 7807 default, ~13K LOC.",
   "license": "MIT",
+  "keywords": ["framework", "api", "json", "psr-7", "psr-15", "openapi", "rfc-7807", "rxn"],
   "autoload": {
     "psr-4": {
       "Rxn\\": "src/Rxn/"
@@ -35,8 +36,23 @@
     "davidwyly/rxn-orm": "^0.1"
   },
   "suggest": {
-    "davidwyly/rxn-orm": "^0.1 \u2014 Rxn's query builder + ActiveRecord-shaped layer. Required only when you use `Rxn\\Framework\\Data\\Database::run()` or `Rxn\\Framework\\Model\\ActiveRecord` (and the `bin/bench` builder cases). Apps using Rxn purely for routing / DTO binding / middleware don't need this \u2014 install it when you reach for the Data / Model layer.",
-    "psr/simple-cache": "^3.0 \u2014 required only when using `Psr16IdempotencyStore` to plug an existing PSR-16 cache (Redis / Memcached / APCu) into the Idempotency middleware. Apps using `FileIdempotencyStore` (the default) don't need this."
+    "davidwyly/rxn-orm": "^0.1 — Rxn's query builder + ActiveRecord-shaped layer. Required only when you use `Rxn\\Framework\\Data\\Database::run()` or `Rxn\\Framework\\Model\\ActiveRecord` (and the `bin/bench` builder cases). Apps using Rxn purely for routing / DTO binding / middleware don't need this — install it when you reach for the Data / Model layer.",
+    "psr/simple-cache": "^3.0 — required only when using `Psr16IdempotencyStore` to plug an existing PSR-16 cache (Redis / Memcached / APCu) into the Idempotency middleware. Apps using `FileIdempotencyStore` (the default) don't need this."
+  },
+  "archive": {
+    "exclude": [
+      "/app",
+      "/examples",
+      "/public",
+      "/docker",
+      "/docker-compose.yml",
+      "/docker-compose.env.example",
+      "/bench",
+      "/.github",
+      "/.codeclimate.yml",
+      "/.bash_aliases",
+      "/CONTRIBUTING.md"
+    ]
   },
   "scripts": {
     "test": "phpunit"
