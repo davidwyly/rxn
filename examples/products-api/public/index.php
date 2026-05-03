@@ -174,18 +174,26 @@ $router->get('/dashboard/{id:int}', function (array $params, ServerRequestInterf
     ];
 
     $started = hrtime(true);
+    $bodies  = [];
     if ($mode === 'sequential') {
-        $bodies = [];
+        $ctx = stream_context_create(['http' => ['timeout' => 5.0]]);
         foreach ($urls as $key => $url) {
-            $bodies[$key] = (string) @file_get_contents($url);
+            $body = @file_get_contents($url, false, $ctx);
+            $bodies[$key] = $body !== false ? (string) $body : '';
         }
     } else {
-        $scheduler = new Scheduler();
-        $client    = new AsyncHttpClient($scheduler);
-        $bodies = $scheduler->run(static fn (): array => awaitAll(array_map(
-            static fn (string $url) => $client->getAsync($url),
-            $urls,
-        )));
+        try {
+            $scheduler = new Scheduler();
+            $client    = new AsyncHttpClient($scheduler);
+            $bodies = $scheduler->run(static fn (): array => awaitAll(array_map(
+                static fn (string $url) => $client->getAsync($url),
+                $urls,
+            )));
+        } catch (\Throwable) {
+            foreach ($urls as $key => $_) {
+                $bodies[$key] = '';
+            }
+        }
     }
     $wallClockMs = (hrtime(true) - $started) / 1e6;
 
