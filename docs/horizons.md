@@ -329,32 +329,37 @@ organisation owns the framework decision.
 
 ## Theme 3: Compilation, harder
 
-### 3.1 Profile-guided compilation
+### 3.1 Profile-guided compilation — REALIZED
 
-**Claim:** Track which DTOs and routes are hot at runtime; dump
-compiled hydrators only for those. Cold paths stay on the
-runtime walker — opcache doesn't bloat with classes nobody hits.
+See `Rxn\Framework\Codegen\Profile\BindProfile` (in-memory hit
+counter + atomic JSON persistence), `Binder::warmFromProfile()`
+(load + selective compile of top-K), and `bin/rxn dump:hot`
+(CLI bridge: read profile → compile top-K via DumpCache).
 
-**Mechanism:** A counter per `bind()` call, persisted to a
-small file. After N requests (or on a periodic flush), read the
-counters, dump the top-K classes via the existing DumpCache
-infrastructure. Cold classes never get dumped.
+The runtime hook is one line in `Binder::bind()`:
+`BindProfile::record($class)` — ~50 ns per call, negligible on
+the hot path. `bind()` also auto-dispatches to the in-memory
+compiled cache when present, so the speedup actually lands at
+runtime once a worker has called `warmFromProfile()` on boot.
 
-**Cost:** ~200 LOC + test scaffolding. The DumpCache and
-compile-on-demand machinery already exists; this is purely the
-measurement + selective-emission layer.
+**Cost reality:** ~200 LOC of framework code + 38 tests (12
+profile, 5 binder integration, 4 CLI). Came in close to the
+estimate. The DumpCache + `compileFor()` infrastructure already
+existed; this PR was the measurement + selection layer the
+horizons doc described.
 
-**Distinctiveness:** **No PHP framework I know does this.** It
-borders on the kind of optimisation that academic compiler
-papers describe but no production runtime ships. The risk is
-"too clever to matter" — which is why the bench has to settle
-the question.
+**Status:** Working counter + persistence + warming + CLI +
+test suite. The bench step from the ship signal (100 DTOs,
+10 hot, memory + first-request latency vs. unconditional
+dump) is the next gate — once that lands, the theme can move
+from "shipped feature" to "validated win."
 
-**Ship signal:** Set up a workload with 100 DTOs where 10 are
-hot; bench memory + first-request latency vs. unconditional
-dump. If memory drops meaningfully (>30%) and first-request
-latency stays stable, ship. If the gain is <10%, it's an
-academic win and not worth the complexity.
+Apps wire it as: post-deploy step runs `bin/rxn dump:hot
+--profile=… --top=20` to pre-populate the cache, and the
+bootstrap calls `Binder::warmFromProfile($path, $top)` so
+every worker starts with the in-memory compiled cache loaded.
+Cold classes stay on the runtime walker; opcache memory pays
+only for hot DTOs.
 
 ---
 

@@ -278,6 +278,68 @@ pass the matrix's `int ∩ alpha = ∅` claim.
 The CLI itself uses defaults; apps that customise should call
 the detector programmatically from a test.
 
+## `bin/rxn dump:hot`
+
+Profile-guided compilation. Reads a `BindProfile` JSON file
+(produced at runtime via `BindProfile::flushTo()`), picks the
+top-K hottest DTO classes, and compiles them into the dump
+cache via `Binder::compileFor()`. Cold classes never get
+dumped — opcache memory pays only for hot DTOs.
+
+```
+$ bin/rxn dump:hot --profile=/var/cache/rxn/profile.json --top=20
+Compiled 15 hot DTO(s) into /var/cache/rxn:
+  - App\Dto\ListProducts
+  - App\Dto\CreateProduct
+  - App\Dto\ShowOrder
+  ...
+```
+
+Flags:
+
+| Flag | Purpose |
+|---|---|
+| `--profile=<PATH>` | **Required.** Path to the BindProfile JSON file. |
+| `--top=<N>` | How many hottest classes to compile. Default: `20`. |
+| `--cache=<DIR>` | DumpCache directory. Default: `<project>/var/cache/rxn`. Created if missing. |
+
+Exit codes: `0` on success (including empty profile no-op),
+`2` for missing flag / missing profile file, `4` if the cache
+directory can't be created.
+
+Workflow:
+
+1. **Bootstrap** (per worker): load whatever profile exists at
+   boot, so the worker starts with the in-memory compiled
+   cache populated.
+
+   ```php
+   DumpCache::useDir('/var/cache/rxn');
+   if (file_exists('/var/cache/rxn/profile.json')) {
+       Binder::warmFromProfile('/var/cache/rxn/profile.json', 20);
+   }
+   ```
+
+2. **Periodic flush** (shutdown hook, every N requests, cron):
+   write the in-memory counter back to disk so the next deploy
+   picks up the latest hot set.
+
+   ```php
+   BindProfile::flushTo('/var/cache/rxn/profile.json');
+   ```
+
+3. **Post-deploy** (CI step): run `dump:hot` to pre-populate
+   the dump cache for the new release. Subsequent worker boots
+   pick up the same compiled files.
+
+   ```yaml
+   - run: bin/rxn dump:hot --profile=/var/cache/rxn/profile.json --top=20
+   ```
+
+`Binder::bind()` auto-dispatches to the compiled cache when a
+class is present, so once `warmFromProfile()` has loaded the
+top-K, the speedup is transparent — no app code change.
+
 ## Environment knobs
 
 | Variable | Purpose |

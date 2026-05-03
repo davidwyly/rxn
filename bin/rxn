@@ -13,6 +13,7 @@ namespace Rxn\Framework;
  *   bin/rxn openapi         [--out=path.json] [--title=t] [--version=v] [--ns=App]
  *   bin/rxn openapi:check   [--snapshot=path.json] [--update] [--allow-breaking]
  *   bin/rxn routes:check    [--ns=App] [--root=DIR]
+ *   bin/rxn dump:hot        --profile=PATH [--top=N] [--cache=DIR] [--ns=App] [--root=DIR]
  *
  * Environment knobs:
  *   APP_MIGRATION_DIR     default: <project>/app/migrations
@@ -127,6 +128,13 @@ Commands:
                                             vs /x/{slug:slug} both accepting
                                             "123"). exit 0 = clean, 1 =
                                             conflicts found.
+  dump:hot --profile=PATH [--top=N] [--cache=DIR]
+                                            profile-guided compilation: read a
+                                            BindProfile JSON file, compile the
+                                            top-N hottest DTOs into the dump
+                                            cache. Cold classes never get
+                                            dumped — opcache memory pays only
+                                            for hot DTOs. Default top=20.
 
 Environment:
   APP_MIGRATION_DIR     default: <project>/app/migrations
@@ -336,6 +344,40 @@ try {
             }
             echo $result->describe();
             exit(1);
+
+        case 'dump:hot':
+            $opts = rxn_parse_flags($argv);
+            rxn_load_env($projectRoot);
+            $profile = $opts['profile'] ?? null;
+            if (!is_string($profile) || $profile === '') {
+                fwrite(STDERR, "dump:hot: need --profile=PATH pointing at a BindProfile JSON file\n");
+                exit(2);
+            }
+            if (!is_file($profile)) {
+                fwrite(STDERR, "dump:hot: no profile at $profile\n");
+                exit(2);
+            }
+            $top = isset($opts['top']) && is_string($opts['top']) && ctype_digit($opts['top'])
+                ? (int) $opts['top']
+                : 20;
+            $cacheDir = isset($opts['cache']) && is_string($opts['cache'])
+                ? $opts['cache']
+                : $projectRoot . '/var/cache/rxn';
+            if (!is_dir($cacheDir) && !mkdir($cacheDir, 0775, true) && !is_dir($cacheDir)) {
+                fwrite(STDERR, "dump:hot: could not create cache dir $cacheDir\n");
+                exit(4);
+            }
+            Codegen\DumpCache::useDir($cacheDir);
+            $warmed = Http\Binding\Binder::warmFromProfile($profile, $top);
+            if ($warmed === []) {
+                echo "dump:hot: profile is empty; nothing to compile.\n";
+                exit(0);
+            }
+            echo 'Compiled ' . count($warmed) . " hot DTO(s) into $cacheDir:\n";
+            foreach ($warmed as $cls) {
+                echo "  - $cls\n";
+            }
+            exit(0);
 
         case 'help':
         case '--help':

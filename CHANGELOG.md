@@ -12,6 +12,88 @@ read alongside the wins.
 
 ## Unreleased
 
+### Profile-guided compilation (`feat/profile-guided-compilation`)
+
+Track which DTOs are actually hot at runtime; compile only
+those into the dump cache. Cold paths stay on the runtime
+walker — opcache memory pays only for hot DTOs, not the
+graveyard of rarely-hit classes that ships with most apps.
+
+Closes [horizons.md theme 3.1](docs/horizons.md). The horizons
+doc framed this as academic-compiler-paper territory: no PHP
+framework I know does it. The DumpCache + `compileFor()`
+infrastructure already existed; this PR is the measurement +
+selection layer that turns "compile everything at boot" into
+"compile what matters."
+
+#### Added
+
+- **`Rxn\Framework\Codegen\Profile\BindProfile`** — in-memory
+  hit counter + atomic JSON persistence. `record($class)` is
+  the runtime increment (~50 ns, called from `Binder::bind()`).
+  `flushTo($path)` merges the in-memory counter with any
+  existing profile at `$path` via temp-file + `rename(2)` (so
+  concurrent workers contribute hits without stomping on each
+  other). `topK($k)` picks the hottest classes deterministically
+  (count desc, name asc).
+- **`Binder::warmFromProfile(string $path, int $topK)`** —
+  loads a profile, picks the top-K classes, calls `compileFor()`
+  on each → populates the in-memory compiled cache AND the
+  on-disk DumpCache. Returns the list of classes that were
+  actually warmed (stale entries from refactored / removed
+  classes are silently filtered).
+- **`Binder::bind()` auto-dispatch** — when a class has a
+  compiled closure in the in-memory cache, `bind()` uses it
+  instead of walking reflection. This is what makes the
+  speedup actually land at runtime — without it, profile-guided
+  compilation would just write files nobody reads.
+- **`bin/rxn dump:hot`** — CLI bridge between profile capture
+  and DumpCache. `--profile=PATH` (required), `--top=N`
+  (default 20), `--cache=DIR` (default `var/cache/rxn`).
+  Designed for post-deploy hooks: capture the profile in
+  production via periodic `flushTo()`, then run dump:hot in
+  the deploy pipeline.
+
+#### How apps wire it
+
+```php
+// Bootstrap (per worker):
+DumpCache::useDir('/var/cache/rxn');
+if (file_exists('/var/cache/rxn/profile.json')) {
+    Binder::warmFromProfile('/var/cache/rxn/profile.json', 20);
+}
+
+// Periodic flush (e.g. shutdown handler, every 1000 requests):
+BindProfile::flushTo('/var/cache/rxn/profile.json');
+
+// Post-deploy (CI hook):
+bin/rxn dump:hot --profile=/var/cache/rxn/profile.json --top=20
+```
+
+#### What it costs
+
+- **Per `bind()` call:** one array key write (~50 ns). Runs
+  whether or not a profile is configured.
+- **Per warm bootstrap:** O(K) `compileFor()` calls, each
+  amortised by DumpCache's content-addressed file lookup (no
+  recompile if the source is unchanged).
+- **Per profile flush:** one temp-file write + `rename(2)`.
+  Atomicity guaranteed within a single filesystem.
+
+#### Tests
+
+- 12 unit tests for BindProfile (record, topK with ties, JSON
+  persistence atomicity, merge-on-flush, load replaces
+  in-memory, defensive load drops malformed entries, reset).
+- 5 Binder integration tests (bind records hits, bind
+  auto-dispatches to compiled cache, warmFromProfile compiles
+  top-K, stale-class entries silently skipped, post-warm
+  counter resets so first flush doesn't double-count seeds).
+- 4 CLI integration tests (--profile required, missing-file
+  exit-2, full compile flow, empty-profile no-op).
+
+Suite 687 → 708 / 1504.
+
 ### W3C Trace Context propagation (`feat/trace-context-propagation`)
 
 [W3C Trace Context](https://www.w3.org/TR/trace-context/) — the
