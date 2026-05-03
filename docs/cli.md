@@ -187,6 +187,97 @@ parity) and `PolyparityExporter` (cross-language YAML spec):
 three downstream artifacts from one `RequestDto` source of
 truth, three drift-detection mechanisms in one repo.
 
+## `bin/rxn routes:check`
+
+CI gate that catches ambiguous `#[Route]` patterns before they
+ship. Reflects every `#[Route]` attribute across the discovered
+controllers and runs a pairwise overlap check; ambiguous pairs
+are reported with both source files + line numbers.
+
+```
+$ bin/rxn routes:check --ns=Acme\\Widget
+Found 1 route conflict(s):
+
+Ambiguous routes (every segment overlaps):
+  - GET /items/{id:int}    (Acme\Widget\Http\Controller\v1\ItemsController::showById() at .../ItemsController.php:8)
+  - GET /items/{slug:slug} (Acme\Widget\Http\Controller\v1\ItemsController::showBySlug() at .../ItemsController.php:11)
+
+Each pair is a runtime-silent ambiguity — whichever route
+was registered first wins; the other is dead code.
+```
+
+Exit codes:
+
+| Exit | Meaning |
+|---|---|
+| `0` | No conflicts. |
+| `1` | One or more conflicts found (each printed with file/line). |
+
+Flags:
+
+| Flag | Purpose |
+|---|---|
+| `--ns=<NS>` | App PSR-4 prefix. Defaults to `APP_NAMESPACE`. |
+| `--root=<DIR>` | Alternative project root to scan. |
+
+What counts as a conflict: two routes with overlapping methods
+AND patterns that share at least one URL both could match.
+The detector uses a static compatibility matrix derived from
+the constraint regexes — for the standard types Rxn ships:
+
+| Pair | Overlap? | Why |
+|---|---|---|
+| `int` ∩ `slug` | yes | `slug = [a-z0-9-]+` accepts digit-only strings |
+| `int` ∩ `alpha` | no | digits vs letters — disjoint |
+| `int` ∩ `uuid` | no | uuid requires hyphens; int rejects them |
+| `slug` ∩ `uuid` | yes | lowercase hex + dashes are slug-legal |
+| `alpha` ∩ `uuid` | no | uuid contains digits; alpha rejects them |
+| `any` ∩ * | yes | `[^/]+` is the universe |
+| `<custom>` ∩ * | yes (conservative) | unknown regex; flag-on-doubt for the gate |
+
+Static-vs-dynamic case: `/users/me` vs `/users/{name:T}` is a
+conflict iff the literal `me` matches the regex behind type
+`T`. So `/users/me` overlaps with `{name:any}`, `{name:slug}`,
+`{name:alpha}` (all accept letters); does NOT overlap with
+`{id:int}` (digits-only) or `{id:uuid}` (length-mismatched).
+
+What it correctly does NOT flag:
+
+- Different verbs on the same path (`GET` and `POST` on
+  `/users/{id}` are distinct dispatch targets, never
+  ambiguous).
+- Disjoint segment counts (`/x/{id}` vs `/x/{id}/orders`).
+- Disjoint constraint character sets (`int` vs `alpha`).
+
+**Invalid routes** (unknown constraint types, malformed
+placeholders) are reported as a separate finding. The runtime
+`Router::compile()` would throw `Unknown route constraint type`
+or `Malformed route placeholder` on these — the detector
+surfaces the same diagnostic at CI time so the gate matches
+runtime semantics. A typo like `{id:nonsene}` never reaches a
+deploy.
+
+**Custom or overridden constraints.** `Router::constraint()`
+lets apps register new types and override the built-ins. When
+an app customises its constraint set, instantiate the detector
+with the same map so the analysis matches runtime:
+
+```php
+$detector = new ConflictDetector(
+    ConflictDetector::DEFAULT_CONSTRAINTS + ['hash' => '[a-f0-9]+'],
+);
+```
+
+The static matrix only applies when both types in a pair are
+still bound to their default regex. Any divergence — overridden
+built-in OR custom type — falls back to "conservative overlap"
+(treat as ambiguous). This avoids the false-negative case where
+an overridden `int` (now accepting letters) would silently
+pass the matrix's `int ∩ alpha = ∅` claim.
+
+The CLI itself uses defaults; apps that customise should call
+the detector programmatically from a test.
+
 ## Environment knobs
 
 | Variable | Purpose |

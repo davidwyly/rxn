@@ -106,6 +106,12 @@ Opinionated pieces worth naming:
 - **Typed route constraints** (`{id:int}`, `{slug:slug}`,
   `{id:uuid}`, custom) so `/users/foo` falls through to 404
   instead of reaching a controller that has to validate and throw.
+- **Compile-time route conflict detection.** `bin/rxn routes:check`
+  flags ambiguous `#[Route]` patterns before they ship —
+  `/items/{id:int}` vs `/items/{slug:slug}` (slug accepts
+  digits) is a real conflict; the runtime would silently let
+  whichever was registered first win and leave the other as
+  dead code. CI catches it instead.
 - **Reflection-driven OpenAPI + snapshot contract gate** — the
   framework knows your controllers; why duplicate that in a YAML
   file? DTO validation attributes map one-to-one to JSON Schema
@@ -217,7 +223,7 @@ cumulative scoreboard is in
 
 ```bash
 composer install
-vendor/bin/phpunit          # 626 tests, 1310 assertions
+vendor/bin/phpunit          # 645 tests, 1371 assertions
 bin/rxn help                # CLI subcommands
 ```
 
@@ -298,7 +304,7 @@ end-to-end HTTP smoke job against MySQL 8
 
 Test counts:
 
-- **Rxn framework:** 626 tests / 1310 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 645 tests / 1371 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 
@@ -385,6 +391,14 @@ methodology is in
          `{id:uuid}`, custom) — a non-matching URL just falls
          through to 404 instead of bubbling up as a controller-level
          validation error
+   - [X] Compile-time route conflict detection (`bin/rxn routes:check`;
+         `Http\Routing\ConflictDetector`) — flags ambiguous
+         `#[Route]` patterns at CI time using a constraint-type
+         compatibility matrix (e.g. `{id:int}` vs `{slug:slug}`
+         both accept `"123"` → conflict; `{id:int}` vs
+         `{name:alpha}` are disjoint). Exit 1 = conflicts found.
+         No PHP framework I know of catches this before
+         first-request resolution
    - [X] Convention-based (`/v{N}/{controller}/{action}/key/value/...`)
          — legacy path retained for older apps; new code should use
          attribute or explicit routing

@@ -314,6 +314,86 @@ final class CliTest extends TestCase
         $this->assertStringContainsString('--update', $result['stderr']);
     }
 
+    public function testRoutesCheckExitsZeroOnCleanController(): void
+    {
+        $controllerDir = $this->sandbox . '/app/Http/Controller/v1';
+        mkdir($controllerDir, 0777, true);
+        // int and alpha don't overlap (digits vs letters), different
+        // verbs disambiguate, and `/users/{id:int}/orders` has a
+        // distinct segment count from `/users/{id:int}` — so this
+        // set is genuinely clean.
+        file_put_contents(
+            $controllerDir . '/UsersController.php',
+            "<?php declare(strict_types=1);\n"
+            . "namespace Sandbox\\Http\\Controller\\v1;\n"
+            . "use Rxn\\Framework\\Http\\Attribute\\Route;\n"
+            . "class UsersController {\n"
+            . "  #[Route('GET', '/users/{id:int}')] public function show() {}\n"
+            . "  #[Route('POST', '/users/{id:int}')] public function update() {}\n"
+            . "  #[Route('GET', '/posts/{name:alpha}')] public function showPost() {}\n"
+            . "  #[Route('GET', '/users/{id:int}/orders')] public function userOrders() {}\n"
+            . "}\n"
+        );
+
+        $result = $this->runCli([
+            'routes:check', '--ns=Sandbox', '--root=' . $this->sandbox,
+        ]);
+        $this->assertSame(0, $result['status'], $result['stderr']);
+        $this->assertStringContainsString('No route conflicts', $result['stdout']);
+    }
+
+    public function testRoutesCheckExitsOneOnConflict(): void
+    {
+        $controllerDir = $this->sandbox . '/app/Http/Controller/v1';
+        mkdir($controllerDir, 0777, true);
+        // /items/{id:int} vs /items/{slug:slug} — both accept "123",
+        // so whichever was registered first wins at runtime.
+        file_put_contents(
+            $controllerDir . '/ItemsController.php',
+            "<?php declare(strict_types=1);\n"
+            . "namespace Sandbox\\Http\\Controller\\v1;\n"
+            . "use Rxn\\Framework\\Http\\Attribute\\Route;\n"
+            . "class ItemsController {\n"
+            . "  #[Route('GET', '/items/{id:int}')] public function showById() {}\n"
+            . "  #[Route('GET', '/items/{slug:slug}')] public function showBySlug() {}\n"
+            . "}\n"
+        );
+
+        $result = $this->runCli([
+            'routes:check', '--ns=Sandbox', '--root=' . $this->sandbox,
+        ]);
+        $this->assertSame(1, $result['status']);
+        $this->assertStringContainsString('Found 1 route conflict', $result['stdout']);
+        $this->assertStringContainsString('/items/{id:int}', $result['stdout']);
+        $this->assertStringContainsString('/items/{slug:slug}', $result['stdout']);
+        $this->assertStringContainsString('runtime-silent', $result['stdout']);
+    }
+
+    public function testRoutesCheckExitsOneOnInvalidConstraintType(): void
+    {
+        $controllerDir = $this->sandbox . '/app/Http/Controller/v1';
+        mkdir($controllerDir, 0777, true);
+        // `nonsense` isn't a default constraint type — runtime
+        // Router::compile() would throw at registration. The CI
+        // gate must fail in lockstep so the typo never ships.
+        file_put_contents(
+            $controllerDir . '/BrokenController.php',
+            "<?php declare(strict_types=1);\n"
+            . "namespace Sandbox\\Http\\Controller\\v1;\n"
+            . "use Rxn\\Framework\\Http\\Attribute\\Route;\n"
+            . "class BrokenController {\n"
+            . "  #[Route('GET', '/x/{id:nonsense}')] public function show() {}\n"
+            . "}\n"
+        );
+
+        $result = $this->runCli([
+            'routes:check', '--ns=Sandbox', '--root=' . $this->sandbox,
+        ]);
+        $this->assertSame(1, $result['status']);
+        $this->assertStringContainsString('invalid route', $result['stdout']);
+        $this->assertStringContainsString("unknown constraint type 'nonsense'", $result['stdout']);
+    }
+
     private function seedSandboxController(): void
     {
         $dir = $this->sandbox . '/app/Http/Controller/v1';

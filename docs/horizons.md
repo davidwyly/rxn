@@ -350,28 +350,31 @@ academic win and not worth the complexity.
 
 ---
 
-### 3.2 Compile-time route conflict detection
+### 3.2 Compile-time route conflict detection — REALIZED
 
-**Claim:** `bin/rxn routes:check` finds overlapping `#[Route]`
-patterns at CI time, not at first request.
+See `Rxn\Framework\Http\Routing\ConflictDetector` and the
+`bin/rxn routes:check` subcommand. The detector reflects every
+`#[Route]` attribute across the discovered controllers, runs a
+pairwise overlap check using a constraint-type compatibility
+matrix (`int`, `slug`, `alpha`, `uuid`, `any`, plus a
+conservative-overlap fallback for custom types), and reports
+each ambiguous pair with both source files + line numbers.
+Exit 0 = clean, 1 = conflicts found.
 
-**Mechanism:** Walk all `#[Route]` attributes, build the route
-table, run a pairwise overlap check (`/users/{id}` vs.
-`/users/{name}` is ambiguous; `/users/{id}` vs. `/users/me` is
-fine because `me` is a literal). Report ambiguous pairs with
-file/line.
+**Cost reality:** Came in at ~250 LOC of framework code + 19
+tests, modestly above the 150-LOC estimate (the constraint-
+overlap matrix and the static-vs-dynamic case both grew the
+algorithm beyond the initial pairwise-equality sketch).
 
-**Cost:** ~150 LOC. The hard part is the overlap algorithm;
-straightforward once specified.
-
-**Distinctiveness:** Most frameworks resolve at first request,
-which means a typo in production manifests as "route never
-hits" rather than "framework refused to start." This catches it
-at CI.
-
-**Ship signal:** Adopt on the framework's own CI; catches one
-real conflict in development → ship. Catches zero → optional
-feature, not core.
+**Status:** Working detector + CLI + test suite. Adoption on
+Rxn's own CI is the next step. Catches the realistic
+ambiguities — `/items/{id:int}` vs `/items/{slug:slug}` (slug
+accepts digits), `/users/me` vs `/users/{name:any}` (any
+accepts everything), `/x/{a:hash}` (custom type) vs anything
+(conservative). Correctly does NOT flag genuine non-conflicts:
+disjoint methods (`GET` vs `POST` on the same path), disjoint
+constraint character sets (`int` vs `alpha`), different segment
+counts.
 
 ---
 
