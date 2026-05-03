@@ -133,7 +133,7 @@ final class IdempotencyTest extends TestCase
     {
         $store = $this->makeFileStore();
 
-        $terminal = function (): ResponseInterface {
+        $terminal = function (ServerRequestInterface $request): ResponseInterface {
             return new Psr7Response(
                 201,
                 [
@@ -173,7 +173,7 @@ final class IdempotencyTest extends TestCase
         // Terminal response uses lowercase `content-type`; the allowlist
         // entry is the title-cased `Content-Type`. The middleware must
         // still replicate the header because PSR-7 names are case-insensitive.
-        $terminal = function (): ResponseInterface {
+        $terminal = function (ServerRequestInterface $request): ResponseInterface {
             return new Psr7Response(
                 201,
                 [
