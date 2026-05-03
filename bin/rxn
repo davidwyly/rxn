@@ -11,6 +11,7 @@ namespace Rxn\Framework;
  *   bin/rxn make:controller <NsPrefix> <Name> <Version>
  *   bin/rxn make:record     <NsPrefix> <Name> <table_name>
  *   bin/rxn openapi         [--out=path.json] [--title=t] [--version=v] [--ns=App]
+ *   bin/rxn openapi:check   [--snapshot=path.json] [--update] [--allow-breaking]
  *
  * Environment knobs:
  *   APP_MIGRATION_DIR     default: <project>/app/migrations
@@ -113,6 +114,12 @@ Commands:
   openapi [--out=PATH] [--title=T] [--version=V] [--ns=NS] [--root=DIR]
                                             emit an OpenAPI 3 spec from
                                             discovered controllers
+  openapi:check [--snapshot=PATH] [--update] [--allow-breaking] [--ns=NS] [--root=DIR]
+                                            compare the generated spec against
+                                            a committed snapshot. exit 0 = no
+                                            drift, 1 = additive only, 2 =
+                                            breaking changes (gate). --update
+                                            overwrites the snapshot.
 
 Environment:
   APP_MIGRATION_DIR     default: <project>/app/migrations
@@ -232,6 +239,74 @@ try {
                 echo $json . "\n";
             }
             exit(0);
+
+        case 'openapi:check':
+            $opts = rxn_parse_flags($argv);
+            rxn_load_env($projectRoot);
+            $ns = $opts['ns'] ?? (getenv('APP_NAMESPACE') ?: null);
+            if (!is_string($ns) || $ns === '') {
+                fwrite(STDERR, "openapi:check: need an app namespace — pass --ns=Name or set APP_NAMESPACE\n");
+                exit(2);
+            }
+            $scanRoot = isset($opts['root']) && is_string($opts['root'])
+                ? $opts['root']
+                : $projectRoot;
+            $snapshotPath = isset($opts['snapshot']) && is_string($opts['snapshot'])
+                ? $opts['snapshot']
+                : $projectRoot . '/openapi.snapshot.json';
+            $update         = isset($opts['update']) && $opts['update'] === true;
+            $allowBreaking  = isset($opts['allow-breaking']) && $opts['allow-breaking'] === true;
+
+            $discoverer = new Http\OpenApi\Discoverer($scanRoot, $ns, requireFiles: true);
+            $generator  = new Http\OpenApi\Generator(
+                info: [
+                    'title'   => $opts['title']   ?? 'Rxn API',
+                    'version' => $opts['version'] ?? '0.1.0',
+                ],
+                controllers: $discoverer->all(),
+            );
+            $current = $generator->generate();
+            $serialised = Codegen\Snapshot\OpenApiSnapshot::serialise($current);
+
+            if ($update) {
+                $dir = dirname($snapshotPath);
+                if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+                    fwrite(STDERR, "Could not create $dir\n");
+                    exit(4);
+                }
+                file_put_contents($snapshotPath, $serialised);
+                echo "Updated snapshot at $snapshotPath\n";
+                exit(0);
+            }
+
+            if (!is_file($snapshotPath)) {
+                fwrite(STDERR, "openapi:check: no snapshot at $snapshotPath. Run with --update to create one.\n");
+                exit(2);
+            }
+
+            $raw = file_get_contents($snapshotPath);
+            if ($raw === false) {
+                fwrite(STDERR, "openapi:check: cannot read $snapshotPath\n");
+                exit(2);
+            }
+            $snapshot = json_decode($raw, true);
+            if (!is_array($snapshot)) {
+                fwrite(STDERR, "openapi:check: $snapshotPath is not valid JSON\n");
+                exit(2);
+            }
+
+            $diff = Codegen\Snapshot\OpenApiSnapshot::diff($snapshot, $current);
+            if ($diff->isClean()) {
+                echo "No drift.\n";
+                exit(0);
+            }
+            echo $diff->describe();
+            echo "\nIf the changes are intentional, refresh the snapshot:\n";
+            echo "  bin/rxn openapi:check --update\n";
+            if ($diff->hasBreaking() && !$allowBreaking) {
+                exit(2);
+            }
+            exit(1);
 
         case 'help':
         case '--help':

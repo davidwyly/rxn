@@ -200,6 +200,132 @@ final class CliTest extends TestCase
         $this->assertArrayHasKey('/v1.1/ping/ping', $spec['paths']);
     }
 
+    public function testOpenapiCheckUpdateWritesSnapshotFile(): void
+    {
+        $this->seedSandboxController();
+        $snapshot = $this->sandbox . '/openapi.snapshot.json';
+
+        $result = $this->runCli([
+            'openapi:check',
+            '--ns=Sandbox',
+            '--root=' . $this->sandbox,
+            '--snapshot=' . $snapshot,
+            '--update',
+        ]);
+
+        $this->assertSame(0, $result['status'], $result['stderr']);
+        $this->assertFileExists($snapshot);
+        $contents = (string) file_get_contents($snapshot);
+        $this->assertStringEndsWith("\n", $contents, 'snapshot file must end with newline for clean diffs');
+        $decoded = json_decode($contents, true);
+        $this->assertIsArray($decoded);
+        $this->assertArrayHasKey('/v1.1/ping/ping', $decoded['paths']);
+    }
+
+    public function testOpenapiCheckExitsZeroWhenSpecMatchesSnapshot(): void
+    {
+        $this->seedSandboxController();
+        $snapshot = $this->sandbox . '/openapi.snapshot.json';
+
+        // Seed the snapshot.
+        $this->runCli([
+            'openapi:check', '--ns=Sandbox', '--root=' . $this->sandbox,
+            '--snapshot=' . $snapshot, '--update',
+        ]);
+
+        // Re-run without --update; spec hasn't drifted, exit 0.
+        $result = $this->runCli([
+            'openapi:check', '--ns=Sandbox', '--root=' . $this->sandbox,
+            '--snapshot=' . $snapshot,
+        ]);
+        $this->assertSame(0, $result['status'], $result['stderr']);
+        $this->assertStringContainsString('No drift', $result['stdout']);
+    }
+
+    public function testOpenapiCheckExitsTwoOnBreakingChangeWithoutOverride(): void
+    {
+        // Snapshot a controller with one operation, then remove it
+        // so the regenerated spec has fewer paths than the snapshot.
+        // The diff classifier marks operation removal as breaking.
+        $this->seedSandboxController();
+        $snapshot = $this->sandbox . '/openapi.snapshot.json';
+        $this->runCli([
+            'openapi:check', '--ns=Sandbox', '--root=' . $this->sandbox,
+            '--snapshot=' . $snapshot, '--update',
+        ]);
+
+        // Remove the controller to trigger an operation-removed
+        // breaking change on the next run.
+        unlink($this->sandbox . '/app/Http/Controller/v1/PingController.php');
+        // Need at least one controller for Discoverer; seed an unrelated one.
+        file_put_contents(
+            $this->sandbox . '/app/Http/Controller/v1/OtherController.php',
+            "<?php declare(strict_types=1);\n"
+            . "namespace Sandbox\\Http\\Controller\\v1;\n"
+            . "class OtherController { public function other_v1(): array { return []; } }\n"
+        );
+
+        $result = $this->runCli([
+            'openapi:check', '--ns=Sandbox', '--root=' . $this->sandbox,
+            '--snapshot=' . $snapshot,
+        ]);
+        $this->assertSame(2, $result['status']);
+        $this->assertStringContainsString('Breaking changes', $result['stdout']);
+        $this->assertStringContainsString('--update', $result['stdout']);
+    }
+
+    public function testOpenapiCheckAllowBreakingDowngradesToExitOne(): void
+    {
+        $this->seedSandboxController();
+        $snapshot = $this->sandbox . '/openapi.snapshot.json';
+        $this->runCli([
+            'openapi:check', '--ns=Sandbox', '--root=' . $this->sandbox,
+            '--snapshot=' . $snapshot, '--update',
+        ]);
+
+        unlink($this->sandbox . '/app/Http/Controller/v1/PingController.php');
+        file_put_contents(
+            $this->sandbox . '/app/Http/Controller/v1/OtherController.php',
+            "<?php declare(strict_types=1);\n"
+            . "namespace Sandbox\\Http\\Controller\\v1;\n"
+            . "class OtherController { public function other_v1(): array { return []; } }\n"
+        );
+
+        $result = $this->runCli([
+            'openapi:check', '--ns=Sandbox', '--root=' . $this->sandbox,
+            '--snapshot=' . $snapshot, '--allow-breaking',
+        ]);
+        // Exit 1 = drift exists, but we allowed it. Diff still printed.
+        $this->assertSame(1, $result['status']);
+        $this->assertStringContainsString('Breaking changes', $result['stdout']);
+    }
+
+    public function testOpenapiCheckExitsTwoWhenSnapshotIsMissing(): void
+    {
+        $this->seedSandboxController();
+        $missing = $this->sandbox . '/does-not-exist.json';
+
+        $result = $this->runCli([
+            'openapi:check', '--ns=Sandbox', '--root=' . $this->sandbox,
+            '--snapshot=' . $missing,
+        ]);
+        $this->assertSame(2, $result['status']);
+        $this->assertStringContainsString('no snapshot', $result['stderr']);
+        $this->assertStringContainsString('--update', $result['stderr']);
+    }
+
+    private function seedSandboxController(): void
+    {
+        $dir = $this->sandbox . '/app/Http/Controller/v1';
+        mkdir($dir, 0777, true);
+        file_put_contents(
+            $dir . '/PingController.php',
+            "<?php declare(strict_types=1);\n"
+            . "namespace Sandbox\\Http\\Controller\\v1;\n"
+            . "class PingController { public function ping_v1(int \$id): array { return []; } }\n"
+        );
+    }
+
     public function testMakeRecordCreatesFile(): void
     {
         $result = $this->runCli(

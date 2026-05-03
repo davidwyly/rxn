@@ -35,6 +35,15 @@ contract to be useful. When there are, this doc grows.
   that polyparity's TS / Python / future-language siblings
   consume. Same coverage matrix as the JS emitter, same
   refusal posture on out-of-scope attributes.
+- `Rxn\Framework\Codegen\Snapshot\OpenApiSnapshot` — stable
+  JSON serialisation of the generated OpenAPI doc plus a
+  structural diff classifier (breaking vs additive). Powers
+  `bin/rxn openapi:check`, the CI gate that catches schema
+  drift on PR open: regenerate spec → diff against the
+  `openapi.snapshot.json` committed in the repo. Exit 0 =
+  clean, 1 = additive only (or breaking with
+  `--allow-breaking`), 2 = breaking detected. The cheapest
+  possible governance layer for "the schema is the contract."
 
 **Outside core (separate Composer packages):**
 
