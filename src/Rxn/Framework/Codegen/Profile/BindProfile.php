@@ -114,6 +114,10 @@ final class BindProfile
      *      profile nor in-memory hits exist, the persisted file
      *      is `{}`, not `null`. A `null`-shaped file would crash
      *      the next `loadFrom()` call with a misleading error.
+     *      `JSON_FORCE_OBJECT` is used so the empty case is
+     *      shaped as a JSON object, matching the documented
+     *      class→count map schema (PHP otherwise serialises an
+     *      empty assoc array as `[]`).
      */
     public static function flushTo(string $path): void
     {
@@ -134,7 +138,7 @@ final class BindProfile
                 $merged[$class] = ($merged[$class] ?? 0) + $count;
             }
             $tmp = $path . '.' . getmypid() . '.' . bin2hex(random_bytes(4)) . '.tmp';
-            $json = json_encode($merged, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            $json = json_encode($merged, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_FORCE_OBJECT);
             if ($json === false) {
                 throw new \RuntimeException('BindProfile: failed to encode counter');
             }

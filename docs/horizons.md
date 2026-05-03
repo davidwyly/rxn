@@ -342,17 +342,19 @@ the hot path. `bind()` also auto-dispatches to the in-memory
 compiled cache when present, so the speedup actually lands at
 runtime once a worker has called `warmFromProfile()` on boot.
 
-**Cost reality:** ~200 LOC of framework code + 38 tests (12
-profile, 5 binder integration, 4 CLI). Came in close to the
-estimate. The DumpCache + `compileFor()` infrastructure already
-existed; this PR was the measurement + selection layer the
-horizons doc described.
+**Cost reality:** ~200 LOC of framework code + 22 tests (12
+profile, 6 binder integration, 4 CLI), plus the bench harness
+(~270 LOC). On target with the estimate. The DumpCache +
+`compileFor()` infrastructure already existed; this PR was the
+measurement + selection layer the horizons doc described.
 
-**Status:** Working counter + persistence + warming + CLI +
-test suite. The bench step from the ship signal (100 DTOs,
-10 hot, memory + first-request latency vs. unconditional
-dump) is the next gate — once that lands, the theme can move
-from "shipped feature" to "validated win."
+**Status:** Shipped. The bench step from the ship signal —
+100 DTOs, 10 hot, three modes (runtime-only, unconditional,
+profile-guided) — landed alongside the feature; see
+[`bench/ab/experiments/2026-05-03-profile-guided-compilation.md`](../bench/ab/experiments/2026-05-03-profile-guided-compilation.md).
+50% memory saving over unconditional dump (target: >30%) with
+hot-path throughput within measurement noise of unconditional
+(4.64× vs 4.72× over the runtime walker). Ship signal met.
 
 Apps wire it as: post-deploy step runs `bin/rxn dump:hot
 --profile=… --top=20` to pre-populate the cache, and the

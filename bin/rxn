@@ -368,7 +368,16 @@ try {
                 exit(4);
             }
             Codegen\DumpCache::useDir($cacheDir);
-            $warmed = Http\Binding\Binder::warmFromProfile($profile, $top);
+            try {
+                $warmed = Http\Binding\Binder::warmFromProfile($profile, $top);
+            } catch (\RuntimeException $e) {
+                // Corrupted profile (unparseable JSON or wrong
+                // shape) — same exit class as missing-file: the
+                // operator needs to fix or delete the file before
+                // the command can do anything useful.
+                fwrite(STDERR, 'dump:hot: ' . $e->getMessage() . "\n");
+                exit(2);
+            }
             if ($warmed === []) {
                 echo "dump:hot: profile is empty; nothing to compile.\n";
                 exit(0);

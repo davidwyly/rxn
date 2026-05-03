@@ -212,9 +212,15 @@ final class Binder
      * Reads `$path` (a JSON map of class-name → hit-count produced
      * by `BindProfile::flushTo()`), picks the top-`$topK` classes
      * by hits, and calls `compileFor()` on each. Each compileFor
-     * populates `$compiledCache` AND writes a `.php` file via
-     * `DumpCache` (when configured), so subsequent processes get
-     * the fast path with zero cold-start cost.
+     * populates the in-memory `$compiledCache`, and (best-effort)
+     * writes a `.php` file via `DumpCache` when one is configured.
+     * Dumping is conditional: closures with arguments the dumper
+     * can't represent (rare — typically validator constructor
+     * args containing objects) fall back to runtime `eval`, which
+     * is still fast in-process but doesn't survive worker boot.
+     * That fallback is invisible to the caller — `warmFromProfile()`
+     * still reports the class as warmed because the in-memory cache
+     * is populated.
      *
      * Apps wire this into their bootstrap when `DumpCache::useDir()`
      * is set:

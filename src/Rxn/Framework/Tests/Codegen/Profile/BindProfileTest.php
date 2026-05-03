@@ -166,16 +166,18 @@ final class BindProfileTest extends TestCase
 
     public function testFlushToWritesEmptyObjectWhenCounterEmpty(): void
     {
-        // No prior file, no in-memory hits → must NOT write `null`
-        // (which json_encode does for null/empty input). The next
-        // loadFrom() would otherwise classify the file as
-        // corrupted, breaking the idle-first-flush case.
+        // No prior file, no in-memory hits → must serialise as
+        // `{}`, not `null` (which json_encode produces for null
+        // input) and not `[]` (which json_encode produces for an
+        // empty assoc array). The persisted shape is documented
+        // as a class→count map, so the empty case has to keep
+        // the JSON-object shape — `JSON_FORCE_OBJECT` does that.
         $path = $this->tmpDir . '/profile.json';
         BindProfile::flushTo($path);
 
         $this->assertFileExists($path);
         $contents = trim((string) file_get_contents($path));
-        $this->assertSame('[]', $contents, 'Empty profile must serialise as a JSON array `[]` (json_encode of `[]`), never `null`');
+        $this->assertSame('{}', $contents, 'Empty profile must serialise as a JSON object `{}` to stay consistent with the class→count map schema');
 
         // And it must round-trip cleanly (no corruption error).
         BindProfile::loadFrom($path);

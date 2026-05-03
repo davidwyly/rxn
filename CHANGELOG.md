@@ -38,10 +38,13 @@ selection layer that turns "compile everything at boot" into
   (count desc, name asc).
 - **`Binder::warmFromProfile(string $path, int $topK)`** —
   loads a profile, picks the top-K classes, calls `compileFor()`
-  on each → populates the in-memory compiled cache AND the
-  on-disk DumpCache. Returns the list of classes that were
-  actually warmed (stale entries from refactored / removed
-  classes are silently filtered).
+  on each → populates the in-memory compiled cache; when
+  `DumpCache::useDir()` is configured, compileFor also writes a
+  `.php` file (best-effort: closures whose validator args can't
+  be dumped fall back to in-process eval, which still runs the
+  compiled fast path but doesn't survive worker boot). Returns
+  the list of classes that were actually warmed (stale entries
+  from refactored / removed classes are silently filtered).
 - **`Binder::bind()` auto-dispatch** — when a class has a
   compiled closure in the in-memory cache, `bind()` uses it
   instead of walking reflection. This is what makes the
@@ -85,10 +88,11 @@ bin/rxn dump:hot --profile=/var/cache/rxn/profile.json --top=20
 - 12 unit tests for BindProfile (record, topK with ties, JSON
   persistence atomicity, merge-on-flush, load replaces
   in-memory, defensive load drops malformed entries, reset).
-- 5 Binder integration tests (bind records hits, bind
+- 6 Binder integration tests (bind records hits, bind
   auto-dispatches to compiled cache, warmFromProfile compiles
-  top-K, stale-class entries silently skipped, post-warm
-  counter resets so first flush doesn't double-count seeds).
+  top-K, stale-class entries silently skipped, non-RequestDto
+  entries silently skipped, post-warm counter resets so first
+  flush doesn't double-count seeds).
 - 4 CLI integration tests (--profile required, missing-file
   exit-2, full compile flow, empty-profile no-op).
 
