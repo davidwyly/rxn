@@ -16,6 +16,7 @@ use Rxn\Framework\Http\Attribute\Required;
 use Rxn\Framework\Http\Attribute\StartsWith;
 use Rxn\Framework\Http\Attribute\Url;
 use Rxn\Framework\Http\Attribute\Uuid;
+use Rxn\Framework\Http\Middleware\JsonBody;
 
 /**
  * Hydrate a `RequestDto` from the merged request bag (query +
@@ -34,8 +35,6 @@ use Rxn\Framework\Http\Attribute\Uuid;
  */
 final class Binder
 {
-    private const MAX_JSON_BYTES = 1048576;
-
     /**
      * Bind a DTO from a PSR-7 `ServerRequestInterface`. Pulls
      * query params + parsed body (or, when no parsed body is set,
@@ -678,21 +677,38 @@ final class Binder
         $contentType = strtolower(trim(explode(';', $request->getHeaderLine('Content-Type'), 2)[0]));
         if ($contentType === 'application/json') {
             $declared = (int)($request->getHeaderLine('Content-Length') ?: 0);
-            if ($declared > self::MAX_JSON_BYTES) {
+            if ($declared > JsonBody::DEFAULT_MAX_BYTES) {
                 return $query;
             }
             $body = $request->getBody();
-            if (!$body->isSeekable()) {
-                return $query;
-            }
             $size = $body->getSize();
-            if (is_int($size) && $size > self::MAX_JSON_BYTES) {
+            if (is_int($size) && $size > JsonBody::DEFAULT_MAX_BYTES) {
                 return $query;
             }
-            $body->rewind();
-            $raw = $body->read(self::MAX_JSON_BYTES + 1);
-            $body->rewind();
-            if (strlen($raw) > self::MAX_JSON_BYTES) {
+            // Loop-read to handle PSR-7 streams that may return partial
+            // chunks per read() call. We collect up to DEFAULT_MAX_BYTES+1
+            // bytes so we can detect oversized payloads before decoding.
+            // For seekable streams the body is rewound after peeking so
+            // downstream consumers see an untouched stream; for non-seekable
+            // streams the read consumes the data (matching the prior
+            // (string)$body behaviour).
+            $limit = JsonBody::DEFAULT_MAX_BYTES + 1;
+            $raw   = '';
+            while (!$body->eof()) {
+                $needed = $limit - strlen($raw);
+                if ($needed <= 0) {
+                    break;
+                }
+                $chunk = $body->read($needed);
+                if ($chunk === '') {
+                    break;
+                }
+                $raw .= $chunk;
+            }
+            if ($body->isSeekable()) {
+                $body->rewind();
+            }
+            if (strlen($raw) > JsonBody::DEFAULT_MAX_BYTES) {
                 return $query;
             }
             if ($raw !== '') {

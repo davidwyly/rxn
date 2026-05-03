@@ -31,12 +31,15 @@ final class JsonBody implements MiddlewareInterface
 {
     private const BODY_METHODS = ['POST', 'PUT', 'PATCH'];
 
+    /** Maximum JSON body size in bytes (1 MiB). Shared with Binder's inline fallback. */
+    public const DEFAULT_MAX_BYTES = 1048576;
+
     private int $maxBytes;
 
     /**
      * @param int $maxBytes max accepted Content-Length (default 1 MiB)
      */
-    public function __construct(int $maxBytes = 1048576)
+    public function __construct(int $maxBytes = self::DEFAULT_MAX_BYTES)
     {
         $this->maxBytes = $maxBytes;
     }

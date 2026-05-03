@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 use Rxn\Framework\Codegen\DumpCache;
 use Rxn\Framework\Http\Binding\Binder;
 use Rxn\Framework\Http\Binding\ValidationException;
+use Rxn\Framework\Http\Middleware\JsonBody;
 use Rxn\Framework\Tests\Http\Binding\Fixture\Address;
 use Rxn\Framework\Tests\Http\Binding\Fixture\CreateProduct;
 
@@ -350,7 +351,7 @@ final class BinderTest extends TestCase
         $request = (new \Nyholm\Psr7\ServerRequest(
             'POST',
             'http://test.local/?q=1',
-            ['Content-Type' => 'application/json', 'Content-Length' => '2097152'],
+            ['Content-Type' => 'application/json', 'Content-Length' => (string)(JsonBody::DEFAULT_MAX_BYTES + 1)],
             json_encode(['name' => 'too-big']) ?: '',
         ))->withQueryParams(['q' => '1']);
 
@@ -360,7 +361,7 @@ final class BinderTest extends TestCase
 
     public function testGatherFromRequestSkipsOversizedJsonWithoutDeclaredLength(): void
     {
-        $maxJsonBytes = (new \ReflectionClassConstant(Binder::class, 'MAX_JSON_BYTES'))->getValue();
+        $maxJsonBytes = JsonBody::DEFAULT_MAX_BYTES;
         $payload      = json_encode(['blob' => str_repeat('a', $maxJsonBytes + 1)]);
         $this->assertNotFalse($payload);
         $request = (new \Nyholm\Psr7\ServerRequest(
