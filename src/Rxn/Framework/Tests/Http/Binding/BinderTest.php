@@ -360,7 +360,8 @@ final class BinderTest extends TestCase
 
     public function testGatherFromRequestSkipsOversizedJsonWithoutDeclaredLength(): void
     {
-        $payload = json_encode(['blob' => str_repeat('a', 1048577)]);
+        $cap     = (new \ReflectionClassConstant(Binder::class, 'MAX_JSON_BYTES'))->getValue();
+        $payload = json_encode(['blob' => str_repeat('a', $cap + 1)]);
         $this->assertNotFalse($payload);
         $request = (new \Nyholm\Psr7\ServerRequest(
             'POST',

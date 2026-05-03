@@ -682,17 +682,16 @@ final class Binder
                 return $query;
             }
             $body = $request->getBody();
+            if (!$body->isSeekable()) {
+                return $query;
+            }
             $size = $body->getSize();
             if (is_int($size) && $size > self::MAX_JSON_BYTES) {
                 return $query;
             }
-            if ($body->isSeekable()) {
-                $body->rewind();
-            }
+            $body->rewind();
             $raw = $body->read(self::MAX_JSON_BYTES + 1);
-            if ($body->isSeekable()) {
-                $body->rewind();
-            }
+            $body->rewind();
             if (strlen($raw) > self::MAX_JSON_BYTES) {
                 return $query;
             }
