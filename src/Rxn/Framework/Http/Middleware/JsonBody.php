@@ -31,12 +31,15 @@ final class JsonBody implements MiddlewareInterface
 {
     private const BODY_METHODS = ['POST', 'PUT', 'PATCH'];
 
+    /** Maximum JSON body size in bytes (1 MiB). Shared with Binder's inline fallback. */
+    public const DEFAULT_MAX_BYTES = 1048576;
+
     private int $maxBytes;
 
     /**
      * @param int $maxBytes max accepted Content-Length (default 1 MiB)
      */
-    public function __construct(int $maxBytes = 1048576)
+    public function __construct(int $maxBytes = self::DEFAULT_MAX_BYTES)
     {
         $this->maxBytes = $maxBytes;
     }
@@ -70,7 +73,34 @@ final class JsonBody implements MiddlewareInterface
             );
         }
 
-        $raw = (string)$request->getBody();
+        $body = $request->getBody();
+        $size = $body->getSize();
+        if (is_int($size) && $size > $this->maxBytes) {
+            throw new RequestException(
+                "Request body exceeds maximum of {$this->maxBytes} bytes",
+                413
+            );
+        }
+        // Loop-read with a hard cap so a request without Content-Length
+        // and without a known stream size cannot consume unbounded
+        // memory before the post-read check fires. We collect up to
+        // maxBytes+1 so we can still detect oversized payloads.
+        $limit = $this->maxBytes + 1;
+        $raw   = '';
+        while (!$body->eof()) {
+            $needed = $limit - strlen($raw);
+            if ($needed <= 0) {
+                break;
+            }
+            $chunk = $body->read($needed);
+            if ($chunk === '') {
+                break;
+            }
+            $raw .= $chunk;
+        }
+        if ($body->isSeekable()) {
+            $body->rewind();
+        }
         if ($raw === '') {
             return $handler->handle($request);
         }

@@ -16,6 +16,7 @@ use Rxn\Framework\Http\Attribute\Required;
 use Rxn\Framework\Http\Attribute\StartsWith;
 use Rxn\Framework\Http\Attribute\Url;
 use Rxn\Framework\Http\Attribute\Uuid;
+use Rxn\Framework\Http\Middleware\JsonBody;
 
 /**
  * Hydrate a `RequestDto` from the merged request bag (query +
@@ -675,9 +676,40 @@ final class Binder
         // check; not running that middleware is now non-fatal.
         $contentType = strtolower(trim(explode(';', $request->getHeaderLine('Content-Type'), 2)[0]));
         if ($contentType === 'application/json') {
-            $raw = (string)$request->getBody();
-            if ($request->getBody()->isSeekable()) {
-                $request->getBody()->rewind();
+            $declared = (int)($request->getHeaderLine('Content-Length') ?: 0);
+            if ($declared > JsonBody::DEFAULT_MAX_BYTES) {
+                return $query;
+            }
+            $body = $request->getBody();
+            $size = $body->getSize();
+            if (is_int($size) && $size > JsonBody::DEFAULT_MAX_BYTES) {
+                return $query;
+            }
+            // Loop-read to handle PSR-7 streams that may return partial
+            // chunks per read() call. We collect up to DEFAULT_MAX_BYTES+1
+            // bytes so we can detect oversized payloads before decoding.
+            // For seekable streams the body is rewound after peeking so
+            // downstream consumers see an untouched stream; for non-seekable
+            // streams the read consumes the data (matching the prior
+            // (string)$body behaviour).
+            $limit = JsonBody::DEFAULT_MAX_BYTES + 1;
+            $raw   = '';
+            while (!$body->eof()) {
+                $needed = $limit - strlen($raw);
+                if ($needed <= 0) {
+                    break;
+                }
+                $chunk = $body->read($needed);
+                if ($chunk === '') {
+                    break;
+                }
+                $raw .= $chunk;
+            }
+            if ($body->isSeekable()) {
+                $body->rewind();
+            }
+            if (strlen($raw) > JsonBody::DEFAULT_MAX_BYTES) {
+                return $query;
             }
             if ($raw !== '') {
                 $decoded = json_decode($raw, true);
