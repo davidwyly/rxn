@@ -486,6 +486,10 @@ class Container implements ContainerInterface
                         return false;
                     }
                     break;
+                default:
+                    // 'default' and 'null' directives don't prevent
+                    // construction; intentionally skip them.
+                    break;
             }
         }
 
