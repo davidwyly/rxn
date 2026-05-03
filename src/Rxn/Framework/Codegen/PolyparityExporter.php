@@ -62,10 +62,20 @@ final class PolyparityExporter
     {
         $name       = $prop->getName();
         $type       = $prop->getType();
-        $isRequired = $prop->getAttributes(Required::class) !== [];
         $allowsNull = $type instanceof \ReflectionNamedType && $type->allowsNull();
         $hasDefault = $prop->hasDefaultValue();
         $default    = $hasDefault ? $prop->getDefaultValue() : null;
+
+        // Required is effectively true in two cases:
+        //   1. Explicit #[Required] attribute on the property.
+        //   2. Non-nullable, no default — Binder::bind treats this
+        //      as required (see the missing-field branch: when the
+        //      property has neither a default nor a nullable type,
+        //      it adds an "is required" error).
+        // Mirror Binder semantics so the exported spec doesn't
+        // accept inputs the PHP server rejects.
+        $hasRequiredAttr = $prop->getAttributes(Required::class) !== [];
+        $isRequired      = $hasRequiredAttr || (!$allowsNull && !$hasDefault);
 
         $lines = [];
         $lines[] = '    ' . $name . ':';
@@ -77,7 +87,11 @@ final class PolyparityExporter
         if ($allowsNull) {
             $lines[] = '      nullable: true';
         }
-        if ($hasDefault && $default !== null) {
+        // Suppress `default:` when the field is required: Binder's
+        // missing-field branch fires "is required" before reaching
+        // the default-application path, so the default would be a
+        // misleading no-op in the spec.
+        if (!$isRequired && $hasDefault && $default !== null) {
             $lines[] = '      default: ' . $this->yamlScalar($default);
         }
 
@@ -136,14 +150,35 @@ final class PolyparityExporter
     {
         return match ($name) {
             NotBlank::class => 'not_blank: true',
-            Length::class   => $this->emitLength($args),
-            Min::class      => 'min: ' . $this->yamlScalar($args[0] ?? $args['min'] ?? 0),
-            Max::class      => 'max: ' . $this->yamlScalar($args[0] ?? $args['max'] ?? 0),
+            Length::class   => $this->emitLength($args, $propName),
+            Min::class      => 'min: ' . $this->yamlScalar($this->requireBound($args, 'min', Min::class, $propName)),
+            Max::class      => 'max: ' . $this->yamlScalar($this->requireBound($args, 'max', Max::class, $propName)),
             InSet::class    => $this->emitInSet($args),
             Url::class      => 'url: true',
             Email::class    => 'email: true',
             default         => $this->refuse($name, $propName),
         };
+    }
+
+    /**
+     * @param array<int|string, mixed> $args
+     */
+    private function requireBound(array $args, string $key, string $attr, string $propName): int|float
+    {
+        $value = $args[0] ?? $args[$key] ?? null;
+        if ($value === null) {
+            // Unreachable in practice: Min/Max attribute constructors
+            // require the bound, so PHP throws ArgumentCountError at
+            // attribute instantiation. But getArguments() peeks at
+            // syntax-tree args without instantiating, so a typo like
+            // `#[Min]` (no args) would land here as []. Make the
+            // failure explicit instead of silently emitting `min: 0`.
+            throw new \RuntimeException(
+                "PolyparityExporter: $attr on property '$propName' has no value; "
+                . "attribute requires a numeric bound."
+            );
+        }
+        return $value;
     }
 
     private function refuse(string $attrName, string $propName): ?string
@@ -163,10 +198,18 @@ final class PolyparityExporter
     /**
      * @param array<int|string, mixed> $args
      */
-    private function emitLength(array $args): string
+    private function emitLength(array $args, string $propName): ?string
     {
         $min = $args[0] ?? $args['min'] ?? null;
         $max = $args[1] ?? $args['max'] ?? null;
+        if ($min === null && $max === null) {
+            // `#[Length]` with no bounds is a Binder no-op (the
+            // validator returns null for both bound checks). Emitting
+            // `length: { }` is at best vacuous, at worst invalid for
+            // strict polyparity parsers — skip the constraint entirely
+            // to mirror the no-op behaviour.
+            return null;
+        }
         $parts = [];
         if ($min !== null) {
             $parts[] = 'min: ' . (int) $min;

@@ -190,4 +190,36 @@ final class PolyparityExporterTest extends TestCase
         $this->expectExceptionMessageMatches('/must implement/i');
         $exporter->emit(\stdClass::class);
     }
+
+    public function testEmitsImplicitRequiredForNonNullableNoDefault(): void
+    {
+        // Mirror Binder: a non-nullable property with no default and
+        // no #[Required] is still effectively required (Binder emits
+        // "is required" in the missing-field branch).
+        $yaml = (new PolyparityExporter())->emit(Fixture\ImplicitRequiredDto::class);
+        $this->assertStringContainsString(
+            "    code:\n      type: string\n      required: true",
+            $yaml,
+            'non-nullable + no-default property must export as required: true',
+        );
+    }
+
+    public function testSuppressesDefaultWhenRequiredIsTrue(): void
+    {
+        // Binder ignores the default when #[Required] is set (the
+        // missing-field branch fires first with "is required"). The
+        // exported spec must not include a misleading default.
+        $yaml = (new PolyparityExporter())->emit(Fixture\RequiredWithDefaultDto::class);
+        $this->assertStringContainsString('required: true', $yaml);
+        $this->assertStringNotContainsString('default:', $yaml);
+    }
+
+    public function testSkipsLengthWithBothBoundsNull(): void
+    {
+        // `#[Length]` with no bounds is a Binder no-op. Emitting
+        // `length: { }` would be at best vacuous, at worst invalid
+        // for strict polyparity parsers.
+        $yaml = (new PolyparityExporter())->emit(Fixture\EmptyLengthDto::class);
+        $this->assertStringNotContainsString('length:', $yaml);
+    }
 }
