@@ -35,14 +35,33 @@ final class HttpClient
      */
     public function getAsync(string $url, array $headers = []): Promise
     {
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if ($scheme !== 'http' && $scheme !== 'https') {
+            throw new \InvalidArgumentException('Only http/https URLs are allowed.');
+        }
+
         $handle = curl_init();
-        curl_setopt_array($handle, [
+        $opts = [
             CURLOPT_URL            => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER     => $this->headerLines($headers),
             CURLOPT_TIMEOUT_MS     => $this->timeoutMs,
             CURLOPT_CONNECTTIMEOUT_MS => $this->timeoutMs,
-        ]);
+        ];
+        // CURLOPT_PROTOCOLS / CURLPROTO_* are not guaranteed on every libcurl build;
+        // guard with defined() to avoid a fatal error when the constants are absent.
+        // The parse_url() scheme check above is the primary security guard; these
+        // curl options are an additional defence-in-depth layer only.
+        if (
+            defined('CURLOPT_PROTOCOLS')
+            && defined('CURLOPT_REDIR_PROTOCOLS')
+            && defined('CURLPROTO_HTTP')
+            && defined('CURLPROTO_HTTPS')
+        ) {
+            $opts[CURLOPT_PROTOCOLS]       = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+            $opts[CURLOPT_REDIR_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+        }
+        curl_setopt_array($handle, $opts);
         return $this->scheduler->submitCurl($handle);
     }
 
