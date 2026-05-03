@@ -345,6 +345,34 @@ final class BinderTest extends TestCase
         $this->assertSame(['q' => '1'], $bag);
     }
 
+    public function testGatherFromRequestSkipsOversizedJsonFromDeclaredLength(): void
+    {
+        $request = (new \Nyholm\Psr7\ServerRequest(
+            'POST',
+            'http://test.local/?q=1',
+            ['Content-Type' => 'application/json', 'Content-Length' => '2097152'],
+            json_encode(['name' => 'too-big']) ?: '',
+        ))->withQueryParams(['q' => '1']);
+
+        $bag = Binder::gatherFromRequest($request);
+        $this->assertSame(['q' => '1'], $bag);
+    }
+
+    public function testGatherFromRequestSkipsOversizedJsonWithoutDeclaredLength(): void
+    {
+        $payload = json_encode(['blob' => str_repeat('a', 1048577)]);
+        $this->assertNotFalse($payload);
+        $request = (new \Nyholm\Psr7\ServerRequest(
+            'POST',
+            'http://test.local/?q=1',
+            ['Content-Type' => 'application/json'],
+            $payload,
+        ))->withQueryParams(['q' => '1']);
+
+        $bag = Binder::gatherFromRequest($request);
+        $this->assertSame(['q' => '1'], $bag);
+    }
+
     // -------- dump path (Tier B) --------
 
     private string $dumpDir = '';

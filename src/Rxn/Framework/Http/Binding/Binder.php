@@ -34,6 +34,8 @@ use Rxn\Framework\Http\Attribute\Uuid;
  */
 final class Binder
 {
+    private const MAX_JSON_BYTES = 1048576;
+
     /**
      * Bind a DTO from a PSR-7 `ServerRequestInterface`. Pulls
      * query params + parsed body (or, when no parsed body is set,
@@ -675,9 +677,24 @@ final class Binder
         // check; not running that middleware is now non-fatal.
         $contentType = strtolower(trim(explode(';', $request->getHeaderLine('Content-Type'), 2)[0]));
         if ($contentType === 'application/json') {
-            $raw = (string)$request->getBody();
-            if ($request->getBody()->isSeekable()) {
-                $request->getBody()->rewind();
+            $declared = (int)($request->getHeaderLine('Content-Length') ?: 0);
+            if ($declared > self::MAX_JSON_BYTES) {
+                return $query;
+            }
+            $body = $request->getBody();
+            $size = $body->getSize();
+            if (is_int($size) && $size > self::MAX_JSON_BYTES) {
+                return $query;
+            }
+            if ($body->isSeekable()) {
+                $body->rewind();
+            }
+            $raw = $body->read(self::MAX_JSON_BYTES + 1);
+            if ($body->isSeekable()) {
+                $body->rewind();
+            }
+            if (strlen($raw) > self::MAX_JSON_BYTES) {
+                return $query;
             }
             if ($raw !== '') {
                 $decoded = json_decode($raw, true);
