@@ -51,7 +51,6 @@ final class JsValidatorParityTest extends TestCase
         $this->assertSame(0, $result->disagreements, $result->describe());
     }
 
-
     public function testEmitterRefusesCustomValidatesAttribute(): void
     {
         $emitter = new JsValidatorEmitter();

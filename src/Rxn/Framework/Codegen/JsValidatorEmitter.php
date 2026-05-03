@@ -207,10 +207,12 @@ final class JsValidatorEmitter
 
     private function refuse(string $attrName): string
     {
-        // Generic / non-Validates attributes: ignore (the runtime
-        // walker also skips them). Refuse every Validates
-        // implementation we cannot mirror — silent divergence
-        // between generated JS and Binder is the worst failure mode.
+        // Non-Validates attributes are ignored: Binder still
+        // instantiates them but only applies attributes that
+        // implement Validates, so they're a no-op for validation.
+        // Refuse every Validates implementation we cannot mirror
+        // — silent divergence between generated JS and Binder is
+        // the worst failure mode.
         $ref = new \ReflectionClass($attrName);
         if ($ref->implementsInterface(Validates::class)) {
             throw new \RuntimeException(
