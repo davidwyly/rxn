@@ -76,7 +76,8 @@ final class IdempotencyTest extends TestCase
 
         $files = glob($this->tmpDir . '/*.json') ?: [];
         $this->assertCount(1, $files);
-        $stored = StoredResponse::fromArray((array) json_decode((string) file_get_contents($files[0]), true));
+        $envelope = (array) json_decode((string) file_get_contents($files[0]), true);
+        $stored = StoredResponse::fromArray((array) ($envelope['data'] ?? []));
         $this->assertInstanceOf(StoredResponse::class, $stored);
         $this->assertSame(201, $stored->statusCode);
         $this->assertSame(['id' => 42], $stored->body['data'] ?? null);
