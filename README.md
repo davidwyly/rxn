@@ -23,7 +23,11 @@ one error envelope.
 
 The ORM / query builder lives in a separate package —
 [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm) — pulled
-in automatically via Composer.
+in automatically via Composer. OpenTelemetry / observability
+listeners live in
+[`davidwyly/rxn-observe`](https://github.com/davidwyly/rxn-observe)
+— opt-in via `composer require`, plugs into the framework's PSR-14
+event surface.
 
 ## At a glance
 
@@ -307,6 +311,8 @@ Test counts:
 - **Rxn framework:** 739 tests / 1598 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
+- **[`davidwyly/rxn-observe`](https://github.com/davidwyly/rxn-observe)**
+  (OpenTelemetry listener): 9 tests / 26 assertions, run in that repo.
 
 Cross-framework comparison harness
 ([`bench/compare/`](bench/compare/)) benchmarks Rxn against Slim 4,

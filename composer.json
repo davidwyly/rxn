@@ -37,6 +37,7 @@
   },
   "suggest": {
     "davidwyly/rxn-orm": "^0.1 — Rxn's query builder + ActiveRecord-shaped layer. Required only when you use `Rxn\\Framework\\Data\\Database::run()` or `Rxn\\Framework\\Model\\ActiveRecord` (and the `bin/bench` builder cases). Apps using Rxn purely for routing / DTO binding / middleware don't need this — install it when you reach for the Data / Model layer.",
+    "davidwyly/rxn-observe": "^0.1 — OpenTelemetry / observability listeners for the framework's PSR-14 event surface (`Rxn\\Framework\\Observability\\Event\\*`). Drop the `OpenTelemetryListener` in and every request emits a span tree (root request → middleware children → handler), with binder + validation as span events. Apps that don't need distributed tracing don't install this — the framework's own emit path is a one-bool-read no-op without a dispatcher.",
     "psr/simple-cache": "^3.0 — required only when using `Psr16IdempotencyStore` to plug an existing PSR-16 cache (Redis / Memcached / APCu) into the Idempotency middleware. Apps using `FileIdempotencyStore` (the default) don't need this."
   },
   "archive": {
