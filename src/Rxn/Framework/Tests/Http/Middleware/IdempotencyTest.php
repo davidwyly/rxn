@@ -166,6 +166,45 @@ final class IdempotencyTest extends TestCase
     }
 
 
+    public function testReplayAllowlistIsCaseInsensitive(): void
+    {
+        $store = $this->makeFileStore();
+
+        // Terminal response uses lowercase `content-type`; the allowlist
+        // entry is the title-cased `Content-Type`. The middleware must
+        // still replicate the header because PSR-7 names are case-insensitive.
+        $terminal = function (): ResponseInterface {
+            return new Psr7Response(
+                201,
+                [
+                    'content-type' => 'application/json',
+                    'Set-Cookie'   => 'session=victim',
+                ],
+                '{"data":{"id":9}}',
+            );
+        };
+
+        $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: ['Idempotency-Key' => 'k-case'],
+            body: '{"a":1}',
+            terminal: $terminal,
+        );
+        $replayed = $this->runMiddleware(
+            $store,
+            method: 'POST',
+            headers: ['Idempotency-Key' => 'k-case'],
+            body: '{"a":1}',
+            terminal: $this->jsonTerminal(500, []),
+        );
+
+        $this->assertSame('application/json', $replayed->getHeaderLine('Content-Type'),
+            'allowlisted header must be replayed regardless of original casing');
+        $this->assertSame('', $replayed->getHeaderLine('Set-Cookie'),
+            'non-allowlisted header must not be replayed');
+    }
+
     public function testSameKeyDoesNotReplayAcrossAuthorizationScopes(): void
     {
         $store = $this->makeFileStore();

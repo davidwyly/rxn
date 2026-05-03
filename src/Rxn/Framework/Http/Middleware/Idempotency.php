@@ -153,12 +153,21 @@ final class Idempotency implements MiddlewareInterface
      */
     private function filterReplayHeaders(array $headers): array
     {
+        // Build a lowercase-keyed index so allowlist matching is
+        // case-insensitive, mirroring PSR-7's case-insensitivity guarantee.
+        $normalized = [];
+        foreach ($headers as $name => $values) {
+            $normalized[strtolower($name)] = $values;
+        }
+
         $filtered = [];
         foreach ($this->replayHeaderAllowlist as $header) {
-            if (!isset($headers[$header])) {
+            $lower = strtolower($header);
+            if (!isset($normalized[$lower])) {
                 continue;
             }
-            $filtered[$header] = $headers[$header];
+            // Store under the allowlist's canonical casing.
+            $filtered[$header] = $normalized[$lower];
         }
         return $filtered;
     }
