@@ -91,7 +91,7 @@ $terminal = new class ($router) implements RequestHandlerInterface {
         }
 
         if (!is_finite($dto->price)) {
-            return $this->problem(422, 'Validation failed', ['price' => ['must be a finite number']]);
+            return $this->problem(422, 'Validation failed', [['field' => 'price', 'message' => 'must be a finite number']]);
         }
 
         return $this->json(
