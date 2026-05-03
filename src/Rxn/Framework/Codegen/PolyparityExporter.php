@@ -161,6 +161,12 @@ final class PolyparityExporter
     }
 
     /**
+     * Read the numeric bound from a `#[Min]` / `#[Max]` attribute's
+     * raw `getArguments()` payload. Returns the bound as int|float,
+     * or throws a clear `RuntimeException` for any input shape Binder
+     * would also reject (so the exporter and the runtime stay aligned
+     * on what's a "valid" attribute usage).
+     *
      * @param array<int|string, mixed> $args
      */
     private function requireBound(array $args, string $key, string $attr, string $propName): int|float
@@ -176,6 +182,20 @@ final class PolyparityExporter
             throw new \RuntimeException(
                 "PolyparityExporter: $attr on property '$propName' has no value; "
                 . "attribute requires a numeric bound."
+            );
+        }
+        if (!is_int($value) && !is_float($value)) {
+            // Min/Max constructors are typed `int|float`. With
+            // strict_types in those files, PHP rejects non-numeric
+            // inputs (including numeric strings like '5') at
+            // newInstance() time. Mirror that here with a clearer
+            // exporter-side message rather than letting PHP raise
+            // a TypeError on this method's return type.
+            $type = get_debug_type($value);
+            throw new \RuntimeException(
+                "PolyparityExporter: $attr on property '$propName' "
+                . "must be int|float, got $type. "
+                . "Binder's attribute constructor would reject this too."
             );
         }
         return $value;

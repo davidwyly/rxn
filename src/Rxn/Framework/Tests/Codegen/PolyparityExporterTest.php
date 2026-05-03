@@ -222,4 +222,17 @@ final class PolyparityExporterTest extends TestCase
         $yaml = (new PolyparityExporter())->emit(Fixture\EmptyLengthDto::class);
         $this->assertStringNotContainsString('length:', $yaml);
     }
+
+    public function testRejectsNonNumericMinBoundWithClearMessage(): void
+    {
+        // `#[Min('5')]` would also be rejected by Binder at
+        // newInstance() time (Min's int|float constructor under
+        // strict_types). The exporter must surface the same
+        // rejection with a clear message, not a return-type
+        // TypeError on the internal helper.
+        $exporter = new PolyparityExporter();
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/Min.*must be int\|float, got string/i');
+        $exporter->emit(Fixture\StringMinDto::class);
+    }
 }
