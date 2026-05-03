@@ -196,6 +196,9 @@ final class Router
         // are static) skip the regex walk entirely.
         $staticHit = $this->staticRoutes[$method][$path] ?? null;
         if ($staticHit !== null) {
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\RouteMatched($method, $staticHit->pattern, [])
+            );
             return [
                 'handler'     => $staticHit->handler,
                 'params'      => [],
@@ -216,6 +219,9 @@ final class Router
             foreach ($route->paramNames as $i => $name) {
                 $params[$name] = $matches[$i + 1];
             }
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\RouteMatched($method, $route->pattern, $params)
+            );
             return [
                 'handler'     => $route->handler,
                 'params'      => $params,

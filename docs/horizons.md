@@ -216,6 +216,31 @@ The framework already has PSR-14 wired ([`Rxn\Framework\Event\EventDispatcher`](
 Most frameworks make you bolt on OpenTelemetry + Prometheus +
 structured logging from three different libraries.
 
+### 2.0 Observability event surface — REALIZED
+
+See `Rxn\Framework\Observability\Events` (static dispatch slot)
+and `Rxn\Framework\Observability\Event\*` — eight first-party
+events: `RequestReceived` / `ResponseEmitted` (paired by id),
+`MiddlewareEntered` / `MiddlewareExited` (per-middleware brackets,
+exit fires even on throw), `RouteMatched` (template + params),
+`BinderInvoked` (with `path` tag for compile-cache hit ratio),
+`ValidationCompleted` (failures grouped by field name),
+`HandlerInvoked` (entered/exited brackets). Apps subscribe a
+single listener on the `FrameworkEvent` marker interface and
+receive the lot.
+
+**Cost reality:** ~250 LOC of framework code + 19 tests. No new
+dependencies — leans on the existing PSR-14 dispatcher /
+provider. Per-emit cost without a dispatcher installed is one
+null check (~5 ns); with a no-op listener, ~50 ns.
+
+**Status:** Shipped as the substrate for 2.1 (OTel) and 2.2
+(Prometheus). Both are listeners over the same channel; this
+layer makes them thin shims rather than full instrumentation
+projects.
+
+---
+
 ### 2.1 OpenTelemetry spans via PSR-14
 
 **Claim:** Every middleware, route, binder, validator emits an

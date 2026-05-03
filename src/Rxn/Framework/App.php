@@ -121,10 +121,19 @@ class App
         $method  = $request->getMethod();
         $path    = $request->getUri()->getPath();
 
+        $pairId = \Rxn\Framework\Observability\Events::newPairId();
+        \Rxn\Framework\Observability\Events::emit(
+            new \Rxn\Framework\Observability\Event\RequestReceived($pairId, $request)
+        );
+
         $hit = $router->match($method, $path);
         if ($hit === null) {
-            $status = $router->hasMethodMismatch($method, $path) ? 405 : 404;
-            \Rxn\Framework\Http\PsrAdapter::emit(self::psrProblem($status));
+            $status   = $router->hasMethodMismatch($method, $path) ? 405 : 404;
+            $response = self::psrProblem($status);
+            \Rxn\Framework\Http\PsrAdapter::emit($response);
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\ResponseEmitted($pairId, $response, null)
+            );
             return;
         }
 
@@ -135,7 +144,42 @@ class App
 
         $invoker ??= self::defaultHandlerInvoker(...);
 
-        $terminal = new class($hit, $invoker) implements \Psr\Http\Server\RequestHandlerInterface {
+        // Wrap the user invoker with HandlerInvoked entered/exited
+        // events. Same `$pairId` brackets the boundary; failures
+        // propagate so the pipeline sees the original exception.
+        $observingInvoker = static function (array $hit, \Psr\Http\Message\ServerRequestInterface $req) use ($invoker, $pairId): \Psr\Http\Message\ResponseInterface {
+            $handlerLabel = self::describeHandler($hit['handler'] ?? null);
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\HandlerInvoked(
+                    $pairId,
+                    \Rxn\Framework\Observability\Event\HandlerInvoked::STATE_ENTERED,
+                    $handlerLabel,
+                )
+            );
+            try {
+                $response = $invoker($hit, $req);
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\HandlerInvoked(
+                        $pairId,
+                        \Rxn\Framework\Observability\Event\HandlerInvoked::STATE_EXITED,
+                        $handlerLabel,
+                    )
+                );
+                return $response;
+            } catch (\Throwable $e) {
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\HandlerInvoked(
+                        $pairId,
+                        \Rxn\Framework\Observability\Event\HandlerInvoked::STATE_EXITED,
+                        $handlerLabel,
+                        $e,
+                    )
+                );
+                throw $e;
+            }
+        };
+
+        $terminal = new class($hit, $observingInvoker) implements \Psr\Http\Server\RequestHandlerInterface {
             /** @param callable(array, \Psr\Http\Message\ServerRequestInterface): \Psr\Http\Message\ResponseInterface $invoker */
             public function __construct(private array $hit, private $invoker) {}
 
@@ -145,7 +189,37 @@ class App
             }
         };
 
-        \Rxn\Framework\Http\PsrAdapter::emit($pipeline->run($request, $terminal));
+        $response = $pipeline->run($request, $terminal);
+
+        \Rxn\Framework\Http\PsrAdapter::emit($response);
+        \Rxn\Framework\Observability\Events::emit(
+            new \Rxn\Framework\Observability\Event\ResponseEmitted($pairId, $response)
+        );
+    }
+
+    /**
+     * Stringify a route handler for use as a span name. Closures
+     * become `"Closure"`; `[$obj, 'method']` becomes
+     * `"Class::method"`; `'Class::method'` strings pass through;
+     * anything else falls back to the gettype-style label.
+     */
+    private static function describeHandler(mixed $handler): string
+    {
+        if ($handler instanceof \Closure) {
+            return 'Closure';
+        }
+        if (is_array($handler) && count($handler) === 2) {
+            $obj = $handler[0];
+            $cls = is_object($obj) ? $obj::class : (is_string($obj) ? $obj : 'callable');
+            return $cls . '::' . (string) $handler[1];
+        }
+        if (is_string($handler) && $handler !== '') {
+            return $handler;
+        }
+        if (is_object($handler)) {
+            return $handler::class;
+        }
+        return 'callable';
     }
 
     /**

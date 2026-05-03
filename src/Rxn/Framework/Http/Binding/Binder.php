@@ -80,8 +80,35 @@ final class Binder
         // pre-compile, which is the whole point of profile-guided
         // dump: opcache memory pays only for hot DTOs.
         if (isset(self::$compiledCache[$class])) {
-            return (self::$compiledCache[$class])($source ?? self::gatherBag());
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\BinderInvoked(
+                    $class,
+                    \Rxn\Framework\Observability\Event\BinderInvoked::PATH_COMPILED,
+                )
+            );
+            try {
+                $dto = (self::$compiledCache[$class])($source ?? self::gatherBag());
+            } catch (ValidationException $e) {
+                \Rxn\Framework\Observability\Events::emit(
+                    new \Rxn\Framework\Observability\Event\ValidationCompleted(
+                        $class,
+                        self::groupValidationFailures($e->errors()),
+                    )
+                );
+                throw $e;
+            }
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\ValidationCompleted($class, [])
+            );
+            return $dto;
         }
+
+        \Rxn\Framework\Observability\Events::emit(
+            new \Rxn\Framework\Observability\Event\BinderInvoked(
+                $class,
+                \Rxn\Framework\Observability\Event\BinderInvoked::PATH_RUNTIME,
+            )
+        );
 
         $bag = $source ?? self::gatherBag();
         $ref = new \ReflectionClass($class);
@@ -137,9 +164,38 @@ final class Binder
         }
 
         if ($errors !== []) {
+            \Rxn\Framework\Observability\Events::emit(
+                new \Rxn\Framework\Observability\Event\ValidationCompleted(
+                    $class,
+                    self::groupValidationFailures($errors),
+                )
+            );
             throw new ValidationException($errors);
         }
+        \Rxn\Framework\Observability\Events::emit(
+            new \Rxn\Framework\Observability\Event\ValidationCompleted($class, [])
+        );
         return $dto;
+    }
+
+    /**
+     * Reshape `[{field, message}, ...]` (the `ValidationException`
+     * format) into `[field => list<message>]` (the
+     * `ValidationCompleted` event format). One field can fail
+     * multiple rules (e.g. min + pattern); the event groups by
+     * field so listeners can label metrics by field name without
+     * post-processing.
+     *
+     * @param  list<array{field: string, message: string}> $errors
+     * @return array<string, list<string>>
+     */
+    private static function groupValidationFailures(array $errors): array
+    {
+        $grouped = [];
+        foreach ($errors as $err) {
+            $grouped[$err['field']][] = $err['message'];
+        }
+        return $grouped;
     }
 
     /**
