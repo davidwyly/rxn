@@ -2,9 +2,11 @@
 
 namespace Rxn\Framework;
 
+use \Psr\Container\ContainerInterface;
 use \Rxn\Framework\Error\ContainerException;
+use \Rxn\Framework\Error\ContainerNotFoundException;
 
-class Container
+class Container implements ContainerInterface
 {
     /**
      * @var array $instances
@@ -50,7 +52,7 @@ class Container
     /**
      * Pre-computed construction recipe per class. Each entry is a
      * directive describing how to fill the corresponding constructor
-     * parameter slot — `['autowire', $class]`, `['default', $value]`,
+     * parameter slot — `['autowire', $class]`, `['default']`,
      * `['null']`, or `['fail', $param_name]`. `null` cache entry
      * means "no constructor; use newInstanceWithoutConstructor".
      *
@@ -58,7 +60,7 @@ class Container
      * Reflection*Parameter call after the first resolution, which
      * is where the bulk of the autowire cost lives.
      *
-     * @var array<string, list<array{0: string, 1?: mixed}>|null>
+     * @var array<string, list<array{0: string, 1?: string}>|null>
      */
     private static array $constructorPlanCache = [];
 
@@ -103,13 +105,28 @@ class Container
     }
 
     /**
-     * @param string $class_name
-     * @param array  $parameters
+     * Resolve and return an entry from the container.
      *
-     * @return object
+     * PSR-11 conformance: signature `get(string $id): mixed`
+     * accepts any string id and returns whatever the entry
+     * resolves to — which for Rxn is always an object, since
+     * autowiring is class-driven. Throws
+     * `ContainerNotFoundException` (PSR-11
+     * `NotFoundExceptionInterface`) when the id doesn't resolve
+     * to a known entry, and the broader `ContainerException`
+     * (PSR-11 `ContainerExceptionInterface`) for other resolution
+     * failures (circular dependency, malformed binding,
+     * unconstrained constructor parameter).
+     *
+     * The optional `$parameters` array is non-PSR — Rxn-specific
+     * sugar for "construct with these constructor args, but
+     * autowire anything I didn't supply." Third-party PSR-11
+     * consumers won't pass it.
+     *
+     * @return mixed
      * @throws ContainerException
      */
-    public function get($class_name, array $parameters = [])
+    public function get(string $class_name, array $parameters = []): mixed
     {
         // change every namespace to be absolute
         $class_name = $this->parseClassName($class_name);
@@ -138,16 +155,23 @@ class Container
         }
 
         if (!class_exists($class_name)) {
-            throw new ContainerException("$class_name is not a valid class name");
+            // PSR-11 distinguishes "no such entry" from other
+            // resolution failures. Subclass of ContainerException
+            // so existing code that catches the broader type
+            // continues to work.
+            throw new ContainerNotFoundException("$class_name is not a valid class name");
         }
 
         // Canonicalise to the declared class casing so process-lifetime
         // caches don't grow with case-variant aliases of the same class.
         $class_name = $this->parseClassName(self::reflectionFor($class_name)->getName());
 
-        // if we already stored an instance of a statically-bound service class, return it
+        // if we already stored an instance of a statically-bound service class, return it.
+        // Direct isset rather than has() — PSR-11 has() now reports
+        // "constructible" (class_exists), which is a different thing
+        // from "have we cached an instance".
         if (self::isService($class_name)
-            && self::has($class_name)
+            && isset($this->instances[$class_name])
         ) {
             return $this->instances[$class_name];
         }
@@ -228,7 +252,8 @@ class Container
                     $create_parameters[$key] = $this->get($directive[1]);
                     break;
                 case 'default':
-                    $create_parameters[$key] = $directive[1];
+                    $constructor = self::reflectionFor($class_name)->getConstructor();
+                    $create_parameters[$key] = $constructor->getParameters()[$key]->getDefaultValue();
                     break;
                 case 'null':
                     $create_parameters[$key] = null;
@@ -262,6 +287,34 @@ class Container
     private static array $factoryCache = [];
 
     /**
+     * Thin alias over `Rxn\Framework\Codegen\DumpCache::useDir()`.
+     * Kept for the focused "configure the container's dump cache"
+     * call site; apps configuring multiple components (Container
+     * + Binder) typically just call `DumpCache::useDir()` once.
+     */
+    public static function useCacheDir(?string $dir): void
+    {
+        \Rxn\Framework\Codegen\DumpCache::useDir($dir);
+    }
+
+    public static function cacheDir(): ?string
+    {
+        return \Rxn\Framework\Codegen\DumpCache::dir();
+    }
+
+    /**
+     * Drop the in-memory factory cache plus every dumped `*.php`
+     * file. Other components sharing the same dump dir (Binder)
+     * have their files purged too — a single cache dir holds
+     * everything.
+     */
+    public static function clearCache(): void
+    {
+        self::$factoryCache = [];
+        \Rxn\Framework\Codegen\DumpCache::purgeFiles();
+    }
+
+    /**
      * Generate `static fn (Container $c) => new $class($c->get(...), ...)`
      * for `$class_name`, given the already-compiled directive plan.
      * Returns null when any directive is a `'fail'` (the runtime
@@ -281,8 +334,10 @@ class Container
                     $args[] = '$c->get(' . self::quoteString($directive[1]) . ')';
                     break;
                 case 'default':
-                    $args[] = var_export($directive[1], true);
-                    break;
+                    // Defaults can include object-creating expressions
+                    // (e.g. `= new Bag`) and must be evaluated per
+                    // constructor call. Fall back to runtime path.
+                    return null;
                 case 'null':
                     $args[] = 'null';
                     break;
@@ -296,9 +351,10 @@ class Container
         }
         $argList = implode(', ', $args);
         $literal = '\\' . ltrim($class_name, '\\');
-        $code = "return static fn (\\Rxn\\Framework\\Container \$c) => new $literal($argList);";
-        /** @var \Closure(self): object $closure */
-        $closure = eval($code);
+        $body = "return static fn (\\Rxn\\Framework\\Container \$c) => new $literal($argList);";
+
+        $closure = \Rxn\Framework\Codegen\DumpCache::load($body) ?? eval($body);
+
         if (!$closure instanceof \Closure) {
             throw new \RuntimeException("Container: failed to compile factory for $class_name");
         }
@@ -328,6 +384,14 @@ class Container
         }
         $plan = [];
         foreach ($constructor->getParameters() as $p) {
+            if ($p->isDefaultValueAvailable()) {
+                $plan[] = ['default'];
+                continue;
+            }
+            if ($p->allowsNull()) {
+                $plan[] = ['null'];
+                continue;
+            }
             $type = $p->getType();
             if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
                 // Pre-normalise the target FQCN so recursive
@@ -337,30 +401,45 @@ class Container
                 $plan[] = ['autowire', $normalised];
                 continue;
             }
-            if ($p->isDefaultValueAvailable()) {
-                $plan[] = ['default', $p->getDefaultValue()];
-                continue;
-            }
-            if ($p->allowsNull()) {
-                $plan[] = ['null'];
-                continue;
-            }
             $plan[] = ['fail', $p->getName()];
         }
         return self::$constructorPlanCache[$class_name] = $plan;
     }
 
     /**
-     * @param $class_name
+     * PSR-11 `has()`: return true iff `get($id)` would resolve
+     * without throwing.
      *
-     * @return bool
+     * Rxn's container autowires any constructible class, so for a
+     * class-string identifier this is equivalent to "class exists,
+     * isn't abstract, and isn't already failing as a binding."
+     * We also short-circuit on the self-lookup key, declared
+     * bindings, and the instance cache so the lookup is O(1) for
+     * the hot paths.
+     *
+     * Doesn't catch circular-dependency failures — those are
+     * detectable only at construction time. PSR-11 explicitly
+     * permits this.
      */
-    public function has($class_name)
+    public function has(string $id): bool
     {
+        $class_name = $this->parseClassName($id);
+        if ($class_name === self::SELF_KEY) {
+            return true;
+        }
+        if (isset($this->bindings[$class_name])) {
+            return true;
+        }
         if (isset($this->instances[$class_name])) {
             return true;
         }
-        return false;
+        if (!class_exists($class_name)) {
+            return false;
+        }
+        // Abstract classes satisfy class_exists() but cannot be
+        // instantiated by the autowirer, so get() would throw.
+        // has() must only return true when get() would succeed.
+        return !self::reflectionFor($class_name)->isAbstract();
     }
 
     private function parseClassName($class_name)

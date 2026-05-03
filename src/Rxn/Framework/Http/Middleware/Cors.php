@@ -2,18 +2,21 @@
 
 namespace Rxn\Framework\Http\Middleware;
 
-use Rxn\Framework\Http\Middleware;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
+use Nyholm\Psr7\Response as Psr7Response;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 
 /**
- * Cross-Origin Resource Sharing middleware. Emits the standard
- * Access-Control-* headers and short-circuits preflight (OPTIONS)
- * requests with a 204 before they reach the controller.
+ * Cross-Origin Resource Sharing middleware. Adds the standard
+ * Access-Control-* headers to every response and short-circuits
+ * preflight (OPTIONS) requests with a 204 before they reach the
+ * downstream handler.
  *
- * Configured once at pipeline assembly time; every response gets the
- * same allow-origin treatment. For per-route overrides, attach a
- * second Cors instance at the route level.
+ * Configured once at pipeline assembly time; every response gets
+ * the same allow-origin treatment. For per-route overrides, attach
+ * a second Cors instance at the route level.
  *
  *   new Cors(
  *       allowOrigins: ['https://app.example.com'],
@@ -26,7 +29,7 @@ use Rxn\Framework\Http\Response;
  * opt-in (allowCredentials) and silently ignored when the origin is
  * the wildcard — browsers reject that combination anyway.
  */
-final class Cors implements Middleware
+final class Cors implements MiddlewareInterface
 {
     /** @var string[] */
     private array $allowOrigins;
@@ -36,17 +39,11 @@ final class Cors implements Middleware
     private array $allowHeaders;
     private int $maxAge;
     private bool $allowCredentials;
-    /** @var callable(string): void */
-    private $emitHeader;
-    /** @var callable(int): void */
-    private $emitStatus;
 
     /**
-     * @param string[]       $allowOrigins     list of origins, or ['*']
-     * @param string[]       $allowMethods
-     * @param string[]       $allowHeaders
-     * @param ?callable      $emitHeader       injected for testability
-     * @param ?callable      $emitStatus       injected for testability
+     * @param string[] $allowOrigins list of origins, or ['*']
+     * @param string[] $allowMethods
+     * @param string[] $allowHeaders
      */
     public function __construct(
         array $allowOrigins = ['*'],
@@ -54,50 +51,46 @@ final class Cors implements Middleware
         array $allowHeaders = ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID'],
         int $maxAge = 600,
         bool $allowCredentials = false,
-        ?callable $emitHeader = null,
-        ?callable $emitStatus = null
     ) {
         $this->allowOrigins     = $allowOrigins;
         $this->allowMethods     = $allowMethods;
         $this->allowHeaders     = $allowHeaders;
         $this->maxAge           = $maxAge;
         $this->allowCredentials = $allowCredentials;
-        $this->emitHeader       = $emitHeader ?? static fn (string $h) => header($h);
-        $this->emitStatus       = $emitStatus ?? static fn (int $code) => http_response_code($code);
     }
 
-    public function handle(Request $request, callable $next): Response
-    {
-        $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
-
-        $this->emitCorsHeaders($origin);
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+    ): ResponseInterface {
+        $origin = $request->getHeaderLine('Origin');
+        $method = strtoupper($request->getMethod());
 
         if ($method === 'OPTIONS') {
-            ($this->emitStatus)(204);
-            $response = new Response($request);
-            $response->setRendered(true);
-            return $response;
+            return $this->withCorsHeaders(new Psr7Response(204), $origin);
         }
 
-        return $next($request);
+        $response = $handler->handle($request);
+        return $this->withCorsHeaders($response, $origin);
     }
 
-    private function emitCorsHeaders(string $origin): void
+    private function withCorsHeaders(ResponseInterface $response, string $origin): ResponseInterface
     {
         $allowed = $this->resolveOrigin($origin);
         if ($allowed !== null) {
-            ($this->emitHeader)("Access-Control-Allow-Origin: $allowed");
+            $response = $response->withHeader('Access-Control-Allow-Origin', $allowed);
             if ($allowed !== '*') {
-                ($this->emitHeader)('Vary: Origin');
+                $response = $response->withAddedHeader('Vary', 'Origin');
             }
         }
-        ($this->emitHeader)('Access-Control-Allow-Methods: ' . implode(', ', $this->allowMethods));
-        ($this->emitHeader)('Access-Control-Allow-Headers: ' . implode(', ', $this->allowHeaders));
-        ($this->emitHeader)("Access-Control-Max-Age: {$this->maxAge}");
+        $response = $response
+            ->withHeader('Access-Control-Allow-Methods', implode(', ', $this->allowMethods))
+            ->withHeader('Access-Control-Allow-Headers', implode(', ', $this->allowHeaders))
+            ->withHeader('Access-Control-Max-Age', (string)$this->maxAge);
         if ($this->allowCredentials && $allowed !== null && $allowed !== '*') {
-            ($this->emitHeader)('Access-Control-Allow-Credentials: true');
+            $response = $response->withHeader('Access-Control-Allow-Credentials', 'true');
         }
+        return $response;
     }
 
     private function resolveOrigin(string $origin): ?string

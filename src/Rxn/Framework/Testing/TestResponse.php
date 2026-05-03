@@ -3,48 +3,54 @@
 namespace Rxn\Framework\Testing;
 
 use PHPUnit\Framework\Assert;
-use Rxn\Framework\Http\Response;
+use Psr\Http\Message\ResponseInterface;
 
 /**
- * Fluent wrapper around a Rxn Response with assertion helpers that
- * integrate with PHPUnit's failure machinery. Each assert* returns
- * $this so tests read as a single chained expression.
+ * Fluent wrapper around a PSR-7 ResponseInterface with assertion
+ * helpers that integrate with PHPUnit's failure machinery. Each
+ * assert* returns $this so tests read as a single chained
+ * expression.
  *
  *   $client->get('/products/42')
  *          ->assertOk()
  *          ->assertJsonPath('data.email', 'ada@example.com')
  *          ->assertJsonStructure(['data' => ['id', 'email']]);
  *
- * Wraps — doesn't replace — the underlying Response, which is
- * available via `response()` for escape-hatch assertions.
+ * Wraps — doesn't replace — the underlying ResponseInterface, which
+ * is available via `response()` for escape-hatch assertions.
  */
 final class TestResponse
 {
-    public function __construct(private Response $response) {}
+    public function __construct(private ResponseInterface $response) {}
 
-    public function response(): Response
+    public function response(): ResponseInterface
     {
         return $this->response;
     }
 
     public function status(): int
     {
-        return (int)($this->response->getCode() ?? Response::DEFAULT_SUCCESS_CODE);
+        return $this->response->getStatusCode();
     }
 
     /** @return mixed */
     public function data()
     {
-        return $this->response->data;
+        $json = $this->json();
+        return $json['data'] ?? null;
     }
 
     /** @return array<string, mixed> */
     public function json(): array
     {
-        if ($this->response->isError()) {
-            return $this->response->toProblemDetails();
+        $body = (string)$this->response->getBody();
+        if ($this->response->getBody()->isSeekable()) {
+            $this->response->getBody()->rewind();
         }
-        $decoded = json_decode($this->response->toJson(), true);
+        if ($body === '') {
+            return [];
+        }
+        $decoded = json_decode($body, true);
         return is_array($decoded) ? $decoded : [];
     }
 
@@ -87,6 +93,17 @@ final class TestResponse
     public function assertJsonStructure(array $expected): self
     {
         $this->assertStructure($expected, $this->json(), '');
+        return $this;
+    }
+
+    /**
+     * Assert that the response carries a header with the given
+     * value (case-insensitive header name match).
+     */
+    public function assertHeader(string $name, string $expected): self
+    {
+        $actual = $this->response->getHeaderLine($name);
+        Assert::assertSame($expected, $actual, "Header '$name' mismatch");
         return $this;
     }
 

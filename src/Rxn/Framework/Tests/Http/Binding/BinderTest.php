@@ -3,8 +3,10 @@
 namespace Rxn\Framework\Tests\Http\Binding;
 
 use PHPUnit\Framework\TestCase;
+use Rxn\Framework\Codegen\DumpCache;
 use Rxn\Framework\Http\Binding\Binder;
 use Rxn\Framework\Http\Binding\ValidationException;
+use Rxn\Framework\Tests\Http\Binding\Fixture\Address;
 use Rxn\Framework\Tests\Http\Binding\Fixture\CreateProduct;
 
 final class BinderTest extends TestCase
@@ -273,5 +275,204 @@ final class BinderTest extends TestCase
         $a = Binder::compileFor(CreateProduct::class);
         $b = Binder::compileFor(CreateProduct::class);
         $this->assertSame($a, $b);
+    }
+
+    public function testBindRequestUsesParsedBodyWhenSet(): void
+    {
+        // JsonBody middleware (or any PSR-15 body parser) sets
+        // parsedBody on the request. bindRequest must read from
+        // there — no globals in play.
+        $request = (new \Nyholm\Psr7\ServerRequest('POST', 'http://test.local/?foo=bar'))
+            ->withQueryParams(['foo' => 'bar'])
+            ->withParsedBody(['name' => 'widget', 'price' => 999]);
+
+        $dto = Binder::bindRequest(CreateProduct::class, $request);
+        $this->assertSame('widget', $dto->name);
+        $this->assertSame(999, $dto->price);
+    }
+
+    public function testBindRequestDecodesJsonBodyInlineWhenNoMiddleware(): void
+    {
+        // No JsonBody middleware ran → parsedBody is null.
+        // bindRequest must still bind by decoding the raw body
+        // when Content-Type says application/json. Closes the
+        // implicit dependency on JsonBody having run.
+        $body = json_encode(['name' => 'inline', 'price' => 500]);
+        $request = new \Nyholm\Psr7\ServerRequest(
+            'POST',
+            'http://test.local/',
+            ['Content-Type' => 'application/json'],
+            $body,
+        );
+
+        $dto = Binder::bindRequest(CreateProduct::class, $request);
+        $this->assertSame('inline', $dto->name);
+        $this->assertSame(500, $dto->price);
+    }
+
+    public function testBindRequestQueryParamsAreOverriddenByBody(): void
+    {
+        // Match gatherBag's existing precedence (GET → POST, body wins).
+        $request = (new \Nyholm\Psr7\ServerRequest('POST', 'http://test.local/?name=fromQuery'))
+            ->withQueryParams(['name' => 'fromQuery'])
+            ->withParsedBody(['name' => 'fromBody', 'price' => 1]);
+
+        $dto = Binder::bindRequest(CreateProduct::class, $request);
+        $this->assertSame('fromBody', $dto->name);
+    }
+
+    public function testGatherFromRequestEmptyBodyReturnsQueryOnly(): void
+    {
+        $request = (new \Nyholm\Psr7\ServerRequest('GET', 'http://test.local/?a=1&b=two'))
+            ->withQueryParams(['a' => '1', 'b' => 'two']);
+
+        $bag = Binder::gatherFromRequest($request);
+        $this->assertSame(['a' => '1', 'b' => 'two'], $bag);
+    }
+
+    public function testGatherFromRequestIgnoresNonJsonBody(): void
+    {
+        // Form-encoded body without parsedBody set → not the
+        // binder's problem. Returns just the query bag.
+        $request = (new \Nyholm\Psr7\ServerRequest(
+            'POST',
+            'http://test.local/?q=1',
+            ['Content-Type' => 'application/x-www-form-urlencoded'],
+            'name=ada',
+        ))->withQueryParams(['q' => '1']);
+
+        $bag = Binder::gatherFromRequest($request);
+        $this->assertSame(['q' => '1'], $bag);
+    }
+
+    // -------- dump path (Tier B) --------
+
+    private string $dumpDir = '';
+
+    protected function setUp(): void
+    {
+        $this->dumpDir = sys_get_temp_dir() . '/rxn-binder-dump-' . bin2hex(random_bytes(4));
+        @mkdir($this->dumpDir, 0770, true);
+    }
+
+    protected function tearDown(): void
+    {
+        DumpCache::useDir(null);
+        Binder::clearCache();
+        if ($this->dumpDir !== '' && is_dir($this->dumpDir)) {
+            foreach (glob($this->dumpDir . '/*') ?: [] as $f) {
+                @unlink($f);
+            }
+            @rmdir($this->dumpDir);
+        }
+    }
+
+    /**
+     * Note: the dump path applies to `Binder::compileFor()` — the
+     * eval-compiled fast path. The default `Binder::bind()` is a
+     * runtime Reflection walker that never goes through eval, so
+     * tier-B's dump cache doesn't touch it. Apps that need the
+     * preload story call `compileFor()` and use the closure
+     * directly.
+     */
+    public function testCompiledBinderIsDumpedToFileWhenCacheDirSet(): void
+    {
+        DumpCache::useDir($this->dumpDir);
+        Binder::clearCache();
+
+        $bind = Binder::compileFor(CreateProduct::class);
+        $dto  = $bind(['name' => 'Widget', 'price' => '99']);
+        $this->assertSame('Widget', $dto->name);
+        $this->assertSame(99, $dto->price);
+
+        $files = glob($this->dumpDir . '/*.php') ?: [];
+        $this->assertNotEmpty($files, 'compiled binder should have dumped to disk');
+        $contents = file_get_contents($files[0]);
+        $this->assertStringStartsWith("<?php\n", $contents);
+        // The dumped file always opens with a `$validators = [...]`
+        // prelude so the closure's `use ($validators)` capture
+        // resolves at require time.
+        $this->assertStringContainsString('$validators = [', $contents);
+        $this->assertStringContainsString('CreateProduct', $contents);
+    }
+
+    public function testDumpedBinderForDtoWithSideTableValidatorReconstructsValidators(): void
+    {
+        DumpCache::useDir($this->dumpDir);
+        Binder::clearCache();
+
+        // Cold-compile via the dump path. CountryCode is non-
+        // inlinable, so it goes through the side-table branch —
+        // the dumped file has to reconstruct it as
+        // `new \...\CountryCode(allowed: [...], message: '...')`.
+        $bind = Binder::compileFor(Address::class);
+        $dto  = $bind(['line1' => '123 Main St', 'country' => 'CA']);
+        $this->assertSame('CA', $dto->country);
+
+        $files = glob($this->dumpDir . '/*.php') ?: [];
+        $this->assertNotEmpty($files);
+        $contents = file_get_contents($files[0]);
+        // Pin the exact expression shape — named args, escaped FQCN,
+        // var_export'd literals.
+        $this->assertStringContainsString(
+            "new \\Rxn\\Framework\\Tests\\Http\\Binding\\Fixture\\CountryCode(allowed: array",
+            $contents,
+        );
+        $this->assertStringContainsString(
+            "message: 'must be a North American country'",
+            $contents,
+        );
+    }
+
+    public function testDumpedBinderRejectsBadCountryCode(): void
+    {
+        DumpCache::useDir($this->dumpDir);
+        Binder::clearCache();
+
+        $bind = Binder::compileFor(Address::class);
+        $this->expectException(ValidationException::class);
+        $bind(['line1' => '123 Main St', 'country' => 'FR']);  // not in allow-list
+    }
+
+    public function testDumpedBinderReusesExistingFileOnSecondLoad(): void
+    {
+        DumpCache::useDir($this->dumpDir);
+        Binder::clearCache();
+
+        $bind1 = Binder::compileFor(CreateProduct::class);
+        $bind1(['name' => 'A', 'price' => '1']);
+
+        $files1 = glob($this->dumpDir . '/*.php') ?: [];
+        $this->assertCount(1, $files1);
+        $mtime1 = filemtime($files1[0]);
+
+        // Wipe in-memory compiled cache only — file on disk stays.
+        $ref = new \ReflectionClass(Binder::class);
+        $cacheProp = $ref->getProperty('compiledCache');
+        $cacheProp->setAccessible(true);
+        $cacheProp->setValue(null, []);
+
+        clearstatcache();
+        $bind2 = Binder::compileFor(CreateProduct::class);
+        $bind2(['name' => 'C', 'price' => '3']);
+
+        clearstatcache();
+        $files2 = glob($this->dumpDir . '/*.php') ?: [];
+        $this->assertSame($files1, $files2, 'no new file should appear on second load');
+        $this->assertSame($mtime1, filemtime($files2[0]));
+    }
+
+    public function testCompileForFallsBackToEvalWhenDumpCacheNotSet(): void
+    {
+        DumpCache::useDir(null);
+        Binder::clearCache();
+
+        $bind = Binder::compileFor(CreateProduct::class);
+        $dto  = $bind(['name' => 'NoFile', 'price' => '1']);
+        $this->assertSame('NoFile', $dto->name);
+        $this->assertEmpty(
+            glob($this->dumpDir . '/*.php') ?: [],
+            'no files should land in the dump dir when DumpCache is not configured',
+        );
     }
 }

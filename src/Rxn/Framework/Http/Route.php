@@ -2,6 +2,8 @@
 
 namespace Rxn\Framework\Http;
 
+use Psr\Http\Server\MiddlewareInterface;
+
 /**
  * Handle returned by Router::add() (and the verb helpers). Mutates
  * in place; callers can chain name() and middleware() to attach
@@ -9,7 +11,7 @@ namespace Rxn\Framework\Http;
  */
 final class Route
 {
-    /** @var Middleware[] */
+    /** @var MiddlewareInterface[] */
     private array $middlewares = [];
     private ?string $name = null;
 
@@ -34,7 +36,7 @@ final class Route
         return $this;
     }
 
-    public function middleware(Middleware ...$middlewares): self
+    public function middleware(MiddlewareInterface ...$middlewares): self
     {
         foreach ($middlewares as $m) {
             $this->middlewares[] = $m;
@@ -47,7 +49,7 @@ final class Route
         return $this->name;
     }
 
-    /** @return Middleware[] */
+    /** @return MiddlewareInterface[] */
     public function getMiddlewares(): array
     {
         return $this->middlewares;

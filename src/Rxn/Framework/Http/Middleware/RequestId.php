@@ -2,9 +2,10 @@
 
 namespace Rxn\Framework\Http\Middleware;
 
-use Rxn\Framework\Http\Middleware;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 
 /**
  * Assigns every request a correlation id — either honouring an
@@ -15,23 +16,23 @@ use Rxn\Framework\Http\Response;
  * Downstream code (Logger, controllers) can read the current id via
  * `RequestId::current()`; null means the middleware never ran.
  */
-final class RequestId implements Middleware
+final class RequestId implements MiddlewareInterface
 {
     private static ?string $current = null;
 
-    /** @var callable(string): void */
-    private $emitHeader;
-
-    public function __construct(?callable $emitHeader = null)
-    {
-        $this->emitHeader = $emitHeader ?? static fn (string $h) => header($h);
-    }
-
-    public function handle(Request $request, callable $next): Response
-    {
-        self::$current = $this->resolveIncomingId() ?? self::generateUuid();
-        ($this->emitHeader)('X-Request-ID: ' . self::$current);
-        return $next($request);
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+    ): ResponseInterface {
+        self::$current = $this->resolveIncomingId($request) ?? self::generateUuid();
+        try {
+            $response = $handler->handle($request);
+        } finally {
+            // Don't clear $current here — downstream code (Logger)
+            // can still read it during response rendering. It's
+            // cleared at the next request via reassignment.
+        }
+        return $response->withHeader('X-Request-ID', self::$current);
     }
 
     /**
@@ -56,10 +57,10 @@ final class RequestId implements Middleware
         );
     }
 
-    private function resolveIncomingId(): ?string
+    private function resolveIncomingId(ServerRequestInterface $request): ?string
     {
-        $raw = $_SERVER['HTTP_X_REQUEST_ID'] ?? '';
-        if ($raw === '' || !is_string($raw)) {
+        $raw = $request->getHeaderLine('X-Request-ID');
+        if ($raw === '') {
             return null;
         }
         // Accept 8..128 chars of URL-safe content. Reject anything

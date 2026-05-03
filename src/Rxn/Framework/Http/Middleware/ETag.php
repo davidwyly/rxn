@@ -2,67 +2,56 @@
 
 namespace Rxn\Framework\Http\Middleware;
 
-use Rxn\Framework\Http\Middleware;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
+use Nyholm\Psr7\Response as Psr7Response;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 
 /**
  * Conditional-GET support via weak ETags. After the downstream
- * pipeline returns, hash the action payload (the envelope's `data`,
- * not the whole envelope — per-request meta like elapsed_ms would
- * otherwise invalidate every cache entry) and emit it as the ETag.
- * If the client's `If-None-Match` matches, short-circuit to a 304
- * Not Modified with no body.
+ * handler returns, hash the response body and emit it as the ETag.
+ * If the client's `If-None-Match` matches, short-circuit to a
+ * 304 Not Modified with no body.
  *
  * Only applies to idempotent, successful reads (GET / HEAD with a
  * 200 response); everything else passes through unchanged. Matches
  * the behaviour most CDNs and gateways already expect from an
  * origin, so upstream caches + this middleware compose cleanly.
+ *
+ * Hashes the body bytes directly — under the JSON envelope shape
+ * the framework emits, that includes the per-request `meta` block
+ * (`elapsed_ms`, etc.). Callers that care should reset that block
+ * via a downstream middleware before ETag, or set
+ * `If-None-Match: *` semantics elsewhere.
  */
-final class ETag implements Middleware
+final class ETag implements MiddlewareInterface
 {
-    /** @var callable(string): void */
-    private $emitHeader;
-    /** @var callable(int): void */
-    private $emitStatus;
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+    ): ResponseInterface {
+        $response = $handler->handle($request);
 
-    public function __construct(
-        ?callable $emitHeader = null,
-        ?callable $emitStatus = null
-    ) {
-        $this->emitHeader = $emitHeader ?? static fn (string $h) => header($h);
-        $this->emitStatus = $emitStatus ?? static fn (int $c) => http_response_code($c);
-    }
-
-    public function handle(Request $request, callable $next): Response
-    {
-        $response = $next($request);
-
-        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        $method = strtoupper($request->getMethod());
         if ($method !== 'GET' && $method !== 'HEAD') {
             return $response;
         }
-        $code = $response->getCode();
-        if ($code !== null && (int)$code !== 200) {
-            return $response;
-        }
-        if ($response->data === null) {
+        if ($response->getStatusCode() !== 200) {
             return $response;
         }
 
-        $body = json_encode($response->data, JSON_UNESCAPED_SLASHES);
-        if ($body === false) {
+        $body = (string)$response->getBody();
+        if ($body === '') {
             return $response;
         }
         $etag = 'W/"' . substr(sha1($body), 0, 16) . '"';
-        ($this->emitHeader)('ETag: ' . $etag);
 
-        $inm = (string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '');
+        $inm = $request->getHeaderLine('If-None-Match');
         if ($inm !== '' && self::matches($inm, $etag)) {
-            ($this->emitStatus)(304);
-            return Response::notModified();
+            return new Psr7Response(304, ['ETag' => $etag]);
         }
-        return $response;
+        return $response->withHeader('ETag', $etag);
     }
 
     /**

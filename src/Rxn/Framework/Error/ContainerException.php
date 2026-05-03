@@ -2,4 +2,6 @@
 
 namespace Rxn\Framework\Error;
 
-class ContainerException extends CoreException {}
+use Psr\Container\ContainerExceptionInterface;
+
+class ContainerException extends CoreException implements ContainerExceptionInterface {}
