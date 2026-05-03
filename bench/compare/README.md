@@ -10,7 +10,8 @@ The harness lives in `bench/compare/`:
 ```
 bench/compare/
 ├── apps/
-│   ├── rxn/public/index.php       # Router + Binder, no App::run
+│   ├── rxn/public/index.php       # Router + Binder, native ingress
+│   ├── rxn-psr7/public/index.php  # same Router + Binder, PSR-7/15 ingress
 │   ├── slim/{composer.json, public/index.php}
 │   ├── symfony/{composer.json, public/index.php}
 │   └── raw/public/index.php       # baseline, no framework
@@ -19,6 +20,16 @@ bench/compare/
 ├── flexibility.md                 # feature matrix
 └── results/                       # gitignored; markdown reports go here
 ```
+
+`rxn` and `rxn-psr7` are the same framework with the same Router
+and the same Binder — they differ only at ingress and egress.
+`rxn` reads `$_SERVER` / `php://input` directly and emits with
+`echo` + `header()`; `rxn-psr7` builds a PSR-7 ServerRequest via
+`PsrAdapter::serverRequestFromGlobals`, threads through
+`Pipeline` (PSR-15-native since the framework's middleware contract
+flipped to PSR-15), and emits via `PsrAdapter::emit`. The pair
+isolates the per-request cost of going PSR-7-native end-to-end —
+see `bench/ab/experiments/2026-05-01-psr7-end-to-end.md`.
 
 Every app exposes the **same three routes** (four cases, since POST
 exercises both the success and 422 paths):

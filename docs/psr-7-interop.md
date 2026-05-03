@@ -1,5 +1,21 @@
 # PSR-7 / PSR-15 interop
 
+> **Status (2026-05-01):** This page predates the PSR-15 native
+> migration on `experiment/psr-7-refactor`. After that branch
+> lands, the framework is **PSR-15-native end-to-end** — one
+> `Pipeline`, one `MiddlewareInterface` (PSR-15), all eight
+> shipped middlewares migrated, PSR-7 ingress via
+> `PsrAdapter::serverRequestFromGlobals` as the default. The "two
+> stacks" framing below describes the previous shape (native +
+> PSR-15 escape hatch); the bench evidence for the *ingress* cost
+> was re-measured end-to-end and PSR-7 won by 9–14% on
+> binder-driven cells (see
+> `bench/ab/experiments/2026-05-01-psr7-end-to-end.md`). This
+> document needs a rewrite once the branch merges; it's left in
+> place for now because the cost analysis (immutable builder,
+> clone-chain, JSON-only narrowing) is still the right framing
+> for *why* you'd want a fast-path ingress.
+
 Rxn is **PSR-15-bridged, not PSR-7-native**, deliberately. This is
 the most-questioned design decision in the framework, so this
 document is its receipts.

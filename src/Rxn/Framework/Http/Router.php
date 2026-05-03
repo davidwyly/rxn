@@ -182,7 +182,7 @@ final class Router
     /**
      * Find the first route that matches (method, path).
      *
-     * @return array{handler: mixed, params: array<string, string>, pattern: string, name: ?string, middlewares: Middleware[]}|null
+     * @return array{handler: mixed, params: array<string, string>, pattern: string, name: ?string, middlewares: \Psr\Http\Server\MiddlewareInterface[]}|null
      */
     public function match(string $method, string $path): ?array
     {

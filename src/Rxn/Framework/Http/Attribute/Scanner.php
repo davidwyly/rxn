@@ -2,8 +2,8 @@
 
 namespace Rxn\Framework\Http\Attribute;
 
+use Psr\Http\Server\MiddlewareInterface;
 use Rxn\Framework\Container;
-use Rxn\Framework\Http\Middleware as MiddlewareContract;
 use Rxn\Framework\Http\Router;
 
 /**
@@ -73,7 +73,7 @@ final class Scanner
 
     /**
      * @param list<\ReflectionAttribute<Middleware>> $attrs
-     * @return list<MiddlewareContract>
+     * @return list<MiddlewareInterface>
      */
     private function resolveMiddlewareAttrs(array $attrs): array
     {
@@ -82,9 +82,9 @@ final class Scanner
             /** @var Middleware $meta */
             $meta     = $attr->newInstance();
             $instance = $this->container->get($meta->class);
-            if (!$instance instanceof MiddlewareContract) {
+            if (!$instance instanceof MiddlewareInterface) {
                 throw new \InvalidArgumentException(
-                    "#[Middleware({$meta->class})] does not resolve to a Rxn\\Framework\\Http\\Middleware"
+                    "#[Middleware({$meta->class})] does not resolve to a Psr\\Http\\Server\\MiddlewareInterface"
                 );
             }
             $out[] = $instance;

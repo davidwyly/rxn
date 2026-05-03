@@ -1,7 +1,8 @@
 # Changelog
 
-All notable changes to Rxn between releases. Unreleased work lives
-on `claude/code-review-pDtRd` until cut to a tagged version.
+All notable changes to Rxn between releases. Unreleased work lands
+on short-lived `experiment/*` branches and merges to `master` via
+PR; the next tagged version cuts from `master`.
 
 The format roughly follows [Keep a Changelog](https://keepachangelog.com)
 with one Rxn-specific section: **Negative results.** Performance
@@ -10,6 +11,234 @@ ideas that didn't ship still get listed — they form a library of
 read alongside the wins.
 
 ## Unreleased
+
+### Polyparity exporter (`feature/polyparity-exporter`)
+
+#### Added
+
+- **`Rxn\Framework\Codegen\PolyparityExporter`** — emits a
+  [polyparity](https://github.com/davidwyly/polyparity) YAML
+  spec from any `RequestDto`. Same coverage matrix as
+  `JsValidatorEmitter` (Required, NotBlank, Length, Min, Max,
+  InSet, Email, Url + scalar types), same refusal on out-of-
+  scope attributes. The bridge that lets one DTO drive Rxn's
+  PHP server, the JS twin, AND polyparity's TS / Python /
+  future-language siblings.
+- `PolyparityExporterTest` — snapshot tests for `ParityDto`,
+  `KitchenSinkDto`, `NumericEdgeDto`. Refusal test for
+  `UnsupportedDto` (uses `#[Pattern]`).
+- Verified end-to-end: a smoke test ran the exporter's YAML
+  through `polyparity-php`'s `Validator::compile()` and
+  confirmed the seven exercised cases (valid full payload,
+  missing required, invalid InSet, invalid Length, invalid
+  url, invalid email, int round-trip rejection) match the
+  expected polyparity verdicts.
+
+### Cross-language compiled validator (`experiment/cross-lang-validator`, PR #14)
+
+A PHP `RequestDto` compiles to a vanilla ES module that agrees
+with `Binder::bind` on the set of failing fields for **0
+disagreements over 10,000 random adversarial inputs** across four
+fixture DTOs (40,000 inputs / CI run). Useful for PHP shops with
+a TypeScript or vanilla-JS frontend that want drift-free
+validation across the wire.
+
+#### Added
+
+- **`Rxn\Framework\Codegen\JsValidatorEmitter`** — `emit(string
+  $class): string` returns a self-contained ES module mirroring
+  `Binder::compileProperty()` line-for-line in JavaScript.
+  Coverage: `Required`, `NotBlank`, `Length`, `Min`, `Max`,
+  `InSet`, `Email`, `Url` plus the four scalar casts (string, int,
+  float, bool). The PHP int round-trip guard
+  (`is_numeric($v) && (string)(int)$v === (string)$v`) is mirrored
+  bit-for-bit.
+- **`Rxn\Framework\Codegen\Testing\ParityHarness`** — generic
+  cross-runtime parity harness. `ParityHarness::run($dto, $source,
+  $invoke, $iterations)` returns a `ParityResult` with disagreements
+  + samples; `ParityHarness::nodeInvoker()` is the standard
+  NDJSON-driven Node invocation.
+- **`AdversarialInputGenerator`** — DTO-driven random input
+  generator. Reflects properties + attributes; emits omissions,
+  type mismatches, boundary violations, InSet drift, malformed
+  Email/Url fixtures. 20% omit / 8% null / 4% empty string by
+  default.
+- **`Rxn\Framework\Codegen\Testing\ParityResult`** — outcome
+  value object with `describe()` for failure-message formatting.
+- **Refusal-on-unknown-attribute.** Emitter throws
+  `RuntimeException` for `Pattern`, `Uuid`, `Json`, `Date`,
+  `StartsWith`, `EndsWith` and custom `Validates` implementations.
+  Each has a known PHP/JS runtime divergence (PCRE vs JS regex,
+  parser-shape differences); silent divergence is the worst
+  failure mode, so the emitter doesn't try.
+
+#### Tests
+
+- `JsValidatorParityTest` — DataProvider over four fixture DTOs ×
+  10K iterations = **40K cross-runtime inputs per CI run**.
+  Skipped automatically when `node` isn't on PATH.
+- `JsValidatorEdgeCaseTest` — 30 hand-picked tricky inputs.
+  Caught a real PHP/JS divergence at `"  42"` for an int field
+  (PHP rejected via round-trip; JS had a leading `.trim()` that
+  let it through). Fixed by removing the trim — the edge-case
+  test caught what 10K random inputs missed.
+
+#### Docs
+
+- `docs/plugin-architecture.md` — what lives in core vs. as
+  separate Composer packages. Honest minimal scope: only
+  `davidwyly/rxn-orm` is currently extracted; no formal plugin
+  contract until there are enough plugins to justify one.
+  Documents the rolled-back cross-language ambition (audience
+  mismatch + wrong vehicle) explicitly.
+- `bench/ab/experiments/2026-05-01-cross-lang-validator.md` —
+  full writeup, coverage matrix, and the rolled-back framing.
+
+### Fiber-aware in-request parallelism (`experiment/fiber-await`, PR #8)
+
+Opt-in concurrency primitives for fan-out scenarios (dashboards,
+aggregations). Sync-first posture preserved — Fibers are an
+explicit per-handler choice, not a framework-wide rewrite.
+
+#### Added
+
+- **`Rxn\Framework\Concurrency\Scheduler`** — Fiber scheduler
+  with `await(Promise)` / `awaitAll([Promise])` / `awaitAny([Promise])`.
+- **`Rxn\Framework\Concurrency\Promise`** — Fiber-aware promise
+  primitive backed by `curl_multi` for HTTP fan-out.
+- **`Rxn\Framework\Concurrency\HttpClient`** — Fiber-friendly
+  HTTP client (`get`, `post`) returning `Promise`.
+- **`Rxn\Framework\Concurrency\await.php`** — function-level
+  helpers (`await`, `awaitAll`, `awaitAny`) for handler code.
+- **`docs/horizons.md`** — research-directions roadmap. Four
+  directions sized with cost / mechanism / ship signal: schema
+  as truth taken further, observability ships in the box,
+  fiber-aware concurrency (this experiment), profile-guided
+  compilation.
+- **Example app `/dashboard` route** — fan-out demo using three
+  parallel HTTP calls via `awaitAll`.
+
+
+
+Five PSR specs landed end-to-end across the dispatch spine, plus
+two structural refactors and an opt-in on-disk dump cache. Every
+change is behaviour-equivalent (the test suite grew from 265 →
+483 / 586 → 1048 assertions, all green) and the example app's
+seven golden + edge paths verify clean end-to-end through the new
+stack.
+
+#### Added
+
+- **PSR-7 / PSR-15 ingress and middleware contract.** All eight
+  shipped middlewares (`BearerAuth`, `Cors`, `ETag`, `Idempotency`,
+  `JsonBody`, `Pagination`, `RequestId`, `Transaction`) now
+  implement `Psr\Http\Server\MiddlewareInterface`; the `Pipeline`
+  is PSR-15-native end-to-end. `PsrAdapter::serverRequestFromGlobals`
+  builds a `ServerRequestInterface` from PHP superglobals (with
+  `php://input` wrapped lazily); `PsrAdapter::emit` writes a
+  `ResponseInterface` to the SAPI. A/B benchmarks showed PSR-7
+  ingress winning **9–14% on binder-driven cells** vs the previous
+  superglobal path, so it ships as the default for new apps.
+- **`App::serve(Router $router, ?callable $invoker = null): void`**
+  — static, boot-free PSR-7/15 entry point. Builds the
+  `ServerRequest`, threads it through the route's middleware
+  pipeline, dispatches the matched handler via the default
+  invoker, emits a `ResponseInterface`. Drops the example app's
+  front controller from ~25 lines of explicit ingress/Pipeline/emit
+  wiring to one call. Convention router (`App::run`,
+  `Service\Api`, `/v{N}/{controller}/{action}`) is **fully
+  preserved** — `serve()` is a parallel entry point, not a
+  replacement.
+- **PSR-11 container.** `Rxn\Framework\Container` now `implements
+  \Psr\Container\ContainerInterface`; signatures match the spec
+  exactly (`get(string $id, array $parameters = []): mixed`,
+  `has(string $id): bool`). New `ContainerNotFoundException`
+  satisfies `Psr\Container\NotFoundExceptionInterface` for missing
+  entries; the broader `ContainerException` already satisfied
+  `ContainerExceptionInterface`. Third-party PSR-11 consumers can
+  inject the container without an adapter.
+- **PSR-3 logger.** `Rxn\Framework\Utility\Logger` now `implements
+  \Psr\Log\LoggerInterface` via `Psr\Log\LoggerTrait`; `log()`
+  signature widened to `mixed $level, string|\Stringable $message`.
+- **PSR-14 event dispatcher.**
+  `Rxn\Framework\Event\EventDispatcher` and `ListenerProvider`
+  implement the spec; the listener provider does class-hierarchy
+  lookup so listeners on parent classes / interfaces fire too.
+  Wired into `Idempotency` middleware as the first real consumer:
+  optional dispatcher constructor arg, emits
+  `IdempotencyHit` on replay and `IdempotencyMiss` on cold-path
+  entry. Null dispatcher → no-op via `?->dispatch()`, no overhead.
+- **`Rxn\Framework\Codegen\DumpCache`** — opt-in on-disk dump
+  cache for compiled PHP closures. Both `Container::compileFactory`
+  and `Binder::buildCompiled` go through it: when `DumpCache::useDir($path)`
+  is configured, eval'd source is written to `<sha1>.php` and
+  `require`'d back instead. opcache treats the files like any
+  other PHP source — preload-eligible, shared bytecode across
+  workers, shared JIT trace cache. Content-addressed filenames
+  give free invalidation; atomic temp-file + rename handles
+  concurrent cold-start races.
+- **`Binder::bindRequest(string $class, ServerRequestInterface
+  $request): RequestDto`** — reads `queryParams` + `parsedBody`
+  from PSR-7 directly, falls back to inline JSON-decode of the
+  body when `parsedBody` is empty. No dependency on the
+  `JsonBody` middleware having mutated `$_POST` first; the
+  example app's POST handler binds the DTO straight from the
+  request.
+- **`Response::problem(int $code, ?string $title, ?string $detail,
+  ?array $validationErrors)`** — public RFC 7807 factory used by
+  middleware short-circuits.
+
+#### Refactored
+
+- **`Response` is now a property bag.** All previously-public
+  fields are private; access is via `getData()`, `getMeta()`,
+  `getErrors()`, `getValidationErrors()`, `addMetaField()`. The
+  factory methods (`getSuccess`, `getFailure`) build state via
+  the accessors instead of populating typed properties via
+  reflection. `getErrorCode()` now allow-lists 4xx / 5xx codes
+  and returns `int`, not nullable mixed.
+- **`App` encapsulates `$api` and `$stats`.** Both are now
+  private with `api()` / `stats()` accessors; the constructor
+  no longer eagerly resolves `Service\Registry` (which forced a
+  database connection during boot — 404s and `/health` checks
+  used to depend on MySQL being reachable).
+- **`Idempotency::StoredResponse` is PSR-7-shaped.** Stores
+  `(status, headers array, body bytes, fingerprint, createdAt)`
+  instead of duplicating Rxn's internal Response.
+
+#### Bench harness fix
+
+- **`bench/compare/load.php` rps metric replaced.** The previous
+  `count / wall_clock` rps formula was sensitive to brief stalls
+  (any tail latency from `Connection: close` socket churn or
+  ephemeral port exhaustion under `php -S`) and produced
+  Latin-square-shaped outliers that looked like framework
+  regressions. Replaced with a median-window rps: bin completions
+  into 100ms windows, take the median bin's count. Robust to
+  tail-latency artefacts; the median window is what the
+  steady-state would converge to absent harness noise. Confirmed
+  by reverse-order control runs.
+
+#### Deferred (parts on the shelf, not pursued)
+
+- **Validator dump.** The public `Validator` API accepts callable
+  rules; closures can't be serialised to a PHP file, so the
+  `eval()` call in `Validator::compile` stays. Documented as the
+  explicit boundary.
+- **Router combined-regex chunking.** A second attempt
+  (numbered-marker groups instead of `(*MARK:rN)`) reproduced the
+  April 29 finding: PCRE alternation overhead regresses the
+  common case (early-bucket hit) regardless of sentinel mechanism.
+  Negative-result confirmation addendum on the existing writeup;
+  the bench rig (placeholder-bucket `first_hit` / `last_hit` /
+  `miss` cases in `bin/bench`) is kept for future genuine attempts
+  (trie, hybrid, JIT-on study).
+- **Routing `Binder::bind()` through `compileFor()`** — the
+  6.42× win is real but unattached to production code (no
+  internal caller of `compileFor`); behaviour parity is locked
+  by `BinderMatrixTest`. Held back: making `eval` mandatory for
+  binding is its own product decision and needs a constructor
+  edge-case fix first. The parts are on the shelf.
 
 ### Post-merge corrections
 

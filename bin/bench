@@ -22,16 +22,20 @@ namespace Rxn\Framework\Bench;
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use Rxn\Framework\Container;
+use Nyholm\Psr7\Response as Psr7Response;
+use Nyholm\Psr7\ServerRequest;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Http\Attribute\InSet;
 use Rxn\Framework\Http\Attribute\Length;
 use Rxn\Framework\Http\Attribute\Min;
 use Rxn\Framework\Http\Attribute\Required;
 use Rxn\Framework\Http\Binding\Binder;
 use Rxn\Framework\Http\Binding\RequestDto;
-use Rxn\Framework\Http\Middleware;
 use Rxn\Framework\Http\Pipeline;
 use Rxn\Framework\Http\PsrAdapter;
-use Rxn\Framework\Http\Request;
 use Rxn\Framework\Http\Response;
 use Rxn\Framework\Http\Router;
 use Rxn\Framework\Model\ActiveRecord;
@@ -103,20 +107,51 @@ $cases['router.match.many.miss'] = function () use ($big) {
     return $big->match('GET', '/no/such/route');
 };
 
-// Pipeline: 3-layer pass-through
-$noop = new class implements Middleware {
-    public function handle(Request $request, callable $next): Response
+// Placeholder-bucket-heavy table: 10 placeholder routes per verb,
+// every route requires a real preg_match (no static-hashmap
+// fast-path). This is the case that combined-regex chunking
+// (FastRoute-style) would optimise — each match currently walks
+// preg_match() once per route in the verb bucket.
+$bucket = new Router();
+foreach (['GET', 'POST', 'PUT', 'DELETE'] as $verb) {
+    $lower = strtolower($verb);
+    for ($i = 0; $i < 10; $i++) {
+        // Each route uses {id:int} so they're all real-regex routes.
+        $bucket->add($verb, "/$lower/resource$i/{id:int}", "h-$verb-$i");
+    }
+}
+
+$cases['router.match.bucket.first_hit'] = function () use ($bucket) {
+    // GET /get/resource0/42 — best case in a placeholder bucket
+    return $bucket->match('GET', '/get/resource0/42');
+};
+$cases['router.match.bucket.last_hit'] = function () use ($bucket) {
+    // DELETE /delete/resource9/42 — 10th route in the DELETE bucket;
+    // current impl walks preg_match 10 times before hitting.
+    return $bucket->match('DELETE', '/delete/resource9/42');
+};
+$cases['router.match.bucket.miss'] = function () use ($bucket) {
+    // No match — current impl walks every route in the GET bucket.
+    return $bucket->match('GET', '/get/resource99/42');
+};
+
+// Pipeline: 3-layer pass-through (PSR-15)
+$noop = new class implements MiddlewareInterface {
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        return $next($request);
+        return $handler->handle($request);
     }
 };
 $pipeline = (new Pipeline())->add($noop)->add($noop)->add($noop);
-$request  = (new \ReflectionClass(Request::class))->newInstanceWithoutConstructor();
-$response = (new \ReflectionClass(Response::class))->newInstanceWithoutConstructor();
-$terminal = static fn () => $response;
+$psrRequest  = new ServerRequest('GET', 'http://test.local/');
+$psrResponse = new Psr7Response(200);
+$terminal = new class($psrResponse) implements RequestHandlerInterface {
+    public function __construct(private ResponseInterface $r) {}
+    public function handle(ServerRequestInterface $request): ResponseInterface { return $this->r; }
+};
 
-$cases['pipeline.3layer'] = function () use ($pipeline, $request, $terminal) {
-    return $pipeline->handle($request, $terminal);
+$cases['pipeline.3layer'] = function () use ($pipeline, $psrRequest, $terminal) {
+    return $pipeline->run($psrRequest, $terminal);
 };
 
 // Validator: realistic payload + rule set

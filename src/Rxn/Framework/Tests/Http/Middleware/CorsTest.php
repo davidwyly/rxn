@@ -2,27 +2,31 @@
 
 namespace Rxn\Framework\Tests\Http\Middleware;
 
+use Nyholm\Psr7\Response as Psr7Response;
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Http\Middleware\Cors;
-use Rxn\Framework\Http\Request;
-use Rxn\Framework\Http\Response;
 
 final class CorsTest extends TestCase
 {
-    /** @var string[] */
-    private array $headers = [];
-    private ?int $status   = null;
-
-    protected function setUp(): void
+    private function request(string $method = 'GET', array $headers = []): ServerRequestInterface
     {
-        $this->headers = [];
-        $this->status  = null;
-        unset($_SERVER['HTTP_ORIGIN'], $_SERVER['REQUEST_METHOD']);
+        return new ServerRequest($method, 'http://test.local/', $headers);
     }
 
-    private function request(): Request
+    private function terminal(?\Closure $cb = null): RequestHandlerInterface
     {
-        return (new \ReflectionClass(Request::class))->newInstanceWithoutConstructor();
+        $cb ??= fn () => new Psr7Response(200);
+        return new class($cb) implements RequestHandlerInterface {
+            public function __construct(private \Closure $cb) {}
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                return ($this->cb)($request);
+            }
+        };
     }
 
     private function make(array $overrides = []): Cors
@@ -33,80 +37,66 @@ final class CorsTest extends TestCase
             allowHeaders:     $overrides['allowHeaders']     ?? ['Content-Type'],
             maxAge:           $overrides['maxAge']           ?? 600,
             allowCredentials: $overrides['allowCredentials'] ?? false,
-            emitHeader:       function (string $h) { $this->headers[] = $h; },
-            emitStatus:       function (int $code) { $this->status = $code; },
         );
     }
 
     public function testWildcardOriginEmitsStar(): void
     {
-        $_SERVER['REQUEST_METHOD'] = 'GET';
-        $cors = $this->make();
-        $cors->handle($this->request(), fn () => $this->terminalResponse());
+        $response = $this->make()->process($this->request(), $this->terminal());
 
-        $this->assertContains('Access-Control-Allow-Origin: *', $this->headers);
-        $this->assertContains('Access-Control-Max-Age: 600', $this->headers);
+        $this->assertSame('*', $response->getHeaderLine('Access-Control-Allow-Origin'));
+        $this->assertSame('600', $response->getHeaderLine('Access-Control-Max-Age'));
     }
 
     public function testExplicitAllowListEchoesMatchingOrigin(): void
     {
-        $_SERVER['REQUEST_METHOD'] = 'GET';
-        $_SERVER['HTTP_ORIGIN']    = 'https://app.example.com';
+        $response = $this->make(['allowOrigins' => ['https://app.example.com']])
+            ->process(
+                $this->request('GET', ['Origin' => 'https://app.example.com']),
+                $this->terminal(),
+            );
 
-        $cors = $this->make(['allowOrigins' => ['https://app.example.com']]);
-        $cors->handle($this->request(), fn () => $this->terminalResponse());
-
-        $this->assertContains('Access-Control-Allow-Origin: https://app.example.com', $this->headers);
-        $this->assertContains('Vary: Origin', $this->headers);
+        $this->assertSame('https://app.example.com', $response->getHeaderLine('Access-Control-Allow-Origin'));
+        $this->assertSame('Origin', $response->getHeaderLine('Vary'));
     }
 
     public function testDisallowedOriginOmitsAllowOriginHeader(): void
     {
-        $_SERVER['REQUEST_METHOD'] = 'GET';
-        $_SERVER['HTTP_ORIGIN']    = 'https://evil.example.com';
+        $response = $this->make(['allowOrigins' => ['https://app.example.com']])
+            ->process(
+                $this->request('GET', ['Origin' => 'https://evil.example.com']),
+                $this->terminal(),
+            );
 
-        $cors = $this->make(['allowOrigins' => ['https://app.example.com']]);
-        $cors->handle($this->request(), fn () => $this->terminalResponse());
-
-        foreach ($this->headers as $h) {
-            $this->assertStringNotContainsString('Access-Control-Allow-Origin:', $h);
-        }
+        $this->assertFalse($response->hasHeader('Access-Control-Allow-Origin'));
     }
 
     public function testPreflightShortCircuitsWith204(): void
     {
-        $_SERVER['REQUEST_METHOD'] = 'OPTIONS';
         $terminalHit = false;
-
-        $cors   = $this->make();
-        $result = $cors->handle($this->request(), function () use (&$terminalHit) {
-            $terminalHit = true;
-            return $this->terminalResponse();
-        });
+        $response = $this->make()->process(
+            $this->request('OPTIONS'),
+            $this->terminal(function () use (&$terminalHit) {
+                $terminalHit = true;
+                return new Psr7Response(200);
+            }),
+        );
 
         $this->assertFalse($terminalHit, 'preflight must not reach the controller');
-        $this->assertSame(204, $this->status);
-        $this->assertInstanceOf(Response::class, $result);
-        $this->assertTrue($result->isRendered());
+        $this->assertSame(204, $response->getStatusCode());
     }
 
     public function testCredentialsReflectOriginInsteadOfWildcard(): void
     {
-        $_SERVER['REQUEST_METHOD'] = 'GET';
-        $_SERVER['HTTP_ORIGIN']    = 'https://app.example.com';
-
-        $cors = $this->make([
+        $response = $this->make([
             'allowOrigins'     => ['*'],
             'allowCredentials' => true,
-        ]);
-        $cors->handle($this->request(), fn () => $this->terminalResponse());
+        ])->process(
+            $this->request('GET', ['Origin' => 'https://app.example.com']),
+            $this->terminal(),
+        );
 
-        $this->assertContains('Access-Control-Allow-Origin: https://app.example.com', $this->headers);
-        $this->assertContains('Access-Control-Allow-Credentials: true', $this->headers);
-    }
-
-    private function terminalResponse(): Response
-    {
-        return (new \ReflectionClass(Response::class))->newInstanceWithoutConstructor();
+        $this->assertSame('https://app.example.com', $response->getHeaderLine('Access-Control-Allow-Origin'));
+        $this->assertSame('true', $response->getHeaderLine('Access-Control-Allow-Credentials'));
     }
 }
