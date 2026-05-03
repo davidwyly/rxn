@@ -62,4 +62,90 @@ final class HttpClientTest extends TestCase
         $client->getAsync('https://127.0.0.1:1/will-not-resolve');
         $this->assertTrue(true, 'http/https URLs pass the scheme guard');
     }
+
+    public function testApplyTraceContextNoOpsWhenNoCurrentContext(): void
+    {
+        $this->resetTraceContextSlots();
+        $headers = ['Accept' => 'application/json'];
+        $this->assertSame($headers, HttpClient::applyTraceContext($headers));
+    }
+
+    public function testApplyTraceContextInjectsTraceparent(): void
+    {
+        // Drive the middleware so `current()` returns a real context,
+        // then verify HttpClient picks it up. End-to-end exercise of
+        // the inbound→outbound propagation chain inside one process.
+        $this->processInboundTrace('00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01');
+
+        $headers = HttpClient::applyTraceContext([]);
+        $this->assertArrayHasKey('traceparent', $headers);
+        $this->assertMatchesRegularExpression(
+            '/^00-4bf92f3577b34da6a3ce929d0e0e4736-[0-9a-f]{16}-01$/',
+            $headers['traceparent'],
+            'Outbound traceparent must keep the same trace-id and flags but advance the parent-id'
+        );
+        // parent-id must NOT be the inbound parent-id — this server
+        // is now the parent of the next hop.
+        $parentId = explode('-', $headers['traceparent'])[2];
+        $this->assertNotSame('00f067aa0ba902b7', $parentId);
+    }
+
+    public function testApplyTraceContextDoesNotOverrideCallerSuppliedHeader(): void
+    {
+        // If the calling code already set `traceparent` (e.g. in a
+        // batch job that's manually threading a trace), HttpClient
+        // must not stomp on it.
+        $this->processInboundTrace('00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01');
+
+        $caller = '00-deadbeefdeadbeefdeadbeefdeadbeef-aaaaaaaaaaaaaaaa-00';
+        $headers = HttpClient::applyTraceContext(['traceparent' => $caller]);
+        $this->assertSame($caller, $headers['traceparent']);
+    }
+
+    public function testApplyTraceContextDoesNotOverrideCaseVariantHeader(): void
+    {
+        // HTTP header names are case-insensitive — `Traceparent` must
+        // count as already-set so we don't end up with both casings
+        // in the outbound list.
+        $this->processInboundTrace('00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01');
+
+        $caller = '00-deadbeefdeadbeefdeadbeefdeadbeef-aaaaaaaaaaaaaaaa-00';
+        $headers = HttpClient::applyTraceContext(['Traceparent' => $caller]);
+        $this->assertArrayNotHasKey('traceparent', $headers);
+        $this->assertSame($caller, $headers['Traceparent']);
+    }
+
+    public function testApplyTraceContextPropagatesTraceState(): void
+    {
+        $this->processInboundTrace(
+            '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+            traceState: 'rojo=00f067aa0ba902b7,congo=t61rcWkgMzE',
+        );
+
+        $headers = HttpClient::applyTraceContext([]);
+        $this->assertSame('rojo=00f067aa0ba902b7,congo=t61rcWkgMzE', $headers['tracestate']);
+    }
+
+    private function processInboundTrace(string $traceparent, ?string $traceState = null): void
+    {
+        $headers = ['traceparent' => $traceparent];
+        if ($traceState !== null) {
+            $headers['tracestate'] = $traceState;
+        }
+        $request = new \Nyholm\Psr7\ServerRequest('GET', 'http://test.local/', $headers);
+        $handler = new class implements \Psr\Http\Server\RequestHandlerInterface {
+            public function handle(\Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
+            {
+                return new \Nyholm\Psr7\Response(200);
+            }
+        };
+        (new \Rxn\Framework\Http\Middleware\TraceContext())->process($request, $handler);
+    }
+
+    private function resetTraceContextSlots(): void
+    {
+        $ref = new \ReflectionClass(\Rxn\Framework\Http\Middleware\TraceContext::class);
+        $ref->getProperty('current')->setValue(null, null);
+        $ref->getProperty('traceState')->setValue(null, null);
+    }
 }

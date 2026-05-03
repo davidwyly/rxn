@@ -286,26 +286,34 @@ coherent operational story, ship.
 
 ---
 
-### 2.3 Trace context propagation by default
+### 2.3 Trace context propagation by default — REALIZED
 
-**Claim:** Read `traceparent` in, write `traceparent` out;
-surface the current trace ID in `Response.meta.trace_id`.
+See `Rxn\Framework\Http\Tracing\TraceContext` (W3C-compliant
+value object) and `Rxn\Framework\Http\Middleware\TraceContext`
+(PSR-15 ingress + response echo). Outbound propagation is
+wired into `Concurrency\HttpClient` via `applyTraceContext()`:
+when the request-scoped context is set, every outbound call
+gets `traceparent` (with a freshly-advanced parent-id, per
+spec) and `tracestate` (verbatim). Caller-supplied headers
+win — apps that explicitly thread their own context aren't
+overridden, including case-variant headers (`Traceparent`).
 
-**Mechanism:** A built-in `TraceMiddleware` (PSR-15) reads the
-W3C Trace Context header on ingress, propagates it through to
-outbound HTTP via a header injector on `Concurrency\HttpClient`,
-writes it back on the response. Zero app code.
+**Cost reality:** ~250 LOC of framework code + 26 tests. The
+W3C spec validation surface (version forward-compat, all-zero
+sentinels, hex normalisation, oversized tracestate handling,
+flag bits) added scope beyond the 150-LOC sketch but kept the
+implementation honestly compliant.
 
-**Cost:** ~150 LOC.
+**Status:** Working middleware + value object + HttpClient
+hook + test suite. Adoption: pipeline composers add
+`new TraceContext()` to their middleware list and outbound
+propagation is automatic. The next-step bench (Rxn → Rxn with
+a real OTel collector) is gated on theme 2.1 (OTel spans via
+PSR-14) producing actual spans for the collector to receive.
 
-**Distinctiveness:** Distributed tracing without a single line
-of app code. Combined with 2.1 + 2.2, you have a "production-
-ready observability" story that few peers can match without a
-significant integration project.
-
-**Ship signal:** Verify trace context propagates through a
-two-service scenario (Rxn → Rxn) with a real OTel collector
-between them. If the spans link cleanly, ship.
+This unlocks the rest of theme 2 — every span emitted by 2.1
+needs a trace-id, and trace-id propagation is the
+prerequisite for the spans-form-a-tree story.
 
 ---
 
