@@ -147,7 +147,7 @@ abstract class Record extends Model
     public function update($record_id, array $key_values)
     {
         // Only allow updates to reflected table columns except the primary key.
-        $allowed_columns = array_diff($this->getColumns(), [$this->primary_key]);
+        $allowed_columns = array_diff(array_keys($this->getColumns()), [$this->primary_key]);
         $invalid_columns = array_diff(array_keys($key_values), $allowed_columns);
         if (!empty($invalid_columns)) {
             $invalid = implode(', ', $invalid_columns);
