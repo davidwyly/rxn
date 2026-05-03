@@ -412,7 +412,8 @@ class Container implements ContainerInterface
      *
      * Rxn's container autowires any constructible class, so for a
      * class-string identifier this is equivalent to "class exists,
-     * isn't abstract, and isn't already failing as a binding."
+     * is instantiable (not abstract/interface/trait/non-public constructor),
+     * and has no required non-autowireable constructor parameters."
      * We also short-circuit on the self-lookup key, declared
      * bindings, and the instance cache so the lookup is O(1) for
      * the hot paths.
@@ -437,8 +438,13 @@ class Container implements ContainerInterface
             return false;
         }
 
+        // Canonicalise to the declared class casing so process-lifetime
+        // caches don't grow with case-variant aliases of the same class
+        // (mirrors the normalisation that get() applies).
+        $class_name = $this->parseClassName(self::reflectionFor($class_name)->getName());
+
         $reflection = self::reflectionFor($class_name);
-        if ($reflection->isAbstract()) {
+        if (!$reflection->isInstantiable()) {
             return false;
         }
 
