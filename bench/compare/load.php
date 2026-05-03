@@ -159,14 +159,32 @@ final class Load
         // populated at run boundaries — first bin starts mid-warmup,
         // last bin ends mid-tick) and take the median of the rest.
         // Multiplied to req/sec from req/100ms.
+        //
+        // The bin range is the *intended* run window [0, maxBin], not
+        // [first observed, last observed]. Anchoring to observed
+        // completions would silently drop:
+        //   - zero-count windows at the start (slow first response
+        //     pushes all completions to bin >0)
+        //   - zero-count windows at the end (no completions in the
+        //     final 100ms — a real tail-stall worth measuring)
+        // Late completions past `$deadline` (up to CURLOPT_TIMEOUT_MS)
+        // already land in bins past `$maxBin` and are excluded by the
+        // range, not by the bin-key clamp.
         $rpsMedianWindow = 0.0;
-        if (count($windowCounts) > 2) {
+        if (count($windowCounts) > 0) {
             ksort($windowCounts);
-            $bins = array_values($windowCounts);
-            $bins = array_slice($bins, 1, -1);
-            sort($bins);
-            $mid = $bins[(int) (count($bins) / 2)];
-            $rpsMedianWindow = $mid * (1000.0 / $windowMs);
+            $firstBin = 0;
+            $lastBin  = (int) ceil($duration * 1000.0 / $windowMs) - 1;
+            $bins = [];
+            for ($b = $firstBin; $b <= $lastBin; $b++) {
+                $bins[] = $windowCounts[$b] ?? 0;
+            }
+            if (count($bins) > 2) {
+                $bins = array_slice($bins, 1, -1);
+                sort($bins);
+                $mid = $bins[(int) (count($bins) / 2)];
+                $rpsMedianWindow = $mid * (1000.0 / $windowMs);
+            }
         }
 
         ksort($statusCounts);
