@@ -232,7 +232,10 @@ final class Binder
         $closureBody = "return static function (array \$bag) use (\$validators, \$dtoFactory): \\" . ltrim($class, '\\')
                      . " {\n" . $body . "};";
 
-        if (\Rxn\Framework\Codegen\DumpCache::dir() !== null) {
+        if (
+            \Rxn\Framework\Codegen\DumpCache::dir() !== null
+            && count($validatorExprs) === count($validators)
+        ) {
             // Dump path: prepend $validators and a serialisable
             // $dtoFactory so the file is self-contained when
             // `require`d. The closure's `use ($validators, $dtoFactory)`
@@ -309,7 +312,15 @@ final class Binder
             if (is_subclass_of($attrName, Validates::class) || in_array(Validates::class, class_implements($attrName) ?: [], true)) {
                 $instance = $attr->newInstance();
                 $idx = array_push($validators, $instance) - 1;
-                $validatorExprs[$idx] = self::validatorConstructionExpr($attrName, $attr->getArguments());
+                $expr = self::validatorConstructionExpr($attrName, $attr->getArguments());
+                if ($expr === null) {
+                    // Attribute args include values we can't safely
+                    // render into dump source (e.g. object-valued
+                    // constructor expressions). Force eval path.
+                    $validatorExprs = [];
+                } elseif ($validatorExprs !== []) {
+                    $validatorExprs[$idx] = $expr;
+                }
                 $validateBlock .= "        \$msg = \$validators[$idx]->validate(\$cast);\n"
                                .  "        if (\$msg !== null) { \$errors[] = ['field' => $nameQ, 'message' => \$msg]; }\n";
             }
@@ -559,14 +570,36 @@ final class Binder
      *
      * @param array<int|string, mixed> $args from `ReflectionAttribute::getArguments()`
      */
-    private static function validatorConstructionExpr(string $class, array $args): string
+    private static function validatorConstructionExpr(string $class, array $args): ?string
     {
         $parts = [];
         foreach ($args as $key => $val) {
+            if (!self::isDumpableAttributeArg($val)) {
+                return null;
+            }
             $literal = var_export($val, true);
             $parts[] = is_string($key) ? "$key: $literal" : $literal;
         }
         return 'new \\' . ltrim($class, '\\') . '(' . implode(', ', $parts) . ')';
+    }
+
+    private static function isDumpableAttributeArg(mixed $value): bool
+    {
+        if (is_null($value) || is_scalar($value)) {
+            return true;
+        }
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                if (!self::isDumpableAttributeArg($item)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        // Objects can be valid at runtime attribute construction
+        // time, but `var_export()` may emit `__set_state` calls
+        // that are not supported by arbitrary classes.
+        return false;
     }
 
     private static function ensureIdentifier(string $name): string

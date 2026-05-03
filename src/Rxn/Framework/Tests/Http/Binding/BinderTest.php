@@ -8,6 +8,7 @@ use Rxn\Framework\Http\Binding\Binder;
 use Rxn\Framework\Http\Binding\ValidationException;
 use Rxn\Framework\Tests\Http\Binding\Fixture\Address;
 use Rxn\Framework\Tests\Http\Binding\Fixture\CreateProduct;
+use Rxn\Framework\Tests\Http\Binding\Fixture\ObjectArgDto;
 
 final class BinderTest extends TestCase
 {
@@ -473,6 +474,20 @@ final class BinderTest extends TestCase
         $this->assertEmpty(
             glob($this->dumpDir . '/*.php') ?: [],
             'no files should land in the dump dir when DumpCache is not configured',
+        );
+    }
+
+    public function testCompileForFallsBackToEvalWhenValidatorArgsContainObjects(): void
+    {
+        DumpCache::useDir($this->dumpDir);
+        Binder::clearCache();
+
+        $bind = Binder::compileFor(ObjectArgDto::class);
+        $dto = $bind(['code' => 'ok']);
+        $this->assertSame('ok', $dto->code);
+        $this->assertEmpty(
+            glob($this->dumpDir . '/*.php') ?: [],
+            'object-valued validator args should bypass dump generation',
         );
     }
 }
