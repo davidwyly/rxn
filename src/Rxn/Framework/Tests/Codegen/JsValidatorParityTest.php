@@ -13,8 +13,9 @@ use Rxn\Framework\Codegen\Testing\ParityHarness;
  * the PHP `Binder::bind` and the emitted JS validator, asserts
  * agreement on the set of failing fields per input.
  *
- * Skipped when `node` isn't on PATH — the test is meaningful
- * only with both runtimes available.
+ * `testValidatorAgreesWithPhpOnRandomInputs` is skipped when
+ * `node` isn't on PATH — that test is meaningful only with both
+ * runtimes available. Emitter-only tests run in PHP-only environments.
  *
  * Compares the *set of failing fields*, not message text. PHP
  * and JS messages happen to be identical today; the parity
@@ -22,13 +23,6 @@ use Rxn\Framework\Codegen\Testing\ParityHarness;
  */
 final class JsValidatorParityTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        if (!ParityHarness::nodeAvailable()) {
-            $this->markTestSkipped('node is not on PATH; cross-language parity is not testable in this environment');
-        }
-    }
-
     /**
      * @return iterable<string, array{class-string}>
      */
@@ -43,6 +37,9 @@ final class JsValidatorParityTest extends TestCase
     #[DataProvider('dtos')]
     public function testValidatorAgreesWithPhpOnRandomInputs(string $dtoClass): void
     {
+        if (!ParityHarness::nodeAvailable()) {
+            $this->markTestSkipped('node is not on PATH; cross-language parity is not testable in this environment');
+        }
         $emitter = new JsValidatorEmitter();
         $result  = ParityHarness::run(
             dto:        $dtoClass,
