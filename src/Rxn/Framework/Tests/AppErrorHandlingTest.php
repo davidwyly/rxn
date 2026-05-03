@@ -27,7 +27,6 @@ final class AppErrorHandlingTest extends TestCase
         $this->assertStringContainsString("'line'    => $exception->getLine()", $source);
     }
 
-
     public function testProblemDetailsRenderingSubstitutesInvalidUtf8(): void
     {
         $method = (new ReflectionClass(App::class))->getMethod('render');
@@ -35,6 +34,7 @@ final class AppErrorHandlingTest extends TestCase
 
         $this->assertStringContainsString('JSON_INVALID_UTF8_SUBSTITUTE', $source);
     }
+
     private function extractMethodSource(\ReflectionMethod $method): string
     {
         $file  = file($method->getFileName());
