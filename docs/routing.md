@@ -204,6 +204,99 @@ $router->get('/products', $handler)
     ->middleware(new \Rxn\Framework\Http\Versioning\Deprecation('2026-01-01', '2026-12-31'));
 ```
 
+### CRUD resources — `ResourceRegistrar`
+
+`ResourceRegistrar::register()` wires a `CrudHandler` to a
+five-route URL family in one call:
+
+```php
+use Rxn\Framework\Http\Resource\ResourceRegistrar;
+
+ResourceRegistrar::register(
+    $router,
+    '/products',
+    new ProductsCrud($repo),
+    create: CreateProduct::class,
+    update: UpdateProduct::class,
+    search: SearchProducts::class,
+);
+```
+
+After this the router has:
+
+| Verb | Path | Handler |
+|---|---|---|
+| `POST` | `/products` | `create($dto)` — DTO bound via Binder (query + body, body wins) from `CreateProduct`, 201 + `{data, meta: {status: 201}}` on success, 422 with `errors[]` on validation failure |
+| `GET` | `/products` | `search($filter)` — filter optionally bound from query (`SearchProducts`); registrations without a `search` DTO call the handler with `null`. 200 + `{data: [...]}`. |
+| `GET` | `/products/{id:int}` | `read($id)` — 200 + `{data: ...}`, or 404 Problem Details when the handler returns null |
+| `PATCH` | `/products/{id:int}` | `update($id, $dto)` — DTO bound via Binder (query + body, body wins) from `UpdateProduct`, 200 / 404 / 422 |
+| `DELETE` | `/products/{id:int}` | `delete($id)` — 204 (empty body, per HTTP spec) on success, 404 on missing |
+
+The handler is just five methods over `Rxn\Framework\Http\Resource\CrudHandler`:
+
+```php
+final class ProductsCrud implements CrudHandler
+{
+    public function __construct(private MyRepo $repo) {}
+
+    public function create(RequestDto $dto): array { /* INSERT, return row */ }
+    public function read(int|string $id): ?array     { /* SELECT, or null */ }
+    public function update(int|string $id, RequestDto $dto): ?array { /* UPDATE */ }
+    public function delete(int|string $id): bool    { /* DELETE, return success */ }
+    public function search(?RequestDto $filter): array { /* list */ }
+}
+```
+
+**`idType` arg** controls the URL constraint and the handler's
+id type. Default is `'int'`; pass `'uuid'` / `'slug'` / `'any'`
+or any custom constraint to use a different shape:
+
+```php
+ResourceRegistrar::register(
+    $router, '/orgs', new OrgCrud($db),
+    create: CreateOrg::class,
+    update: UpdateOrg::class,
+    idType: 'uuid',  // /orgs/{id:uuid}; handler receives the id as a string
+);
+```
+
+**Storage layer is pluggable.** The registrar only knows the
+five-method interface. Apps using
+[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm) can
+extend its `RxnOrmCrudHandler` base class for the relational
+common case (set `TABLE` constant, done); apps using Doctrine /
+raw PDO / a remote API write their own ~50-LOC handler.
+
+**Composing middleware:** `register()` accepts either a
+`Router` or a `RouteGroup`, and returns a `ResourceRoutes` bag
+holding the five `Route` handles. Apps stack middleware in
+whichever shape matches the protection policy:
+
+```php
+// Group-based: every CRUD route inherits the group's middleware.
+$router->group('/v1', function (RouteGroup $g) use ($auth) {
+    $g->middleware($auth);
+    ResourceRegistrar::register($g, '/products', $crud, /* … */);
+});
+
+// Per-resource: chain on the returned bag.
+ResourceRegistrar::register($router, '/products', $crud, /* … */)
+    ->middleware($bearerAuth);
+
+// Per-op: target the specific Route handle on the bag.
+$routes = ResourceRegistrar::register($router, '/products', $crud, /* … */);
+$routes->update->middleware($adminOnly);
+$routes->delete->middleware($adminOnly);
+```
+
+**Schema-as-source-of-truth via codegen — *future*:** the plan
+is `bin/rxn scaffold:from-table <name>` reading
+`information_schema` to write the DTO files + a handler stub,
+one-shot at scaffold time so there's no DB connection required
+at boot. **Not yet implemented** — tracked under horizons theme
+1.6 follow-ups; the core primitive in this section is what
+ships today.
+
 ### Using matched routes with the pipeline
 
 `Router::match()` returns the matched route's `middlewares` alongside

@@ -210,6 +210,61 @@ that filling them in is mechanical, ship.
 
 ---
 
+### 1.6 CRUD scaffolding via Resource handlers — REALIZED (core primitive)
+
+Recovers the convention router's "extend a class, get five
+endpoints" ergonomic without legacy AR baggage. See
+`Rxn\Framework\Http\Resource\CrudHandler` (5-method interface)
+and `Rxn\Framework\Http\Resource\ResourceRegistrar` (one-call
+registrar that wires `POST` / `GET` / `GET {id}` / `PATCH {id}` /
+`DELETE {id}` to the handler with DTO binding + validation +
+404 / 422 / 204 wrapping in place).
+
+```php
+ResourceRegistrar::register(
+    $router,
+    '/products',
+    new ProductsCrud($repo),
+    create: CreateProduct::class,
+    update: UpdateProduct::class,
+    search: SearchProducts::class,
+);
+```
+
+**Cost reality:** ~280 LOC of framework code (interface +
+registrar) + 19 integration tests. Handler implementations are
+the app's job and don't count toward framework cost.
+
+**Status:** Shipped — the core primitive lands in this PR.
+What's left:
+
+- **`RxnOrmCrudHandler`** abstract class in
+  [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm).
+  Reduces a relational handler to "extend a class, set
+  `TABLE` constant, done." Storage opinion lives in the storage
+  package.
+- **`bin/rxn scaffold:from-table`** — connects to the DB,
+  reads `information_schema`, writes the create / update /
+  search DTO files + a `RxnOrmCrudHandler` stub. Schema-as-
+  source-of-truth recovered, without the boot-time DB
+  requirement of the old convention-router scaffolding (codegen
+  runs once at scaffold time, not on every request).
+
+**Distinctiveness:** Most PHP frameworks make you write CRUD by
+hand or pull in a heavyweight admin generator (Symfony EasyAdmin,
+Laravel Nova). The Rxn shape is leaner — typed wire (DTOs,
+not arrays), validation from PHP attributes, OpenAPI
+auto-generated, storage layer pluggable. ~50 LOC for a custom
+handler against any backend.
+
+**Ship signal for the rxn-orm follow-up:** an app should be able
+to add a new table to its DB, run `bin/rxn scaffold:from-table
+<name>`, and have a working five-endpoint CRUD with no other
+edits. If the scaffolded code needs hand-fixing the codegen
+table needs more work first.
+
+---
+
 ## Theme 2: Observability ships in the box
 
 The framework already has PSR-14 wired ([`Rxn\Framework\Event\EventDispatcher`](../src/Rxn/Framework/Event/EventDispatcher.php)).
