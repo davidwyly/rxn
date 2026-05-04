@@ -485,6 +485,60 @@ final class ResourceRegistrarTest extends TestCase
         );
     }
 
+    public function testRegisterThrowsOnNonexistentDtoClass(): void
+    {
+        // A typo / removed-class case is functionally distinct from
+        // "exists but doesn't implement RequestDto" — the message
+        // must say "does not exist" so the operator knows whether
+        // to add a `use` import or fix the class hierarchy.
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/does not exist/');
+
+        ResourceRegistrar::register(
+            new Router(),
+            '/bad',
+            new InMemoryWidgetCrud(),
+            create: 'Acme\\NotARealClass',
+            update: UpdateWidget::class,
+        );
+    }
+
+    public function testRegisterThrowsOnIdTypeContainingInvalidCharacters(): void
+    {
+        // Router::compile() requires placeholder type identifiers to
+        // match [a-zA-Z_][a-zA-Z0-9_]*. The registrar validates the
+        // shape up front so a caller passing 'my-id' (or '' or
+        // '123id') gets a targeted error pointing at idType, not a
+        // generic "Malformed route placeholder" surfaced by Router
+        // pointing at the route's compile step.
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/idType/');
+
+        ResourceRegistrar::register(
+            new Router(),
+            '/bad',
+            new InMemoryWidgetCrud(),
+            create: CreateWidget::class,
+            update: UpdateWidget::class,
+            idType: 'my-id',  // hyphen not allowed by Router's grammar
+        );
+    }
+
+    public function testRegisterThrowsOnEmptyIdType(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/idType/');
+
+        ResourceRegistrar::register(
+            new Router(),
+            '/bad',
+            new InMemoryWidgetCrud(),
+            create: CreateWidget::class,
+            update: UpdateWidget::class,
+            idType: '',
+        );
+    }
+
     /**
      * Resolve a matched route + invoke its handler against a
      * synthetic request, normalising the array vs ResponseInterface

@@ -108,22 +108,46 @@ final class ResourceRegistrar
         // Normalise: single leading slash, no trailing slash, so that
         // Router and RouteGroup (which prepends a prefix) behave identically
         // regardless of whether the caller includes the leading slash.
-        $path     = '/' . ltrim(rtrim($path, '/'), '/');
+        $path = '/' . ltrim(rtrim($path, '/'), '/');
+
+        // Validate idType against Router::compile()'s placeholder-type
+        // grammar before interpolation. Without this guard, a label
+        // containing '-' or anything outside the grammar surfaces as
+        // a generic "Malformed route placeholder" from Router::compile,
+        // pointing at the wrong layer. Identifier-shape regex matches
+        // PHP's own valid-identifier check.
+        if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $idType)) {
+            throw new \InvalidArgumentException(
+                "ResourceRegistrar: idType must match [a-zA-Z_][a-zA-Z0-9_]* (got '{$idType}')",
+            );
+        }
         $itemPath = $path . '/{id:' . $idType . '}';
 
         // Validate DTO class-strings at registration time so mis-wired
-        // calls fail immediately rather than on first request with a 500.
-        // $create and $update are checked unconditionally (empty string
-        // would pass array_filter's default truthiness check and slip
-        // through undetected). $search is included only when non-null.
-        $dtoClasses = [$create, $update];
+        // calls fail immediately rather than on first request with a
+        // misleading 500. Three distinct failure modes, three distinct
+        // error messages — generic "must implement RequestDto" hides
+        // typos and empty inputs behind a check that wasn't even
+        // reached for those cases. $create and $update are checked
+        // unconditionally; $search only when non-null.
+        $dtoClasses = ['create' => $create, 'update' => $update];
         if ($search !== null) {
-            $dtoClasses[] = $search;
+            $dtoClasses['search'] = $search;
         }
-        foreach ($dtoClasses as $dtoClass) {
+        foreach ($dtoClasses as $arg => $dtoClass) {
+            if ($dtoClass === '') {
+                throw new \InvalidArgumentException(
+                    "ResourceRegistrar: \${$arg} DTO class name cannot be empty",
+                );
+            }
+            if (!class_exists($dtoClass)) {
+                throw new \InvalidArgumentException(
+                    "ResourceRegistrar: \${$arg} DTO class '{$dtoClass}' does not exist",
+                );
+            }
             if (!is_subclass_of($dtoClass, RequestDto::class)) {
                 throw new \InvalidArgumentException(
-                    "{$dtoClass} must implement " . RequestDto::class,
+                    "ResourceRegistrar: \${$arg} DTO '{$dtoClass}' must implement " . RequestDto::class,
                 );
             }
         }

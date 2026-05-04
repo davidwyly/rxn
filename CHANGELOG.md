@@ -74,7 +74,7 @@ legacy AR base classes.
       `ResourceRegistrar::register(...)->middleware($auth)`.
     - **Per-op**: target the specific Route handle —
       `$routes->update->middleware($adminOnly)`.
-- 19 integration tests against an in-memory `CrudHandler`
+- 28 integration tests against an in-memory `CrudHandler`
   fixture covering: registration shape, ID-type constraint
   rejection, create round-trip, validation failure → 422,
   read 200 / 404, update partial merge, update 404 / 422,
@@ -85,7 +85,12 @@ legacy AR base classes.
   middleware applies to all five routes via the bag's
   `middleware()` chainer, individual route can carry
   additional middleware via the public field, RouteGroup
-  registration inherits prefix + middleware.
+  registration inherits prefix + middleware, path-without-
+  leading-slash normalisation, three distinct DTO-class
+  failures (not-implementing-RequestDto / empty-string /
+  nonexistent), search filter binds from query string only
+  (not request body), idType regex validation rejects '-' /
+  empty.
 
 #### What's NOT in this PR (deliberate scope cut)
 
@@ -102,7 +107,7 @@ legacy AR base classes.
   `Scanner` discover resources at scan time. Useful but
   out-of-scope for the primitive.
 
-Suite 642 → 661 / 1391 → 1474.
+Suite 642 → 670 / 1391 → 1490.
 
 ---
 

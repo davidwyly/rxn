@@ -246,7 +246,7 @@ cumulative scoreboard is in
 
 ```bash
 composer install
-vendor/bin/phpunit          # 661 tests, 1474 assertions
+vendor/bin/phpunit          # 670 tests, 1490 assertions
 bin/rxn help                # CLI subcommands
 ```
 
@@ -298,7 +298,7 @@ CI runs lint + phpunit against PHP 8.2, 8.3, and 8.4
 
 Test counts:
 
-- **Rxn framework:** 661 tests / 1474 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 670 tests / 1490 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 - **[`davidwyly/rxn-observe`](https://github.com/davidwyly/rxn-observe)**
