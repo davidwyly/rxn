@@ -48,7 +48,8 @@ use Rxn\Framework\Http\Router;
  *
  * Each closure handles the wrapping the framework expects:
  *
- *   - `create` binds the create DTO from the request, calls the
+ *   - `create` binds the create DTO via Binder (query + body,
+ *     body wins) from the request, calls the
  *     handler, returns `{data, meta: {status: 201}}` on success.
  *     Validation failure returns a PSR-7 Problem Details
  *     response (422 + `application/problem+json` with
@@ -62,7 +63,8 @@ use Rxn\Framework\Http\Router;
  *   - `read` calls the handler; `null` from the handler →
  *     `{meta: {status: 404, title: 'Not Found'}}` envelope
  *     (mapped to 404 application/problem+json by `App::serve`).
- *   - `update` binds + validates the DTO; `null` from the
+ *   - `update` binds + validates the DTO via Binder (query +
+ *     body, body wins); `null` from the
  *     handler → 404 envelope. Validation failure → 422 PSR-7
  *     Problem Details.
  *   - `delete` returns a true PSR-7 204 response (empty body)

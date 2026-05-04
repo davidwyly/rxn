@@ -232,7 +232,7 @@ ResourceRegistrar::register(
 ```
 
 **Cost reality:** ~280 LOC of framework code (interface +
-registrar) + 15 integration tests. Handler implementations are
+registrar) + 19 integration tests. Handler implementations are
 the app's job and don't count toward framework cost.
 
 **Status:** Shipped — the core primitive lands in this PR.

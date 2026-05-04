@@ -226,10 +226,10 @@ After this the router has:
 
 | Verb | Path | Handler |
 |---|---|---|
-| `POST` | `/products` | `create($dto)` — body bound from `CreateProduct`, 201 + `{data, meta: {status: 201}}` on success, 422 with `errors[]` on validation failure |
+| `POST` | `/products` | `create($dto)` — DTO bound via Binder (query + body, body wins) from `CreateProduct`, 201 + `{data, meta: {status: 201}}` on success, 422 with `errors[]` on validation failure |
 | `GET` | `/products` | `search($filter)` — filter optionally bound from query (`SearchProducts`); registrations without a `search` DTO call the handler with `null`. 200 + `{data: [...]}`. |
 | `GET` | `/products/{id:int}` | `read($id)` — 200 + `{data: ...}`, or 404 Problem Details when the handler returns null |
-| `PATCH` | `/products/{id:int}` | `update($id, $dto)` — body bound from `UpdateProduct`, 200 / 404 / 422 |
+| `PATCH` | `/products/{id:int}` | `update($id, $dto)` — DTO bound via Binder (query + body, body wins) from `UpdateProduct`, 200 / 404 / 422 |
 | `DELETE` | `/products/{id:int}` | `delete($id)` — 204 (empty body, per HTTP spec) on success, 404 on missing |
 
 The handler is just five methods over `Rxn\Framework\Http\Resource\CrudHandler`:
