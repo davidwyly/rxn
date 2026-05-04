@@ -396,6 +396,66 @@ final class ResourceRegistrarTest extends TestCase
         $this->assertNull($router->match('GET', '/widgets'));
     }
 
+    public function testPathWithoutLeadingSlashIsNormalized(): void
+    {
+        // Callers that omit the leading slash should produce the
+        // same routes as callers that include it.
+        $router = new Router();
+        ResourceRegistrar::register(
+            $router,
+            'no-slash',                 // ← missing leading /
+            new InMemoryWidgetCrud(),
+            create: CreateWidget::class,
+            update: UpdateWidget::class,
+        );
+
+        $this->assertNotNull($router->match('POST',   '/no-slash'),    'POST /no-slash must register');
+        $this->assertNotNull($router->match('GET',    '/no-slash'),    'GET /no-slash must register');
+        $this->assertNotNull($router->match('GET',    '/no-slash/1'),  'GET /no-slash/{id} must register');
+        $this->assertNotNull($router->match('PATCH',  '/no-slash/1'),  'PATCH /no-slash/{id} must register');
+        $this->assertNotNull($router->match('DELETE', '/no-slash/1'),  'DELETE /no-slash/{id} must register');
+    }
+
+    public function testRegisterThrowsOnInvalidCreateDtoClass(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        ResourceRegistrar::register(
+            new Router(),
+            '/bad',
+            new InMemoryWidgetCrud(),
+            create: \stdClass::class,   // ← not a RequestDto
+            update: UpdateWidget::class,
+        );
+    }
+
+    public function testRegisterThrowsOnInvalidUpdateDtoClass(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        ResourceRegistrar::register(
+            new Router(),
+            '/bad',
+            new InMemoryWidgetCrud(),
+            create: CreateWidget::class,
+            update: \stdClass::class,   // ← not a RequestDto
+        );
+    }
+
+    public function testRegisterThrowsOnInvalidSearchDtoClass(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        ResourceRegistrar::register(
+            new Router(),
+            '/bad',
+            new InMemoryWidgetCrud(),
+            create: CreateWidget::class,
+            update: UpdateWidget::class,
+            search: \stdClass::class,   // ← not a RequestDto
+        );
+    }
+
     /**
      * Resolve a matched route + invoke its handler against a
      * synthetic request, normalising the array vs ResponseInterface

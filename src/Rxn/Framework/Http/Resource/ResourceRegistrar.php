@@ -103,7 +103,21 @@ final class ResourceRegistrar
         ?string $search = null,
         string $idType = 'int',
     ): ResourceRoutes {
-        $itemPath = rtrim($path, '/') . '/{id:' . $idType . '}';
+        // Normalise: single leading slash, no trailing slash, so that
+        // Router and RouteGroup (which prepends a prefix) behave identically
+        // regardless of whether the caller includes the leading slash.
+        $path     = '/' . ltrim(rtrim($path, '/'), '/');
+        $itemPath = $path . '/{id:' . $idType . '}';
+
+        // Validate DTO class-strings at registration time so mis-wired
+        // calls fail immediately rather than on first request with a 500.
+        foreach (array_filter([$create, $update, $search]) as $dtoClass) {
+            if (!is_subclass_of($dtoClass, RequestDto::class)) {
+                throw new \InvalidArgumentException(
+                    "{$dtoClass} must implement " . RequestDto::class,
+                );
+            }
+        }
 
         // POST /path — create
         $createRoute = $on->post(
