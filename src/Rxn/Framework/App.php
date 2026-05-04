@@ -2,93 +2,27 @@
 
 namespace Rxn\Framework;
 
-use \Rxn\Framework\Http\Request;
-use \Rxn\Framework\Http\Response;
-use \Rxn\Framework\Service\Api;
-use \Rxn\Framework\Error\AppException;
-
 /**
- * Application entrypoint. Constructor boots the environment
- * (Startup registers constants, loads .env, wires databases);
- * run() resolves the request, dispatches to the matching controller
- * action via the container, and renders the JSON envelope.
+ * Static entry point for Rxn applications.
  *
- * Apps that want an explicit router or PSR-15 middleware pipeline
- * instead can bypass run() and drive the primitives in
- * Rxn\Framework\Http\Router / Pipeline / PsrAdapter directly — the
- * container, Request, Controller, and Response classes work either
- * way.
+ *   $router = new Http\Router();
+ *   $router->get('/products/{id:int}', [ProductController::class, 'show']);
+ *   App::serve($router);
+ *
+ * Boot-free: no constructor, no Container plumbing, no DB connection.
+ * Apps that need DI / config / logging / DB wire those at the
+ * composition root and inject them into handlers / middleware. The
+ * framework itself doesn't reach for any of those during a request —
+ * the request flows through the configured `Http\Router` →
+ * `Http\Pipeline` → handler invoker, and back out through
+ * `Http\PsrAdapter::emit()`.
  */
-class App
+final class App
 {
-    private Container $container;
-
     /**
-     * Convention-router state. Used internally by `dispatch()` to
-     * route the incoming request to a controller; no external
-     * consumer should reach in. Exposed via `api()` for the rare
-     * test that needs to peek.
-     */
-    private Api $api;
-
-    /**
-     * Boot-time stats. Null when the Stats service couldn't load
-     * (e.g. the app's Stats binding fails); environment errors
-     * collect on `self::$environment_errors` in that case.
-     */
-    private ?Service\Stats $stats = null;
-
-    /** @var \Exception[] */
-    private static $environment_errors = [];
-
-    public function __construct()
-    {
-        $this->container = new Container();
-        $this->container->get(Startup::class);
-
-        // Service\Registry used to be eagerly constructed here, which
-        // forced a MySQL connection during boot — every request,
-        // including 404s and /health checks, depended on the database
-        // being reachable. Registry's actual consumers (legacy
-        // `Model\Record`, `Data\Map`) pull it from the container on
-        // first access; apps not using those code paths never touch
-        // the schema. Convention router boot is now database-free.
-        $this->api = $this->container->get(Api::class);
-
-        try {
-            $this->stats = $this->container->get(Service\Stats::class);
-            $this->stats->stop(START);
-        } catch (\Exception $e) {
-            self::appendEnvironmentError($e);
-        }
-    }
-
-    public function container(): Container
-    {
-        return $this->container;
-    }
-
-    /**
-     * Read access to the convention-router state. Mostly useful
-     * for tests that need to inspect the resolved controller.
-     */
-    public function api(): Api
-    {
-        return $this->api;
-    }
-
-    public function stats(): ?Service\Stats
-    {
-        return $this->stats;
-    }
-
-    /**
-     * PSR-7/15-native entry point — the recommended shape for new
-     * apps. Builds a `ServerRequestInterface` from globals, runs
-     * it through the route's middleware `Pipeline`, invokes the
-     * matched handler, and emits a `ResponseInterface`.
+     * PSR-7/15-native entry point.
      *
-     *   $router = new Router();
+     *   $router = new Http\Router();
      *   $router->get('/products/{id:int}', [ProductController::class, 'show']);
      *   App::serve($router);
      *
@@ -104,14 +38,6 @@ class App
      * argument:
      *
      *   App::serve($router, function (array $hit, ServerRequestInterface $req) use ($container): ResponseInterface { ... });
-     *
-     * **Static and boot-free.** Doesn't require a Startup-loaded
-     * `App` instance, doesn't read env constants, doesn't touch
-     * the convention-router service graph. Apps that opted into
-     * the explicit Router can run on a minimal `composer require
-     * rxn` install with no boot configuration. Existing apps
-     * using convention routing keep using `App::run()` — `serve()`
-     * doesn't replace it.
      *
      * @param callable(array, \Psr\Http\Message\ServerRequestInterface): \Psr\Http\Message\ResponseInterface|null $invoker
      */
@@ -248,9 +174,6 @@ class App
      *   - invokable object (`__invoke`)    → `"Class::__invoke"`
      *   - any other object                 → bare class name
      *   - everything else                  → the literal `"callable"`
-     *     (the caller has stuffed something exotic, but the slot
-     *     is non-null — there's nothing more useful to say without
-     *     guessing)
      */
     private static function describeHandler(mixed $handler): string
     {
@@ -266,12 +189,6 @@ class App
             return $handler;
         }
         if (is_object($handler)) {
-            // Invokables (`__invoke`) are the common dispatcher
-            // shape — surface them as `Class::__invoke` so the
-            // span name distinguishes them from constructor-only
-            // objects of the same class. Non-invokable objects
-            // fall back to the bare class name (the caller has
-            // probably stuffed something exotic in `handler`).
             return is_callable($handler)
                 ? $handler::class . '::__invoke'
                 : $handler::class;
@@ -300,9 +217,7 @@ class App
 
     /**
      * Serialise a handler's array return as a JSON-envelope PSR-7
-     * response. Mirrors the convention-router envelope so existing
-     * controllers and the new PSR-7 path produce wire-identical
-     * output. `meta.status` (when set) selects the HTTP status;
+     * response. `meta.status` (when set) selects the HTTP status;
      * 4xx / 5xx codes get `application/problem+json`, everything
      * else gets `application/json`.
      *
@@ -336,8 +251,8 @@ class App
     /**
      * Build a Problem Details PSR-7 response. Used by `serve()`
      * for routes that don't match (404 / 405) and exposed for
-     * apps that want a quick 4xx without going through
-     * `Response::problem` + the convention-router renderer.
+     * apps that want a quick 4xx without going through a
+     * full handler.
      */
     public static function psrProblem(int $status, ?string $title = null): \Psr\Http\Message\ResponseInterface
     {
@@ -346,141 +261,80 @@ class App
             ['Content-Type' => 'application/problem+json'],
             json_encode([
                 'type'   => 'about:blank',
-                'title'  => $title ?? Response::getResponseCodeResult($status),
+                'title'  => $title ?? self::statusTitle($status),
                 'status' => $status,
             ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
         );
     }
 
     /**
-     * Convention-router entry point. Resolves the request via
-     * `Service\Api::findController`, dispatches to the matching
-     * controller's versioned action, renders the JSON envelope
-     * with `App::render`. Older apps (and the framework's own
-     * `Tests/Http/Controller`-shaped fixtures) live here.
-     *
-     * For new apps, `serve(Router)` is the recommended shape.
+     * HTTP status code → reason phrase. Covers the full set defined
+     * by IANA's HTTP Status Code Registry; falls back to a generic
+     * label for unknown codes (so a future 7xx code wouldn't crash
+     * the response builder).
      */
-    public function run(): void
+    private static function statusTitle(int $status): string
     {
-        try {
-            $response = $this->dispatch();
-        } catch (\Throwable $exception) {
-            $response = $this->renderFailure($exception);
-        }
-        self::render($response);
-    }
-
-    private function dispatch(): Response
-    {
-        $request = $this->container->get(Request::class);
-        $this->api->request = $request;
-
-        if (!$request->isValidated()) {
-            return $this->renderFailure($request->getException());
-        }
-
-        $controller_ref = $this->api->findController($request);
-        try {
-            $this->api->controller = $this->container->get($controller_ref);
-        } catch (\Rxn\Framework\Error\ContainerException $e) {
-            // Convention router resolved the URL into a class
-            // reference, but the class itself doesn't exist (or
-            // isn't autoloadable). From the client's perspective
-            // that's still "no such resource" — 404, not 500.
-            throw new \Rxn\Framework\Error\NotFoundException(
-                "No route matches this request",
-                404,
-                $e,
-            );
-        }
-
-        return $this->api->controller->trigger();
-    }
-
-    private function renderFailure(\Throwable $exception): Response
-    {
-        $response = $this->container->get(Response::class);
-        if ($response->isRendered()) {
-            $existing = $response->getFailureResponse();
-            if ($existing instanceof Response) {
-                return $existing;
-            }
-        }
-        return $response->getFailure($exception);
-    }
-
-    /**
-     * @throws AppException
-     */
-    private static function render(Response $response): void
-    {
-        if (ob_get_contents()) {
-            throw new AppException("Output buffer already has content; cannot render");
-        }
-
-        $code = $response->getCode() ?: Response::DEFAULT_SUCCESS_CODE;
-        http_response_code((int)$code);
-        // 304 / 204 are headers-only by spec.
-        if ($code === 304 || $code === 204) {
-            return;
-        }
-        // Errors are RFC 7807 Problem Details. The whole ecosystem
-        // — API gateways, client libraries, error aggregators —
-        // already speaks this shape, and shipping a single format
-        // kills a whole class of negotiation bugs. Success stays on
-        // the `{data, meta}` envelope because 7807 is errors-only.
-        if ($response->isError()) {
-            header('content-type: application/problem+json');
-            echo json_encode(
-                $response->toProblemDetails($_SERVER['REQUEST_URI'] ?? null),
-                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
-            );
-            return;
-        }
-        header('content-type: application/json');
-        echo $response->toJson();
-    }
-
-    public static function getElapsedMs(): string
-    {
-        $start = defined(__NAMESPACE__ . '\\START') ? constant(__NAMESPACE__ . '\\START') : microtime(true);
-        return (string)round((microtime(true) - $start) * 1000, 3) . ' ms';
-    }
-
-    public static function hasEnvironmentErrors(): bool
-    {
-        return !empty(self::$environment_errors);
-    }
-
-    /**
-     * @throws AppException
-     */
-    public static function renderEnvironmentErrors(?\Exception $exception = null): void
-    {
-        if ($exception !== null) {
-            self::appendEnvironmentError($exception);
-        }
-        $response = new Response(null);
-        $response->getFailure(new AppException('Environment errors on startup'));
-        $response->addMetaField('startup_errors', self::isProductionEnvironment() ? [] : self::$environment_errors);
-        self::render($response);
-    }
-
-    public static function appendEnvironmentError(\Exception $exception): void
-    {
-        self::$environment_errors[] = self::isProductionEnvironment()
-            ? ['message' => 'Startup error']
-            : [
-                'file'    => $exception->getFile(),
-                'line'    => $exception->getLine(),
-                'message' => $exception->getMessage(),
-            ];
-    }
-
-    private static function isProductionEnvironment(): bool
-    {
-        return getenv('ENVIRONMENT') === 'production';
+        return match ($status) {
+            100 => 'Continue',
+            101 => 'Switching Protocols',
+            102 => 'Processing',
+            200 => 'OK',
+            201 => 'Created',
+            202 => 'Accepted',
+            203 => 'Non-Authoritative Information',
+            204 => 'No Content',
+            205 => 'Reset Content',
+            206 => 'Partial Content',
+            207 => 'Multi-Status',
+            208 => 'Already Reported',
+            226 => 'IM Used',
+            300 => 'Multiple Choices',
+            301 => 'Moved Permanently',
+            302 => 'Found',
+            303 => 'See Other',
+            304 => 'Not Modified',
+            305 => 'Use Proxy',
+            307 => 'Temporary Redirect',
+            308 => 'Permanent Redirect',
+            400 => 'Bad Request',
+            401 => 'Unauthorized',
+            403 => 'Forbidden',
+            404 => 'Not Found',
+            405 => 'Method Not Allowed',
+            406 => 'Not Acceptable',
+            407 => 'Proxy Authentication Required',
+            408 => 'Request Timeout',
+            409 => 'Conflict',
+            410 => 'Gone',
+            411 => 'Length Required',
+            412 => 'Precondition Failed',
+            413 => 'Payload Too Large',
+            414 => 'URI Too Long',
+            415 => 'Unsupported Media Type',
+            416 => 'Range Not Satisfiable',
+            417 => 'Expectation Failed',
+            421 => 'Misdirected Request',
+            422 => 'Unprocessable Entity',
+            423 => 'Locked',
+            424 => 'Failed Dependency',
+            426 => 'Upgrade Required',
+            428 => 'Precondition Required',
+            429 => 'Too Many Requests',
+            431 => 'Request Header Fields Too Large',
+            451 => 'Unavailable For Legal Reasons',
+            500 => 'Internal Server Error',
+            501 => 'Not Implemented',
+            502 => 'Bad Gateway',
+            503 => 'Service Unavailable',
+            504 => 'Gateway Timeout',
+            505 => 'HTTP Version Not Supported',
+            506 => 'Variant Also Negotiates',
+            507 => 'Insufficient Storage',
+            508 => 'Loop Detected',
+            510 => 'Not Extended',
+            511 => 'Network Authentication Required',
+            default => $status >= 500 ? 'Server Error' : ($status >= 400 ? 'Client Error' : 'OK'),
+        };
     }
 }
-

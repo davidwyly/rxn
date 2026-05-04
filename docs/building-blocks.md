@@ -189,20 +189,19 @@ properly atomic.
 
 #### `Rxn\Framework\Http\Middleware\BearerAuth`
 
-Stateless `Authorization: Bearer <token>` enforcement. Wraps the
-existing `Service\Auth` resolver — keeps the actual lookup
-(database, JWT verify, OAuth introspect) in one place and lets
-the pipeline decide *where* the check fires. On a valid token,
-the resolved principal is exposed via `BearerAuth::current()`
-for downstream code; on a missing / malformed / unrecognised
-token, the middleware short-circuits to `401 unauthorized`
-Problem Details.
+Stateless `Authorization: Bearer <token>` enforcement. Wraps a
+caller-supplied resolver — keeps the actual lookup (database,
+JWT verify, OAuth introspect) in one place and lets the pipeline
+decide *where* the check fires. On a valid token, the resolved
+principal is exposed via `BearerAuth::current()` for downstream
+code; on a missing / malformed / unrecognised token, the
+middleware short-circuits to `401 unauthorized` Problem Details.
 
 ```php
 use Rxn\Framework\Http\Middleware\BearerAuth;
 
-$auth->setResolver(fn (string $t) => $userRepo->findByToken($t));
-$pipeline->add(new BearerAuth($auth));
+$resolver = fn (string $token) => $userRepo->findByToken($token);
+$pipeline->add(new BearerAuth($resolver));
 
 // inside a controller:
 $user = BearerAuth::current();
@@ -238,27 +237,6 @@ into a typed `Pagination` value object, clamps to
 the controller runs, if `meta.total` is set it emits
 `X-Total-Count` and a RFC 8288 `Link: rel=first|prev|next|last`
 header automatically. Controllers don't do pagination math.
-
-#### `Rxn\Framework\Http\Middleware\Transaction`
-
-Wraps mutating requests in a database transaction. Commits on
-2xx response, rolls back on 4xx / 5xx or any thrown exception.
-GET / HEAD / OPTIONS pass through untouched (no transaction
-overhead on read-only requests).
-
-```php
-use Rxn\Framework\Http\Middleware\Transaction;
-
-$pipeline->add(new Transaction($container->get(Database::class)));
-```
-
-Composes with handler-level `transactionOpen()` calls because
-`Database` supports nested begins via `transaction_depth`. Apps
-with multiple databases stack multiple Transaction instances —
-each makes the commit/rollback decision independently from the
-same response code. Re-thrown exceptions retain the original
-Throwable so the framework's exception envelope still fires
-upstream.
 
 ## Health checks
 
@@ -332,56 +310,6 @@ requests or responses by hand.
 
 Explicit pattern routing; see [`routing.md`](routing.md).
 
-## `Rxn\Framework\Service\Auth`
-
-Bearer-token resolver. Register a closure in app bootstrap that
-maps a token to a principal; call `extractBearer` + `resolve` from
-middleware or a controller that needs auth.
-
-```php
-$auth = $container->get(\Rxn\Framework\Service\Auth::class);
-$auth->setResolver(function (string $token): ?array {
-    return $userRepo->findByToken($token);
-});
-
-$token = $auth->extractBearer($request->header('Authorization'));
-$user  = $auth->resolve($token);
-if ($user === null) {
-    throw new \Exception('Unauthorized', 401);
-}
-```
-
-## `Rxn\Framework\Http\Router\Session`
-
-CSRF synchronizer tokens:
-
-```php
-Session::token();                   // lazy 32-byte hex
-Session::validateToken($submitted); // constant-time compare
-```
-
-## `Rxn\Framework\Utility\Validator`
-
-Small rule-based input validator. Keyword rules, `name:arg` rules,
-or callables; no reflection, no magic.
-
-```php
-Validator::assert(
-    $request->getCollector()->getFromRequest(),
-    [
-        'email' => ['required', 'email'],
-        'age'   => ['required', 'int', 'min:18'],
-        'role'  => ['in:admin,member,guest'],
-        'slug'  => ['regex:/^[a-z0-9-]+$/'],
-    ]
-);
-```
-
-`check()` returns `['field' => ['message', ...]]` for callers that
-want to shape the error response themselves. `assert()` throws
-`\InvalidArgumentException` with a compact message and is the
-normal boundary check inside a controller.
-
 ## `Rxn\Framework\Utility\Logger`
 
 Append-only JSON-lines logger with PSR-3-style level helpers.
@@ -417,303 +345,12 @@ $s->at(fn ($now) => (int)date('G', $now) === 3, 'nightly-report', $reportJob);
 $s->run();
 ```
 
-## `Rxn\Framework\Data\Migration`
+## Database / ORM / migrations
 
-File-based SQL migrations, tracked in `rxn_migrations`. Files are
-applied in lexicographic order; re-runs are idempotent.
-
-```php
-(new Migration($database, '/app/db/migrations'))->run();
-```
-
-Name files `NNNN_description.sql` for predictable ordering.
-
-## `Rxn\Framework\Data\Chain`
-
-Foreign-key relationship graph built from a `Map`.
-
-```php
-$chain = new Chain($map);
-foreach ($chain->belongsTo('orders') as $link) {
-    // $link->toTable, $link->toColumn
-}
-foreach ($chain->hasMany('users') as $link) {
-    // $link->fromTable, $link->fromColumn
-}
-```
-
-Links are immutable `Link` value objects derived from
-`information_schema` reflection.
-
-## `Rxn\Framework\Model\ActiveRecord`
-
-Minimal active-record layer on top of the `rxn-orm` query builder.
-Subclasses declare their table via `const TABLE`; `find()` returns
-a hydrated instance; relationship methods return `Query` instances
-callers compose.
-
-```php
-use Rxn\Framework\Model\ActiveRecord;
-use Rxn\Orm\Builder\Query;
-
-class User extends ActiveRecord {
-    public const TABLE = 'users';
-    public function orders(): Query    { return $this->hasMany(Order::class, 'user_id'); }
-    public function role(): Query      { return $this->belongsTo(Role::class, 'role_id'); }
-}
-
-class Order extends ActiveRecord { public const TABLE = 'orders'; }
-class Role  extends ActiveRecord { public const TABLE = 'roles'; }
-
-$user = User::find($database, 42);          // null if no match
-echo $user->email;                           // __get on hydrated attributes
-
-$orderRows = $database->run(
-    $user->orders()->andWhere('total', '>=', 100)->orderBy('id', 'DESC')
-);
-$orders = ActiveRecord::hydrate($orderRows, Order::class);
-
-$role = $database->run($user->role())[0] ?? null;
-```
-
-Static entry points:
-
-- `Foo::find($database, $id)` — fetch and hydrate, or null.
-- `Foo::query()` — fresh SELECT `Query` scoped to this table.
-- `Foo::hydrate($rows, Class::class)` — hydrate raw rows into
-  instances; useful after calling `$database->run(...)`.
-
-Instance methods:
-
-- `$record->id()` — primary-key value.
-- `$record->toArray()` — raw attributes.
-- `$record->hasMany(Class::class, 'fk')` / `hasOne` / `belongsTo`
-  — each returns a composable `Query`.
-
-The layer is deliberately read-oriented. Persistence goes through
-the `Insert` / `Update` / `Delete` builders and `Database::run()`;
-if your app wants an Eloquent-style `$user->save()`, add it as a
-thin layer on top.
-
-## ORM / query builder (`davidwyly/rxn-orm`)
-
-Shipped as a separate composer package — see
-[davidwyly/rxn-orm](https://github.com/davidwyly/rxn-orm) — and
-required transitively by Rxn. `Database::run($builder)` takes any
-`Rxn\Orm\Builder\Buildable` (`Query`, `Insert`, `Update`, `Delete`)
-and executes it.
-
-```mermaid
-classDiagram
-    class Buildable {
-        <<interface>>
-        +toSql() array
-    }
-    class Query {
-        +select() Query
-        +from() Query
-        +where() Query
-        +orderBy() Query
-        +limit() Query
-        +toSql() array
-    }
-    class Insert {
-        +into() self
-        +row() self
-        +onDuplicateKeyUpdate() self
-        +returning() self
-        +toSql() array
-    }
-    class Update {
-        +table() self
-        +set() self
-        +where() self
-        +returning() self
-        +toSql() array
-    }
-    class Delete {
-        +from() self
-        +where() self
-        +allowEmptyWhere() self
-        +returning() self
-        +toSql() array
-    }
-    class Database {
-        +run(Buildable) mixed
-    }
-
-    Buildable <|.. Query
-    Buildable <|.. Insert
-    Buildable <|.. Update
-    Buildable <|.. Delete
-    Database ..> Buildable : consumes
-    Update ..> HasWhere : trait
-    Delete ..> HasWhere : trait
-    Query ..> HasWhere : trait
-```
-
-Every builder returns a `[string $sql, array $bindings]` pair from
-`toSql()`; callers that want to skip `Database::run()` can feed
-that tuple to any PDO connection directly.
-
-### `Rxn\Orm\Builder\Query`
-
-Fluent SELECT query builder for cases where `Record` scaffolding
-doesn't reach. `toSql()` materializes to `[$sql, $bindings]`;
-`Database::run($query)` executes the result in one call.
-
-```php
-$query = (new Query())
-    ->select(['u.id', 'u.email'])
-    ->from('users', 'u')
-    ->leftJoin('orders', 'o.user_id', '=', 'u.id', 'o')
-    ->where('u.active', '=', 1)
-    ->andWhereIn('u.role', ['admin', 'owner'])
-    ->orderBy('u.created_at', 'DESC')
-    ->limit(50)
-    ->offset(0);
-
-$rows = $database->run($query);
-```
-
-Grouped conditions use a closure argument that receives a fresh
-`Query`; its where-calls become a parenthesised sub-expression:
-
-```php
-$query->where('tenant_id', '=', 7)
-      ->andWhere('status', '=', 'active', function (Query $w) {
-          $w->orWhere('status', '=', 'trial');
-      });
-// ... WHERE `tenant_id` = ? AND (`status` = ? OR `status` = ?)
-```
-
-Supported methods: `select`, `from`, `join` / `innerJoin` / `leftJoin` /
-`rightJoin` / `joinCustom`, `where` / `andWhere` / `orWhere` /
-`whereIn` / `whereNotIn` / `whereIsNull` / `whereIsNotNull` (and
-`and*` / `or*` variants), `groupBy`, `having`, `orderBy`, `limit`,
-`offset`. Operators validated against the `WHERE_OPERATORS`
-whitelist (`=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, `IN`, `NOT IN`,
-`LIKE`, `NOT LIKE`, `BETWEEN`, `REGEXP`, `NOT REGEXP`).
-
-### Raw expressions
-
-`Rxn\Orm\Builder\Raw` is an opt-out marker for SQL fragments the
-builder should emit verbatim instead of identifier-escaping. Use it
-for aggregates, function calls, and literals:
-
-```php
-use Rxn\Orm\Builder\Raw;
-
-$q->select([Raw::of('COUNT(o.id) AS order_count'), 'u.id'])
-  ->from('users', 'u')
-  ->leftJoin('orders', 'o.user_id', '=', 'u.id', 'o')
-  ->groupBy(Raw::of('DATE(o.created_at)'))
-  ->orderBy(Raw::of('RAND()'));
-```
-
-Contents are not sanitised — don't interpolate user input into a
-`Raw`. Accepted in `select()` columns, `groupBy`, `orderBy`, and as
-values in `Insert::row()` / `Update::set()`.
-
-### Insert / Update / Delete
-
-Fluent mutation builders that share `Query`'s where-clause API via
-the `HasWhere` trait. Each implements `Buildable`; pass one to
-`Database::run()` to execute.
-
-```php
-// INSERT (single or multi-row; missing columns bind as null)
-$database->run(
-    (new \Rxn\Orm\Builder\Insert())
-        ->into('users')
-        ->row(['email' => 'a@example.com', 'role' => 'admin'])
-        ->row(['email' => 'b@example.com', 'role' => 'member'])
-);
-
-// UPDATE
-$database->run(
-    (new \Rxn\Orm\Builder\Update())
-        ->table('users')
-        ->set(['role' => 'admin', 'updated_at' => Raw::of('NOW()')])
-        ->where('id', '=', 42)
-);
-
-// DELETE (empty WHERE is blocked by default — opt in explicitly)
-$database->run(
-    (new \Rxn\Orm\Builder\Delete())
-        ->from('users')
-        ->where('deleted_at', '<', '2025-01-01')
-);
-```
-
-`Delete::allowEmptyWhere()` enables `DELETE FROM t` without a
-`WHERE` clause — it has to be called explicitly so a forgotten
-condition can't accidentally wipe the table.
-
-### Upsert (`ON DUPLICATE KEY UPDATE`, MySQL)
-
-```php
-$database->run(
-    (new Insert())
-        ->into('counters')
-        ->row(['key' => 'pageviews', 'value' => 1])
-        ->onDuplicateKeyUpdate(['value' => Raw::of('value + 1')])
-);
-// INSERT INTO `counters` (`key`, `value`) VALUES (?, ?)
-// ON DUPLICATE KEY UPDATE `value` = value + 1
-```
-
-### `RETURNING` (PostgreSQL / SQLite)
-
-All three mutation builders accept `->returning('col', ...)`;
-columns are backtick-escaped, or pass `Raw::of(...)` for arbitrary
-projections. MySQL will reject the statement — callers are
-responsible for knowing their driver supports `RETURNING`.
-
-### Subqueries
-
-Three entry points; every variant merges the subquery's bindings
-into the outer query's positional-binding list at call time.
-
-```php
-// WHERE col IN (SELECT ...)
-$admins = (new Query())->select(['id'])->from('users')->where('role', '=', 'admin');
-$q = (new Query())->select()->from('posts')
-    ->where('author_id', 'IN', $admins);
-
-// WHERE col = (SELECT ...)  — scalar subquery on the value side
-$latest = (new Query())->select([Raw::of('MAX(id)')])->from('orders');
-$q = (new Query())->select()->from('orders')->where('id', '=', $latest);
-
-// FROM (SELECT ...) AS alias
-$frequent = (new Query())
-    ->select(['user_id', Raw::of('COUNT(*) AS order_count')])
-    ->from('orders')->groupBy('user_id')->having('COUNT(*) > 5');
-$q = (new Query())->select()->from($frequent, 'frequent')
-    ->where('order_count', '>', 10);
-
-// (SELECT ...) AS col  as a projected column
-$orderCount = (new Query())->select([Raw::of('COUNT(*)')])
-    ->from('orders')->where('user_id', '=', Raw::of('u.id'));
-$q = (new Query())->select(['u.id'])
-    ->selectSubquery($orderCount, 'order_count')
-    ->from('users', 'u');
-```
-
-`selectSubquery` should be called before outer `where()` / etc
-so its placeholders land ahead of later clauses in the
-positional-binding list.
-
-## Query-result caching
-
-```php
-$database->setCache('/var/cache/rxn/query', ttl: 300);
-$database->enableCache();
-```
-
-Every read Query hits the filesystem cache first, keyed by
-`md5(type|sql|bindings)`. Writes (INSERT/UPDATE/DELETE/DDL) are
-never cached.
+Shipped as the separate [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)
+package — query builder, ActiveRecord-shaped layer, file-based
+SQL migrations, query-result caching. `composer require davidwyly/rxn-orm`
+to opt in; the framework itself stays storage-free.
 
 ## `Rxn\Framework\Testing\TestClient` + `TestResponse`
 
@@ -777,7 +414,3 @@ Pulls `swagger-ui-dist@5` from `unpkg` by default; pass
 `cdnBase: 'https://cdn.example.com/swagger/'` to self-host. Title
 and spec URL are HTML-escaped at render time.
 
-## `Rxn\Framework\Data\Filecache`
-
-Object caching with atomic writes. Useful for caching anything
-reflection-derived so you don't recompute on every request.

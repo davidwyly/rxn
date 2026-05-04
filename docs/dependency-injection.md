@@ -1,9 +1,8 @@
 # Dependency injection
 
-`Rxn\Framework\Container` autowires constructors by type hint. There
-is one container per application; services (classes extending
-`Rxn\Framework\Service`) are cached as singletons after first
-resolution. Non-service classes are re-instantiated on every `get()`.
+`Rxn\Framework\Container` autowires constructors by type hint.
+Resolved classes are cached as singletons — subsequent `get()`s
+return the same instance.
 
 ## Resolving a class
 

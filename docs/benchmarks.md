@@ -8,9 +8,9 @@ php bin/bench router       # filter by substring match on case name
 ```
 
 Each case runs for ~250ms after a 50ms warmup on a single process.
-This is **not** a full-stack HTTP benchmark — `App::run()` still has
-open bugs that make end-to-end numbers meaningless until it's
-rewritten.
+This is **not** a full-stack HTTP benchmark — for end-to-end
+throughput see `bench/compare/` (cross-framework HTTP under
+`php -S` per-request worker mode).
 
 ## Reference numbers
 

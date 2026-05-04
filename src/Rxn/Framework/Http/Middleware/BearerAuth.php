@@ -7,37 +7,37 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use Rxn\Framework\Service\Auth;
 
 /**
  * Stateless Bearer-token authentication. Reads the
- * `Authorization: Bearer <token>` header, hands the token to the
- * configured `Auth` resolver, and either:
+ * `Authorization: Bearer <token>` header, hands the token to a
+ * caller-supplied resolver, and either:
  *
  *  - 401 Problem Details on missing / malformed / unrecognised
  *    token, or
  *  - delegates to the next handler and exposes the resolved
  *    principal via `BearerAuth::current()` for downstream code.
  *
- *   $auth->setResolver(fn (string $t) => $userRepo->findByToken($t));
- *   $pipeline->add(new BearerAuth($auth));
+ *   $resolver = fn (string $token) => $userRepo->findByToken($token);
+ *   $pipeline->add(new BearerAuth($resolver));
  *
  *   // inside a controller:
  *   $user = BearerAuth::current();
  *
- * The middleware is a thin enforcement layer over the existing
- * `Rxn\Framework\Service\Auth` service — keeps the authentication
- * mechanism (token shape, lookup, expiry) in one place and lets
- * the pipeline decide *where* in the request lifecycle the check
- * fires.
+ * The resolver returns the authenticated principal (any
+ * `array<string, mixed>` shape — typically a user record) or
+ * `null` to reject the request. Apps that want token introspection,
+ * cache hits, JWT validation, etc. wrap that in the resolver
+ * closure — the middleware doesn't care.
  */
 final class BearerAuth implements MiddlewareInterface
 {
     /** @var array<string, mixed>|null */
     private static ?array $current = null;
 
+    /** @param callable(string): (array<string, mixed>|null) $resolver */
     public function __construct(
-        private readonly Auth $auth,
+        private $resolver,
         private readonly string $headerName = 'Authorization',
     ) {}
 
@@ -45,10 +45,13 @@ final class BearerAuth implements MiddlewareInterface
         ServerRequestInterface $request,
         RequestHandlerInterface $handler,
     ): ResponseInterface {
-        $header    = $request->getHeaderLine($this->headerName);
-        $token     = $header !== '' ? $this->auth->extractBearer($header) : null;
-        $principal = $this->auth->resolve($token);
-        if ($principal === null) {
+        $header = $request->getHeaderLine($this->headerName);
+        $token  = self::extractBearer($header);
+        if ($token === null) {
+            return self::renderUnauthorized();
+        }
+        $principal = ($this->resolver)($token);
+        if (!is_array($principal) || $principal === []) {
             return self::renderUnauthorized();
         }
         self::$current = $principal;
@@ -68,19 +71,31 @@ final class BearerAuth implements MiddlewareInterface
      *
      * Sync-only by design: this static is process-wide and is only
      * safe when requests are handled one-at-a-time (the framework's
-     * intended PHP-FPM model).
-     *
-     * In concurrent coroutine/fiber workers (including I/O-hooked
-     * runtimes), execution may yield while this value is set and
-     * another request may overwrite it before the original request
-     * resumes. In those environments, propagate identity explicitly;
-     * do not rely on this static.
+     * intended PHP-FPM model). Coroutine runtimes (Swoole, fibers)
+     * need an alternative principal-propagation mechanism.
      *
      * @return array<string, mixed>|null
      */
     public static function current(): ?array
     {
         return self::$current;
+    }
+
+    /**
+     * Pull the token out of an `Authorization: Bearer <token>`
+     * header value. Case-insensitive on the scheme; strict on the
+     * single space between scheme and token (matches the original
+     * implementation's behaviour).
+     */
+    private static function extractBearer(string $header): ?string
+    {
+        if ($header === '') {
+            return null;
+        }
+        if (!preg_match('/^Bearer\s+(\S+)\s*$/i', $header, $matches)) {
+            return null;
+        }
+        return $matches[1];
     }
 
     private static function renderUnauthorized(): ResponseInterface

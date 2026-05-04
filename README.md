@@ -2,7 +2,7 @@
 
 #### An opinionated JSON micro-framework for PHP.
 
-##### Status: alpha. Targets PHP 8.2+ and ships a Docker stack on PHP 8.3-fpm.
+##### Status: alpha. Targets PHP 8.2+.
 
 Rxn (from "reaction") tries to land all three of **fast**,
 **readable**, and **small** at the same time. The usual trilemma
@@ -21,29 +21,35 @@ decoupled. JSON-only is a *narrowing* decision that pays
 dividends down the stack: no content negotiation, no view layer,
 one error envelope.
 
-The ORM / query builder lives in a separate package —
-[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm) — pulled
-in automatically via Composer.
+Vendor-flavoured concerns ship as separate packages so the core
+stays narrow:
+- [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm) —
+  query builder + ActiveRecord-shaped layer.
+- [`davidwyly/rxn-observe`](https://github.com/davidwyly/rxn-observe) —
+  OpenTelemetry listener over the framework's PSR-14 event
+  surface; drop in for span trees.
+
+Both are opt-in via `composer require`; no plumbing in core, no
+cost when not installed.
 
 ## At a glance
 
 ```mermaid
 flowchart TB
-    Req["HTTP request"] --> Index["public/index.php"]
-    Index --> Router["Http/Router<br/>(explicit or attribute-driven)"]
+    Req["HTTP request"] --> Serve["App::serve(Router)"]
+    Serve --> Router["Http/Router<br/>(explicit or attribute-driven)"]
     Router --> Pipeline["Middleware pipeline"]
     Pipeline --> Handler["Route handler<br/>+ DTO bind/validate"]
     Handler --> Resp["Response"]
     Resp -->|success| OK["application/json<br/>{data, meta}"]
-    Resp -. uncaught exception .-> Fail["Response::getFailure"]
+    Resp -. uncaught exception .-> Fail["middleware exception handler"]
     Fail --> PD["application/problem+json<br/>RFC 7807"]
 ```
 
-The recommended dispatch shape is the explicit `Http\Router` — driven
-directly, or populated from `#[Route]` attributes via
-`Http\Attribute\Scanner`. A legacy convention router
-(`App::run` matching `/v{N}/{controller}/{action}/...`) is still
-shipped for older apps; see [`docs/routing.md`](docs/routing.md).
+`App::serve(Router)` is the entry point — populate the Router
+directly or from `#[Route]` attributes via `Http\Attribute\Scanner`.
+The framework is boot-free: no constructor, no Container plumbing,
+no DB connection during request setup.
 
 See [`docs/index.md`](docs/index.md) for the full request sequence
 and per-subsystem deep dives.
@@ -77,7 +83,7 @@ generators). Drop in `Http\OpenApi\SwaggerUi::html($specUrl)`
 from a route handler for instant interactive docs.
 
 **PSR-native end-to-end.** PSR-7 ingress (default), PSR-15
-middleware (the contract for all nine shipped middlewares),
+middleware (the contract for all eight shipped middlewares),
 PSR-11 container, PSR-3 logger, PSR-14 events — every framework
 interface satisfies the relevant PSR. Any third-party CORS /
 OAuth / OpenTelemetry / JWT / rate-limit middleware drops into
@@ -128,7 +134,7 @@ Opinionated pieces worth naming:
 
 ### Simplicity
 
-Small enough to read end to end — **~13K LOC of framework code
+Small enough to read end to end — **~11K LOC of framework code
 ships what a comparably-featured Slim or Mezzio composition
 reaches in 70–100K LOC of vendor packages** (DTO binding +
 attribute-driven validation, OpenAPI from reflection, idempotency
@@ -143,7 +149,7 @@ makes that arithmetic work.
 Dependency-free, injectable-for-test middlewares for the common
 defensive layers: **BearerAuth, CORS with preflight, ETag, JSON-
 body decoding with size caps, Idempotency (Stripe-style replay),
-Pagination, RequestId, Transaction**. DI container supports
+Pagination, RequestId, TraceContext (W3C)**. DI container supports
 **interface-to-implementation binding** (`$c->bind(UserRepo::class,
 PostgresUserRepo::class)`) and factory closures, so serious apps
 aren't stuck with autowire-only. An in-process **TestClient**
@@ -223,90 +229,48 @@ cumulative scoreboard is in
 
 ```bash
 composer install
-vendor/bin/phpunit          # 739 tests, 1598 assertions
+vendor/bin/phpunit          # 616 tests, 1321 assertions
 bin/rxn help                # CLI subcommands
 ```
 
-### 60-second walkthrough — `examples/products-api/`
+### Minimal app shape
 
-Boot the worked-example app and exercise every shipped middleware
-in five minutes:
+The framework's entry point is `App::serve(Router)`. Boot-free —
+no constructor, no Container plumbing, no DB connection during
+request setup. A complete app:
 
-```bash
-php -S 127.0.0.1:9871 -t examples/products-api/public
+```php
+<?php declare(strict_types=1);
+require __DIR__ . '/vendor/autoload.php';
+
+use Rxn\Framework\App;
+use Rxn\Framework\Http\Router;
+
+$router = new Router();
+$router->get('/products/{id:int}', function (array $params): array {
+    return ['data' => ['id' => (int) $params['id']]];
+});
+
+App::serve($router);
 ```
 
-In another shell, watch the framework's identity show up across
-five paths:
-
-```bash
-# 1. Health check (HealthCheck route helper)
-curl http://127.0.0.1:9871/health
-# → {"data":{"status":"ok","checks":{"database":{"status":"ok"}}},...}
-
-# 2. Paginated list (Pagination middleware adds X-Total-Count + Link)
-curl -i "http://127.0.0.1:9871/products?per_page=5"
-
-# 3. Create (BearerAuth + Idempotency + DTO validation)
-curl -X POST http://127.0.0.1:9871/products \
-     -H 'Authorization: Bearer demo-admin' \
-     -H 'Idempotency-Key: k-1' \
-     -H 'Content-Type: application/json' \
-     -d '{"name":"Widget","price":9.99,"status":"published"}'
-# → 201 with the created row + meta.authenticated: "Admin"
-
-# 4. Replay the same call — Idempotency middleware short-circuits
-curl -i -X POST http://127.0.0.1:9871/products \
-     -H 'Authorization: Bearer demo-admin' \
-     -H 'Idempotency-Key: k-1' \
-     -H 'Content-Type: application/json' \
-     -d '{"name":"Widget","price":9.99,"status":"published"}'
-# → 201 with `Idempotent-Replayed: true` header, no DB write
-
-# 5. Validation failure — every field error at once
-curl -X POST http://127.0.0.1:9871/products \
-     -H 'Authorization: Bearer demo-admin' \
-     -H 'Idempotency-Key: k-2' \
-     -H 'Content-Type: application/json' \
-     -d '{"name":"","price":-1,"homepage":"not-a-url"}'
-# → 422 with errors[] for name, price, homepage in one round trip
-```
-
-The example is **eight files, ~250 lines of glue**. The whole
-input contract for `POST /products` lives in
-[`examples/products-api/app/Dto/CreateProduct.php`](examples/products-api/app/Dto/CreateProduct.php) —
-one PHP class with public typed properties and validation
-attributes, simultaneously consumed by the Binder, the validator,
-the OpenAPI generator, and the schema-compiled fast path. That's
-the [design philosophy](docs/design-philosophy.md)'s "schema as
-truth, multiple consumers" principle in 30 lines of PHP.
-
-Full walkthrough in
-[`examples/products-api/README.md`](examples/products-api/README.md).
-
-### Docker stack (optional)
-
-Full Docker stack (PHP 8.3-fpm + nginx 1.27 + MySQL 8):
-
-```bash
-cp docker-compose.env.example .env
-# edit .env: set MYSQL_PASSWORD and MYSQL_ROOT_PASSWORD
-docker compose up --build
-```
-
-Set `INSTALL_XDEBUG=1` in `.env` to build the PHP image with Xdebug 3.
+Drop in front of `php -S` for local dev, or `php-fpm` + nginx /
+Caddy / Apache for production. Apps that need DI / config /
+logging wire those at the composition root and inject them into
+handlers — the framework itself stays out of that decision.
 
 ### CI / cross-framework comparison
 
-CI runs lint + phpunit against PHP 8.2, 8.3, and 8.4 plus an
-end-to-end HTTP smoke job against MySQL 8
+CI runs lint + phpunit against PHP 8.2, 8.3, and 8.4
 (`.github/workflows/ci.yml`).
 
 Test counts:
 
-- **Rxn framework:** 739 tests / 1598 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 616 tests / 1321 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
+- **[`davidwyly/rxn-observe`](https://github.com/davidwyly/rxn-observe)**
+  (OpenTelemetry listener): 9 tests / 26 assertions, run in that repo.
 
 Cross-framework comparison harness
 ([`bench/compare/`](bench/compare/)) benchmarks Rxn against Slim 4,
@@ -363,10 +327,8 @@ methodology is in
          stripping on every GET / POST / header param when
          `APP_USE_IO_SANITIZATION=true` (JSON is the output
          format, so HTML-escaping stays in the frontend)
-   - [X] CSRF synchronizer tokens (`Session::token()` /
-         `Session::validateToken()`) with constant-time compare
-   - [X] Bearer-token authentication (`Service\Auth`): the
-         framework extracts + verifies, the app supplies the
+   - [X] Bearer-token authentication (`Http\Middleware\BearerAuth`):
+         the framework extracts + verifies, the app supplies the
          token → principal resolver — by design, not a gap
    - [X] Rate limiting (`Utility\RateLimiter`, file-backed with
          `flock`)
@@ -375,11 +337,8 @@ methodology is in
          the error shape, period — uncaught exceptions included.
          Dev-mode file/line/trace carry as `x-rxn-*` extension
          members
-- [X] Versioning (versioned controllers + actions)
-- [X] Scaffolding (version-less CRUD against a live schema)
-- [X] URI Routing — **explicit `Http\Router` is the recommended
-      surface**, driven directly or populated from `#[Route]`
-      attributes
+- [X] URI Routing — **explicit `Http\Router`**, driven directly
+      or populated from `#[Route]` attributes
    - [X] Attribute-based routing — `#[Route('GET', '/products/{id:int}')]`
          + `#[Middleware(Auth::class)]` directly on controller methods
          via `Rxn\Framework\Http\Attribute\Scanner`; no separate
@@ -399,11 +358,6 @@ methodology is in
          `{name:alpha}` are disjoint). Exit 1 = conflicts found.
          No PHP framework I know of catches this before
          first-request resolution
-   - [X] Convention-based (`/v{N}/{controller}/{action}/key/value/...`)
-         — legacy path retained for older apps; new code should use
-         attribute or explicit routing
-   - [X] Apache 2 (.htaccess)
-   - [X] NGINX (see `docker/nginx`)
 - [X] Dependency Injection container
    - [X] Controller method injection
    - [X] DI autowiring via constructor type hints
@@ -411,24 +365,19 @@ methodology is in
          (`$container->bind($abstract, $concrete)`) and factory
          closures (`$container->bind($abstract, fn ($c) => ...)`)
    - [X] Circular-dependency detection
-- [X] Object-Relational Mapping
-   - [X] Query builder (SELECT / INSERT / UPDATE / DELETE with
-         subqueries, upsert, RETURNING) — ships as
-         [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)
-   - [X] ActiveRecord hydration + hasMany / hasOne / belongsTo
-         relationships (`Rxn\Framework\Model\ActiveRecord`)
-   - [X] Scaffolded CRUD on a record (`CrudController` + `Record`)
-   - [X] FK relationship graph (`Data\Chain` + `Link`)
+- [X] Database / ORM concerns ship as
+      [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)
+      (query builder + ActiveRecord). `composer require` to opt in;
+      no plumbing in core.
 - [X] HTTP middleware pipeline — **PSR-15 native end-to-end**
-      (`Http\Pipeline`; all nine shipped middlewares implement
+      (`Http\Pipeline`; all eight shipped middlewares implement
       `Psr\Http\Server\MiddlewareInterface`)
    - [X] Shipped middlewares: BearerAuth, CORS w/ preflight,
          conditional GET via weak ETags + 304 short-circuit,
          Idempotency (Stripe-style replay), JSON-body decoding with
          size caps, Pagination + RFC 8288 Link headers, request-id
-         correlation, Transaction, **W3C Trace Context** (auto-
-         propagation to outbound `Concurrency\HttpClient` calls)
-         (`Http\Middleware\*`)
+         correlation, **W3C Trace Context** (auto-propagation to
+         outbound `Concurrency\HttpClient` calls) (`Http\Middleware\*`)
 - [X] PSR-7 ingress — `Http\PsrAdapter::serverRequestFromGlobals()`
       builds a `ServerRequestInterface` from PHP globals;
       `App::serve(Router)` is the boot-free one-line front controller

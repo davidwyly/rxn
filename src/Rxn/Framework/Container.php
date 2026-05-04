@@ -42,14 +42,6 @@ class Container implements ContainerInterface
     private static array $reflectionCache = [];
 
     /**
-     * Same idea for `isService` — the answer is a function of the
-     * class hierarchy, which is also fixed for the process lifetime.
-     *
-     * @var array<string, bool>
-     */
-    private static array $isServiceCache = [];
-
-    /**
      * Pre-computed construction recipe per class. Each entry is a
      * directive describing how to fill the corresponding constructor
      * parameter slot — `['autowire', $class]`, `['default']`,
@@ -166,13 +158,11 @@ class Container implements ContainerInterface
         // caches don't grow with case-variant aliases of the same class.
         $class_name = $this->parseClassName(self::reflectionFor($class_name)->getName());
 
-        // if we already stored an instance of a statically-bound service class, return it.
-        // Direct isset rather than has() — PSR-11 has() now reports
+        // Singleton cache: same instance on subsequent `get()`s. Direct
+        // isset rather than has() — PSR-11 has() now reports
         // "constructible" (class_exists), which is a different thing
         // from "have we cached an instance".
-        if (self::isService($class_name)
-            && isset($this->instances[$class_name])
-        ) {
+        if (isset($this->instances[$class_name])) {
             return $this->instances[$class_name];
         }
 
@@ -191,17 +181,6 @@ class Container implements ContainerInterface
         $this->instances[$class_name] = $instance;
 
         return $instance;
-    }
-
-    /**
-     * @param $class_name
-     *
-     * @return bool
-     */
-    private function isService($class_name)
-    {
-        return self::$isServiceCache[$class_name]
-            ??= self::reflectionFor($class_name)->isSubclassOf(Service::class);
     }
 
     /**

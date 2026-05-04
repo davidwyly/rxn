@@ -12,6 +12,109 @@ read alongside the wins.
 
 ## Unreleased
 
+### Strip convention router + legacy AR layer (`chore/strip-convention-router`)
+
+The convention router (`App::run()`, `Service\Api`, `Service\Stats`,
+`Service\Auth`, `Service\Registry`, `Model\Record`, `Model\ActiveRecord`,
+`Model\Model`, `Data\Database`, `Data\Map`, `Data\Migration`, `Data\Chain`,
+`Data\Filecache`, `Data\Query`, `Http\Controller`, `Http\CrudController`,
+`Http\Collector`, `Http\Request`, `Http\Response`,
+`Http\Middleware\Transaction`, `Http\Router\Session`, `Startup`,
+`Config`, `BaseConfig`, `Service` base class) is gone. The framework
+ships a single entry point: `App::serve(Router)`. Boot-free, no
+constructor, no Container plumbing during request setup, no DB
+connection unless an app wires one.
+
+This is a WIP-era cleanup, not a deprecation cycle. No
+backwards-compat shims; apps that depended on the convention router
+need to migrate to `App::serve(Router)` + `#[Route]` attributes or
+explicit `$router->get(...)` registration.
+
+#### Removed (code)
+
+- **Convention router stack:** `App::run()`, `App::dispatch()`,
+  `App::renderFailure()`, `App::__construct()`, `App::render()`,
+  `App::renderEnvironmentErrors()`, `App::appendEnvironmentError()`,
+  `App::isProductionEnvironment()`, `App::hasEnvironmentErrors()`,
+  `App::getElapsedMs()`. `App` is now a static-only class with
+  `serve()`, `arrayToPsrResponse()`, `psrProblem()`, and a few
+  private helpers.
+- **Service base + concrete services:** `Rxn\Framework\Service`,
+  `Service\Api`, `Service\Auth`, `Service\Registry`, `Service\Stats`,
+  `Startup`, `Config`, `BaseConfig`.
+- **Legacy data layer:** entire `Rxn\Framework\Data\*` namespace
+  (`Database`, `Map`, `Map\Table`, `Map\Chain\Link`, `Chain`,
+  `Migration`, `Migration\Schema`, `Migration\Schema\Version`,
+  `Filecache`, `Query`).
+- **Legacy model layer:** entire `Rxn\Framework\Model\*` namespace
+  (`Record`, `ActiveRecord`, `Model`).
+- **Legacy HTTP shapes:** `Http\Controller`, `Http\CrudController`,
+  `Http\Controller\Crud`, `Http\Collector`, `Http\Request` (the
+  non-PSR-7 one), `Http\Response` (the non-PSR-7 one),
+  `Http\Middleware\Transaction`, `Http\Router\Session`.
+- **Demo scaffolding:** `app/`, `examples/`, `public/index.php`,
+  `docker/`, `docker-compose.yml`, `docker-compose.env.example`.
+
+#### Refactored
+
+- **`App::serve()`** — kept; now the only entry point. Modern PSR-7
+  flow unchanged.
+- **`Container`** — dropped the `isService` singleton/transient split
+  (it depended on the deleted `Service` base class). All resolved
+  classes are now cached as singletons; this is the standard
+  PSR-11 / DI-container behaviour.
+- **`Http\Middleware\BearerAuth`** — no longer depends on
+  `Service\Auth`. Constructor takes a `callable(string): ?array`
+  resolver directly. Apps that want token introspection / cache
+  hits / JWT verify wrap that in the resolver closure.
+- **`composer.json`** — dropped `ext-pdo` (Database is gone),
+  dropped `davidwyly/rxn-orm` from `require-dev` (was needed for
+  the deleted ActiveRecord tests). Updated the rxn-orm `suggest`
+  description to drop references to deleted Data\Database etc.
+- **`bin/rxn`** — dropped subcommands `migrate`, `migrate:status`,
+  `make:controller`, `make:record` (each depended on deleted
+  framework code). Remaining commands: `openapi`, `openapi:check`,
+  `routes:check`, `dump:hot`.
+
+#### Removed (tests)
+
+24 test files for the deleted code:
+`AppBootTest`, `AppErrorHandlingTest`, `Tests/Service/*`
+(3 files), `Tests/Model/*` (2), `Tests/Data/*` (6),
+`Tests/Http/CollectorTest`, `ControllerTest`, `CrudControllerTest`,
+`RequestTest`, `ResponseTest`, `Tests/Http/Middleware/TransactionTest`,
+`Tests/Http/Router/SessionTokenTest`,
+`Tests/Http/Binding/ProblemDetailsIntegrationTest` (used legacy
+Response). `BearerAuthTest` rewritten for the callable-resolver
+constructor; `NotFoundExceptionTest` lost one stale-Response
+assertion.
+
+#### Numbers
+
+- Suite: 739 → 616 / 1321 (123 tests gone with the deleted code).
+- Framework LOC: ~13K → ~11K (~2K LOC removed).
+- Middleware count: 9 → 8 (Transaction dropped).
+- Composer requires shrunk: `ext-pdo` removed; `require-dev`
+  dropped `davidwyly/rxn-orm`.
+
+#### Doc updates
+
+- `docs/scaffolding.md` — deleted (the feature is gone).
+- `docs/routing.md` — dropped the convention-router section;
+  `Http\Router` is now the only routing primitive documented.
+- `docs/index.md` — rewrote the request-lifecycle diagram around
+  `App::serve(Router)`.
+- `docs/building-blocks.md` — pruned the legacy data/model/orm
+  sections; pointer to `davidwyly/rxn-orm` for query-builder /
+  ActiveRecord; dropped Transaction middleware section.
+- `docs/design-philosophy.md` — refreshed the "where each
+  principle shows up" table.
+- `README.md` — refreshed quickstart to a minimal `App::serve(Router)`
+  shape; dropped Docker stack + curl walkthrough (relied on the
+  deleted demo); refreshed test counts + middleware list.
+
+---
+
 ### Observability event surface (`feat/otel-spans-via-psr14`)
 
 Eight first-party events emitted from the framework's request

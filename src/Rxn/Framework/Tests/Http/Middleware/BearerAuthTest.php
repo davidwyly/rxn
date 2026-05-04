@@ -9,7 +9,6 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Rxn\Framework\Http\Middleware\BearerAuth;
-use Rxn\Framework\Service\Auth;
 
 final class BearerAuthTest extends TestCase
 {
@@ -32,11 +31,10 @@ final class BearerAuthTest extends TestCase
 
     public function testValidTokenAttachesPrincipalAndCallsNext(): void
     {
-        $auth = $this->makeAuth();
-        $auth->setResolver(fn (string $t) => $t === 'good' ? ['id' => 7, 'name' => 'Alice'] : null);
+        $resolver = fn (string $t) => $t === 'good' ? ['id' => 7, 'name' => 'Alice'] : null;
 
         $captured = null;
-        $response = (new BearerAuth($auth))->process(
+        $response = (new BearerAuth($resolver))->process(
             $this->request(['Authorization' => 'Bearer good']),
             $this->terminal(function () use (&$captured) {
                 $captured = BearerAuth::current();
@@ -50,10 +48,9 @@ final class BearerAuthTest extends TestCase
 
     public function testCurrentClearedAfterRequest(): void
     {
-        $auth = $this->makeAuth();
-        $auth->setResolver(fn () => ['id' => 1]);
+        $resolver = fn () => ['id' => 1];
 
-        (new BearerAuth($auth))->process(
+        (new BearerAuth($resolver))->process(
             $this->request(['Authorization' => 'Bearer ok']),
             $this->terminal(),
         );
@@ -65,10 +62,9 @@ final class BearerAuthTest extends TestCase
 
     public function testMissingHeaderReturns401(): void
     {
-        $auth = $this->makeAuth();
-        $auth->setResolver(fn () => ['id' => 1]);
+        $resolver = fn () => ['id' => 1];
 
-        $response = (new BearerAuth($auth))->process(
+        $response = (new BearerAuth($resolver))->process(
             $this->request(),
             $this->terminal(),
         );
@@ -87,10 +83,9 @@ final class BearerAuthTest extends TestCase
 
     public function testMalformedHeaderReturns401(): void
     {
-        $auth = $this->makeAuth();
-        $auth->setResolver(fn () => ['id' => 1]);
+        $resolver = fn () => ['id' => 1];
 
-        $response = (new BearerAuth($auth))->process(
+        $response = (new BearerAuth($resolver))->process(
             $this->request(['Authorization' => 'Basic dXNlcjpwYXNz']),
             $this->terminal(),
         );
@@ -100,11 +95,10 @@ final class BearerAuthTest extends TestCase
 
     public function testRejectedTokenReturns401(): void
     {
-        $auth = $this->makeAuth();
-        $auth->setResolver(fn () => null);  // resolver always rejects
+        $resolver = fn () => null;  // resolver always rejects
 
         $terminalCalled = false;
-        $response = (new BearerAuth($auth))->process(
+        $response = (new BearerAuth($resolver))->process(
             $this->request(['Authorization' => 'Bearer wrong']),
             $this->terminal(function () use (&$terminalCalled) {
                 $terminalCalled = true;
@@ -116,21 +110,31 @@ final class BearerAuthTest extends TestCase
         $this->assertSame(401, $response->getStatusCode());
     }
 
+    public function testEmptyArrayPrincipalIsRejected(): void
+    {
+        // `[]` from a resolver means "we don't know who you are" —
+        // treat it as a rejection rather than letting the request
+        // through with an empty principal that downstream code would
+        // need to defensively check.
+        $resolver = fn () => [];
+
+        $response = (new BearerAuth($resolver))->process(
+            $this->request(['Authorization' => 'Bearer x']),
+            $this->terminal(),
+        );
+
+        $this->assertSame(401, $response->getStatusCode());
+    }
+
     public function testCustomHeaderName(): void
     {
-        $auth = $this->makeAuth();
-        $auth->setResolver(fn (string $t) => ['token' => $t]);
+        $resolver = fn (string $t) => ['token' => $t];
 
-        $response = (new BearerAuth($auth, headerName: 'X-Auth-Token'))->process(
+        $response = (new BearerAuth($resolver, headerName: 'X-Auth-Token'))->process(
             $this->request(['X-Auth-Token' => 'Bearer xyz']),
             $this->terminal(),
         );
 
         $this->assertSame(200, $response->getStatusCode());
-    }
-
-    private function makeAuth(): Auth
-    {
-        return (new \ReflectionClass(Auth::class))->newInstanceWithoutConstructor();
     }
 }

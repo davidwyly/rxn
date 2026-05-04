@@ -2,8 +2,8 @@
 
 /**
  * Comparison app for Rxn. Reaches into the framework's Router +
- * Binder directly rather than App::run(), so the route table here
- * is identical in shape to the Slim / Symfony / raw equivalents.
+ * Binder directly so the route table here is identical in shape
+ * to the Slim / Symfony / raw equivalents.
  *
  *   GET  /hello                → 200 {"hello":"world"}
  *   GET  /products/{id:int}    → 200 {"id":<int>,"name":"Product <id>"}

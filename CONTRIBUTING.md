@@ -84,14 +84,11 @@ Avoid:
   Pick the closest subsystem type (`DatabaseException`,
   `QueryException`, `RequestException`, …) or add a new subclass
   before reaching for `\Exception`.
-- **Services are singletons via the container.** Classes that extend
-  `Rxn\Framework\Service` are cached in the container on first
-  `get()`. Don't cache them elsewhere.
-- **Env keys are required at boot.** New env flags go into
-  `app/Config/bootstrap.php` (`REQUIRED_ENV_KEYS`, plus type lists).
-  If a flag has no consumer, don't add it.
+- **All container resolutions are singletons.** Classes resolved
+  through `Container::get()` are cached on first resolution; the
+  same instance comes back on every subsequent call.
 - **Secrets come from `.env`.** Never hardcode credentials in
-  source, fixtures, or `docker-compose.yml`.
+  source or fixtures.
 
 ## Running things
 
@@ -101,14 +98,6 @@ vendor/bin/phpunit          # run the test suite
 composer validate --strict  # sanity-check composer.json
 bin/rxn help                # list CLI subcommands
 bin/bench                   # microbenchmark the building blocks
-```
-
-For the full stack:
-
-```
-cp docker-compose.env.example .env
-# edit .env: set MYSQL_PASSWORD and MYSQL_ROOT_PASSWORD
-docker compose up --build
 ```
 
 PHP lint every touched file with `php -l <path>` before committing.
@@ -135,20 +124,13 @@ PHP lint every touched file with `php -l <path>` before committing.
 - **`Rxn\Framework\Utility\RateLimiter`** — fixed-window, file-backed.
   `new RateLimiter('/tmp/rate', limit: 60, window: 60);
   if (!$rl->allow($ip)) { return 429; }`.
-- **`Rxn\Framework\Service\Auth`** — bearer-token resolver. Register
-  a closure in app bootstrap that maps a token to a principal; call
-  `extractBearer` + `resolve` from controllers that require auth.
-- **`Rxn\Framework\Http\Router\Session::token()` /
-  `::validateToken()`** — CSRF sync tokens.
-- **`Rxn\Framework\Data\Migration`** — file-based `*.sql` runner.
+- **`Rxn\Framework\Http\Middleware\BearerAuth`** — Bearer-token
+  middleware. Construct with a `callable(string): ?array` resolver
+  that maps a token to a principal; the middleware enforces
+  Authorization-header presence and short-circuits to 401
+  Problem Details on rejection.
 - **`Rxn\Framework\Utility\Scheduler`** — interval / predicate-based
   task scheduler with JSON persistence; drive from cron or a worker.
-- **Query result caching** — call `$database->setCache($dir)` then
-  `$database->enableCache()` and every subsequent read Query hits the
-  filesystem cache first.
-- **ORM relationship graph (`Rxn\Framework\Data\Chain`)** — build
-  from a `Map` and query with `belongsTo($table)` / `hasMany($table)`
-  to get immutable `Link` edges derived from FK schema.
 - **HTTP middleware pipeline (`Rxn\Framework\Http\Pipeline` +
   `Middleware`)** — compose cross-cutting concerns (rate limiting,
   CSRF, auth, logging) without touching every controller. Build a
