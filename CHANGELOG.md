@@ -12,6 +12,80 @@ read alongside the wins.
 
 ## Unreleased
 
+### CRUD scaffolding via Resource handlers — core primitive (`feat/crud-resource-handlers`)
+
+Recovers the convention router's "extend a class, get five
+endpoints" ergonomic without legacy AR baggage. One call wires
+a `CrudHandler` to the full five-route URL family; framework
+handles DTO binding, validation → 422 wrapping, missing-row →
+404, deleted → 204.
+
+```php
+ResourceRegistrar::register(
+    $router,
+    '/products',
+    new ProductsCrud($repo),
+    create: CreateProduct::class,
+    update: UpdateProduct::class,
+    search: SearchProducts::class,
+);
+```
+
+After registration the router carries:
+
+- `POST   /products`              → `create($dto)` (201 / 422)
+- `GET    /products`              → `search($filter)` (200; filter optional)
+- `GET    /products/{id:int}`     → `read($id)` (200 / 404)
+- `PATCH  /products/{id:int}`     → `update($id, $dto)` (200 / 404 / 422)
+- `DELETE /products/{id:int}`     → `delete($id)` (204 / 404)
+
+Closes [horizons.md theme 1.6](docs/horizons.md). The "loved it"
+ergonomic recovered through DTOs and an interface, not via
+legacy AR base classes.
+
+#### Added
+
+- **`Rxn\Framework\Http\Resource\CrudHandler`** — 5-method
+  interface (`create`, `read`, `update`, `delete`, `search`).
+  Storage-agnostic. `read` / `update` return `null` on
+  missing → registrar maps to 404; `delete` returns `bool`
+  → 204 / 404; `search` accepts a nullable filter DTO.
+- **`Rxn\Framework\Http\Resource\ResourceRegistrar`** — static
+  `register()` method takes the router, path, handler, create /
+  update DTO classes, optional search DTO, and an `idType`
+  constraint (default `'int'`; pass `'uuid'` / `'slug'` /
+  custom for non-integer IDs). Wires the five routes; each
+  handler closure does the DTO binding, validation-failure
+  wrapping (RFC 7807 Problem Details with `errors[]`), and
+  status-code mapping.
+- 15 integration tests against an in-memory `CrudHandler`
+  fixture covering: registration shape, ID-type constraint
+  rejection, create round-trip, validation failure → 422,
+  read 200 / 404, update partial merge, update 404 / 422,
+  delete 204 (true empty body) / 404, search 200 / list /
+  filter from query / 422 on bad query, null-search-DTO
+  passes null filter, idType=uuid produces string IDs at the
+  handler.
+
+#### What's NOT in this PR (deliberate scope cut)
+
+- **`RxnOrmCrudHandler`** abstract base class — lives in
+  [`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm),
+  reduces a relational handler to ~10 LOC. Follow-up PR on the
+  rxn-orm repo.
+- **`bin/rxn scaffold:from-table`** — codegen step that connects
+  to the DB, reads `information_schema`, writes DTO files +
+  handler stub. One-shot at scaffold time, not at boot. Follow-up
+  PR after the rxn-orm base class lands.
+- **`#[Resource]` attribute** — alternative to explicit
+  `ResourceRegistrar::register()` calls; would let the
+  `Scanner` discover resources at scan time. Useful but
+  out-of-scope for the primitive.
+
+Suite 642 → 657 / 1391 → 1445.
+
+---
+
 ### `#[Version]` attribute primitive (`feat/version-attribute`)
 
 Recovers what the convention router's `/v{N}/{controller}/{action}`

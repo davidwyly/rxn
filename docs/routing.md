@@ -204,6 +204,74 @@ $router->get('/products', $handler)
     ->middleware(new \Rxn\Framework\Http\Versioning\Deprecation('2026-01-01', '2026-12-31'));
 ```
 
+### CRUD resources — `ResourceRegistrar`
+
+`ResourceRegistrar::register()` wires a `CrudHandler` to a
+five-route URL family in one call:
+
+```php
+use Rxn\Framework\Http\Resource\ResourceRegistrar;
+
+ResourceRegistrar::register(
+    $router,
+    '/products',
+    new ProductsCrud($repo),
+    create: CreateProduct::class,
+    update: UpdateProduct::class,
+    search: SearchProducts::class,
+);
+```
+
+After this the router has:
+
+| Verb | Path | Handler |
+|---|---|---|
+| `POST` | `/products` | `create($dto)` — body bound from `CreateProduct`, 201 + `{data, meta: {status: 201}}` on success, 422 with `errors[]` on validation failure |
+| `GET` | `/products` | `search($filter)` — filter optionally bound from query (`SearchProducts`); registrations without a `search` DTO call the handler with `null`. 200 + `{data: [...]}`. |
+| `GET` | `/products/{id:int}` | `read($id)` — 200 + `{data: ...}`, or 404 Problem Details when the handler returns null |
+| `PATCH` | `/products/{id:int}` | `update($id, $dto)` — body bound from `UpdateProduct`, 200 / 404 / 422 |
+| `DELETE` | `/products/{id:int}` | `delete($id)` — 204 (empty body, per HTTP spec) on success, 404 on missing |
+
+The handler is just five methods over `Rxn\Framework\Http\Resource\CrudHandler`:
+
+```php
+final class ProductsCrud implements CrudHandler
+{
+    public function __construct(private MyRepo $repo) {}
+
+    public function create(RequestDto $dto): array { /* INSERT, return row */ }
+    public function read(int|string $id): ?array     { /* SELECT, or null */ }
+    public function update(int|string $id, RequestDto $dto): ?array { /* UPDATE */ }
+    public function delete(int|string $id): bool    { /* DELETE, return success */ }
+    public function search(?RequestDto $filter): array { /* list */ }
+}
+```
+
+**`idType` arg** controls the URL constraint and the handler's
+id type. Default is `'int'`; pass `'uuid'` / `'slug'` / `'any'`
+or any custom constraint to use a different shape:
+
+```php
+ResourceRegistrar::register(
+    $router, '/orgs', new OrgCrud($db),
+    create: CreateOrg::class,
+    update: UpdateOrg::class,
+    idType: 'uuid',  // /orgs/{id:uuid}; handler receives the id as a string
+);
+```
+
+**Storage layer is pluggable.** The registrar only knows the
+five-method interface. Apps using
+[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm) can
+extend its `RxnOrmCrudHandler` base class for the relational
+common case (set `TABLE` constant, done); apps using Doctrine /
+raw PDO / a remote API write their own ~50-LOC handler.
+
+**Schema-as-source-of-truth via codegen:** `bin/rxn
+scaffold:from-table <name>` reads `information_schema` and
+writes the DTO files + a handler stub. One-shot, not runtime —
+no DB connection required at boot.
+
 ### Using matched routes with the pipeline
 
 `Router::match()` returns the matched route's `middlewares` alongside

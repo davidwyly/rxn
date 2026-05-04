@@ -119,6 +119,16 @@ Opinionated pieces worth naming:
   versions of the same logical endpoint coexist as distinct paths;
   `routes:check` knows the difference between "intentional
   cross-version routes" and "real conflict."
+- **CRUD scaffolding via Resource handlers** — one call
+  (`ResourceRegistrar::register($router, '/products', $handler, …)`)
+  wires the full create/read/update/delete/search route family.
+  Handler is a 5-method interface against any storage; framework
+  does DTO binding, validation-failure → 422 wrapping, missing-row
+  → 404, deleted → 204. The "extend a class, get five endpoints"
+  ergonomic the convention router gave us — but with typed wire
+  (DTOs, not arrays), pluggable storage (rxn-orm's
+  `RxnOrmCrudHandler` base or your own ~50-LOC class), and OpenAPI
+  auto-generated from the same DTOs.
 - **Compile-time route conflict detection.** `bin/rxn routes:check`
   flags ambiguous `#[Route]` patterns before they ship —
   `/items/{id:int}` vs `/items/{slug:slug}` (slug accepts
@@ -236,7 +246,7 @@ cumulative scoreboard is in
 
 ```bash
 composer install
-vendor/bin/phpunit          # 642 tests, 1391 assertions
+vendor/bin/phpunit          # 657 tests, 1445 assertions
 bin/rxn help                # CLI subcommands
 ```
 
@@ -288,7 +298,7 @@ CI runs lint + phpunit against PHP 8.2, 8.3, and 8.4
 
 Test counts:
 
-- **Rxn framework:** 642 tests / 1391 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 657 tests / 1445 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 - **[`davidwyly/rxn-observe`](https://github.com/davidwyly/rxn-observe)**
