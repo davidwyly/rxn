@@ -260,7 +260,7 @@ final class VersionScannerTest extends TestCase
         $this->scan([$controller::class]);
     }
 
-    public function testRootPathPlusVersionDoesNotProduceTrailingSlash(): void
+    public function testRootPathDoesNotGetTrailingSlash(): void
     {
         // `#[Route('/')]` + `#[Version('v1')]` should land at
         // `/v1`, not `/v1/`. The trailing-slash form would still
@@ -268,22 +268,26 @@ final class VersionScannerTest extends TestCase
         // but the stored pattern would surface as `/v1/` in
         // Router::url() output and ConflictDetector reports —
         // two URLs for the same logical route is the kind of
-        // inconsistency that bites later.
+        // inconsistency that bites later (e.g. generated client
+        // SDKs picking the wrong form).
         $controller = new class {
             #[\Rxn\Framework\Http\Attribute\Route('GET', '/')]
             #[\Rxn\Framework\Http\Attribute\Version('v1')]
-            public function index(): array { return []; }
+            public function root(): array { return []; }
         };
 
         $router = $this->scan([$controller::class]);
 
         // Direct match at /v1 (no trailing slash).
-        $this->assertNotNull($router->match('GET', '/v1'));
+        $this->assertNotNull(
+            $router->match('GET', '/v1'),
+            '#[Route("/")] + #[Version("v1")] must register at /v1',
+        );
 
-        // The stored pattern matches what Router::url() would
-        // emit. Iterate the registered routes to verify.
-        // (Router doesn't expose a list-routes API directly, so
-        // sample via match + dump-assert.)
+        // The STORED pattern matches what Router::url() would
+        // emit. Without the applyTo() special-case the registered
+        // pattern would be `/v1/`; this assertion is what catches
+        // the regression that runtime-match alone would miss.
         $hit = $router->match('GET', '/v1');
         $this->assertSame('/v1', $hit['pattern']);
     }

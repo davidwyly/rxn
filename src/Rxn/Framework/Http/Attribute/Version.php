@@ -75,12 +75,13 @@ final class Version
         if (str_starts_with($path, $prefix . '/') || $path === $prefix) {
             return $path;
         }
-        // Root path special case: `'/'` + version `'v1'` should
-        // yield `'/v1'`, not `'/v1/'`. Without this, the stored
-        // pattern carries a trailing slash that `Router::url()`
-        // and `ConflictDetector` reports would surface, even
-        // though `Router::compile()` would normalise it away
-        // during match. Better to keep one canonical form.
+        // Root path special case: `'/'` (or empty) + version
+        // `'v1'` should yield `'/v1'`, not `'/v1/'`. Without
+        // this, the stored pattern carries a trailing slash that
+        // `Router::url()` and `ConflictDetector` reports would
+        // surface, even though `Router::compile()` would
+        // normalise it away during match. Better to keep one
+        // canonical form.
         if ($path === '' || $path === '/') {
             return $prefix;
         }
