@@ -205,17 +205,6 @@ final class VersionScannerTest extends TestCase
         // the same `/v1` prefix. Without trimming, a trailing
         // slash on the version label would yield a double-slash
         // path (`/v1//products`) which the Router can't match.
-        $controllers = [];
-        foreach (['v1', '/v1', 'v1/', '/v1/'] as $i => $label) {
-            $controllers[] = new class($label) {
-                public function __construct(private string $label) {}
-            };
-            // Build a fresh anonymous class per label so the
-            // Version attribute is dynamic. PHP attribute args
-            // must be const-expressions, so use eval'd classes
-            // with the label baked in.
-        }
-
         // Eval-defined controllers — one per label variant.
         $cases = ['v1', '/v1', 'v1/', '/v1/'];
         foreach ($cases as $i => $label) {

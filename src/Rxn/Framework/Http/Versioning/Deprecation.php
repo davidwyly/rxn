@@ -71,6 +71,9 @@ final class Deprecation implements MiddlewareInterface
      */
     private static function toImfFixdate(string $input): ?string
     {
+        if (trim($input) === '') {
+            return null;
+        }
         try {
             $dt = new \DateTimeImmutable($input, new \DateTimeZone('UTC'));
         } catch (\Exception) {
