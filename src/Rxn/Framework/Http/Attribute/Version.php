@@ -75,6 +75,10 @@ final class Version
         if (str_starts_with($path, $prefix . '/') || $path === $prefix) {
             return $path;
         }
+        // Root path `/` → `/v1` (not `/v1/`).
+        if ($path === '/') {
+            return $prefix;
+        }
         // `$path` is conventionally rooted at `/` — concat is enough.
         return $prefix . (str_starts_with($path, '/') ? $path : '/' . $path);
     }

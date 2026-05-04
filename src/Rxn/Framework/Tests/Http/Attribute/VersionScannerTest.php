@@ -260,6 +260,26 @@ final class VersionScannerTest extends TestCase
         $this->scan([$controller::class]);
     }
 
+    public function testRootPathDoesNotGetTrailingSlash(): void
+    {
+        // `#[Route('/')]` + `#[Version('v1')]` must register at
+        // `/v1`, not `/v1/`. Without the special-case in applyTo(),
+        // concatenation produces `/v1/` which Route::$pattern and
+        // conflict-detector output retain even if Router::compile()
+        // normalises it for matching.
+        $controller = new class {
+            #[\Rxn\Framework\Http\Attribute\Route('GET', '/')]
+            #[\Rxn\Framework\Http\Attribute\Version('v1')]
+            public function root(): array { return []; }
+        };
+
+        $router = $this->scan([$controller::class]);
+        $this->assertNotNull(
+            $router->match('GET', '/v1'),
+            '#[Route("/")] + #[Version("v1")] must register at /v1',
+        );
+    }
+
     public function testPathAlreadyPrefixedIsNotDoublePrefixed(): void
     {
         // Apps that hand-write `/v1/foo` in #[Route] AND mark the
