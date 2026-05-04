@@ -52,7 +52,19 @@ final class HealthCheck
         string $path = '/health',
         array  $checks = [],
     ): \Rxn\Framework\Http\Route {
-        return $router->get($path, fn () => self::run($checks));
+        // Match the default invoker's `(params, request)` contract
+        // so the registered handler's signature documents what it
+        // actually accepts. Defaults on both params keep the
+        // closure invokable with zero args too — useful for tests
+        // that drive HealthCheck::run() through the registered
+        // handler without faking a request.
+        return $router->get(
+            $path,
+            static fn (
+                array $params = [],
+                ?\Psr\Http\Message\ServerRequestInterface $request = null,
+            ) => self::run($checks),
+        );
     }
 
     /**

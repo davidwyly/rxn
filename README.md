@@ -261,11 +261,11 @@ handlers — the framework itself stays out of that decision.
 
 ### Worked example — `examples/quickstart/`
 
-210 LOC across three files exercising the full modern stack:
+270 LOC across three files exercising the full modern stack:
 DTO binding + attribute validation, BearerAuth, RequestId,
 HealthCheck, typed route constraints (`{id:int}`), RFC 7807
-Problem Details on every failure path. File-backed JSON repo so
-no database is needed.
+Problem Details on every failure path. File-backed JSON repo
+(flock-protected) so no database is needed.
 
 ```bash
 php -S 127.0.0.1:9871 -t examples/quickstart/public

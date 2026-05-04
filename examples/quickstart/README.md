@@ -5,10 +5,11 @@ A minimal Rxn app exercising the modern shape end-to-end:
 chain, DTO binding + attribute validation, RFC 7807 Problem
 Details on every failure path.
 
-210 LOC across three files (one DTO, one file-backed JSON repo,
+270 LOC across three files (one DTO, one file-backed JSON repo,
 one entry point) plus this README. No database, no Docker — runs
 on bare PHP. State persists in `var/quickstart-products.json` at
-the repo root (gitignored).
+the repo root (gitignored), with `flock`-protected writes so the
+example survives `php-fpm`-style concurrent workers honestly.
 
 ## Run
 
@@ -92,7 +93,7 @@ curl -X POST http://127.0.0.1:9871/products \
 | DTO binding + attribute validation | `Binder::bindRequest(CreateProduct::class, $request)` |
 | Schema as truth | `CreateProduct` drives runtime binding, validation, and the OpenAPI generator (run `bin/rxn openapi --ns=Example --root=examples/quickstart`) |
 | RFC 7807 default | Every failure is `application/problem+json` |
-| In-memory storage swap-in | `ProductRepo` is ~25 LOC; replace with `rxn-orm` for SQL |
+| File-backed storage swap-in | `ProductRepo` is ~120 LOC of JSON-over-`flock` so the quickstart works without a database; replace with `rxn-orm` for SQL |
 
 ## What this *doesn't* demonstrate
 
@@ -116,5 +117,5 @@ examples/quickstart/
 │   └── index.php       ← entry point, ~80 LOC
 └── src/
     ├── CreateProduct.php   ← DTO with validation attributes
-    └── ProductRepo.php     ← in-memory repo
+    └── ProductRepo.php     ← file-backed JSON repo (flock-protected)
 ```

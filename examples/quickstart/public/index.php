@@ -15,6 +15,17 @@
  * curl recipes.
  */
 
+use Example\CreateProduct;
+use Example\ProductRepo;
+use Psr\Http\Message\ServerRequestInterface;
+use Rxn\Framework\App;
+use Rxn\Framework\Http\Binding\Binder;
+use Rxn\Framework\Http\Binding\ValidationException;
+use Rxn\Framework\Http\Health\HealthCheck;
+use Rxn\Framework\Http\Middleware\BearerAuth;
+use Rxn\Framework\Http\Middleware\RequestId;
+use Rxn\Framework\Http\Router;
+
 require __DIR__ . '/../../../vendor/autoload.php';
 
 // Local autoload for the example's own classes (Example\CreateProduct,
@@ -33,17 +44,9 @@ spl_autoload_register(function (string $class): void {
     }
 });
 
-use Example\CreateProduct;
-use Example\ProductRepo;
-use Rxn\Framework\App;
-use Rxn\Framework\Http\Binding\Binder;
-use Rxn\Framework\Http\Binding\ValidationException;
-use Rxn\Framework\Http\Health\HealthCheck;
-use Rxn\Framework\Http\Middleware\BearerAuth;
-use Rxn\Framework\Http\Middleware\RequestId;
-use Rxn\Framework\Http\Router;
-
-// In-memory storage. Static through `php -S`'s long-lived process.
+// File-backed JSON store (var/quickstart-products.json at the repo
+// root). Survives across requests under php -S, php-fpm, etc.
+// Real apps swap this for an rxn-orm-backed implementation.
 $repo = new ProductRepo();
 
 $router = new Router();
@@ -64,34 +67,44 @@ $auth = new BearerAuth(
     fn (string $token) => $token === 'demo' ? ['id' => 1, 'name' => 'Demo'] : null,
 );
 
-// Read routes. RequestId middleware injects an X-Request-Id
-// header on the response (and surfaces it via `RequestId::current()`
-// for downstream code).
-$router->get('/products', fn (): array => ['data' => $repo->all()])
-    ->middleware(new RequestId());
+// Read routes. Handler signatures match the default invoker's
+// `(params, request)` contract — even where unused, declaring
+// them documents what gets passed in. RequestId middleware
+// injects an X-Request-Id header on the response.
+$router->get(
+    '/products',
+    static fn (array $params, ServerRequestInterface $request): array
+        => ['data' => $repo->all()],
+)->middleware(new RequestId());
 
-$router->get('/products/{id:int}', function (array $params) use ($repo): array {
-    $product = $repo->find((int) $params['id']);
-    if ($product === null) {
-        return ['meta' => ['status' => 404, 'title' => 'Not Found']];
-    }
-    return ['data' => $product];
-})->middleware(new RequestId());
+$router->get(
+    '/products/{id:int}',
+    static function (array $params, ServerRequestInterface $request) use ($repo): array {
+        $product = $repo->find((int) $params['id']);
+        if ($product === null) {
+            return ['meta' => ['status' => 404, 'title' => 'Not Found']];
+        }
+        return ['data' => $product];
+    },
+)->middleware(new RequestId());
 
 // Write route — authenticated. Binder hydrates + validates the
 // DTO; ValidationException rolls up every failure into one 422
 // response (RFC 7807 Problem Details), no one-at-a-time loop.
-$router->post('/products', function (array $params, $request) use ($repo): array {
-    try {
-        $dto = Binder::bindRequest(CreateProduct::class, $request);
-    } catch (ValidationException $e) {
-        return ['meta' => [
-            'status' => 422,
-            'title'  => 'Unprocessable Entity',
-            'errors' => $e->errors(),
-        ]];
-    }
-    return ['data' => $repo->create($dto), 'meta' => ['status' => 201]];
-})->middleware($auth, new RequestId());
+$router->post(
+    '/products',
+    static function (array $params, ServerRequestInterface $request) use ($repo): array {
+        try {
+            $dto = Binder::bindRequest(CreateProduct::class, $request);
+        } catch (ValidationException $e) {
+            return ['meta' => [
+                'status' => 422,
+                'title'  => 'Unprocessable Entity',
+                'errors' => $e->errors(),
+            ]];
+        }
+        return ['data' => $repo->create($dto), 'meta' => ['status' => 201]];
+    },
+)->middleware($auth, new RequestId());
 
 App::serve($router);
