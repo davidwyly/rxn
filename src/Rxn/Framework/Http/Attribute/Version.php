@@ -47,4 +47,35 @@ final class Version
         public readonly ?string $deprecatedAt = null,
         public readonly ?string $sunsetAt = null,
     ) {}
+
+    /**
+     * Apply the version prefix to a Route path. Single source of
+     * truth for "what URL does this versioned route actually
+     * register at" — used by both the runtime Scanner and the
+     * static-analysis `ConflictDetector` so the two stay in
+     * lockstep on path computation.
+     *
+     *   '/products/{id:int}' + version 'v1' → '/v1/products/{id:int}'
+     *
+     * Idempotent: a route already prefixed with the version
+     * passes through unchanged. The version label is trimmed of
+     * stray slashes (`'v1'`, `'/v1'`, `'v1/'`, `'/v1/'` all
+     * normalise to the same `/v1` prefix). An empty trimmed
+     * label is rejected — `#[Version('')]` is meaningless.
+     */
+    public function applyTo(string $path): string
+    {
+        $label = trim($this->version, '/');
+        if ($label === '') {
+            throw new \InvalidArgumentException(
+                "#[Version] label cannot be empty (got '$this->version')"
+            );
+        }
+        $prefix = '/' . $label;
+        if (str_starts_with($path, $prefix . '/') || $path === $prefix) {
+            return $path;
+        }
+        // `$path` is conventionally rooted at `/` — concat is enough.
+        return $prefix . (str_starts_with($path, '/') ? $path : '/' . $path);
+    }
 }

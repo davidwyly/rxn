@@ -105,7 +105,7 @@ final class Scanner
                 $route   = $attr->newInstance();
                 $path    = $effectiveVersion === null
                     ? $route->path
-                    : self::prefixWithVersion($route->path, $effectiveVersion->version);
+                    : $effectiveVersion->applyTo($route->path);
                 $handle  = [$class, $method->getName()];
                 $entry   = $router->add($route->method, $path, $handle);
                 if ($route->name !== null) {
@@ -160,35 +160,5 @@ final class Scanner
     private static function hasDeprecation(Version $version): bool
     {
         return $version->deprecatedAt !== null || $version->sunsetAt !== null;
-    }
-
-    /**
-     * `'/products/{id:int}'` + version `'v1'` → `'/v1/products/{id:int}'`.
-     *
-     * If the route path already starts with the version prefix,
-     * pass it through unchanged — apps that hand-prefix their
-     * paths AND mark them with `#[Version]` shouldn't end up with
-     * `/v1/v1/...`.
-     *
-     * The version label is trimmed of leading and trailing slashes
-     * before the prefix is built, so `'v1'` / `'/v1'` / `'v1/'` /
-     * `'/v1/'` all produce the same `/v1` prefix and concatenation
-     * never yields a double slash. An empty trimmed label is
-     * rejected — `#[Version('')]` is meaningless.
-     */
-    private static function prefixWithVersion(string $path, string $version): string
-    {
-        $label = trim($version, '/');
-        if ($label === '') {
-            throw new \InvalidArgumentException(
-                "#[Version] label cannot be empty (got '$version')"
-            );
-        }
-        $prefix = '/' . $label;
-        if (str_starts_with($path, $prefix . '/') || $path === $prefix) {
-            return $path;
-        }
-        // `$path` is conventionally rooted at `/` — concat is enough.
-        return $prefix . (str_starts_with($path, '/') ? $path : '/' . $path);
     }
 }

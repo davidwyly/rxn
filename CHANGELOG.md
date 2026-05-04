@@ -56,6 +56,15 @@ distinct paths and won't flag them as conflicts.
   already start with the version prefix and doesn't double-prefix
   them. So a hand-written `'/v1/old'` + `#[Version('v1')]` lands
   at `/v1/old`, not `/v1/v1/old`.
+- **`Version::applyTo()`** — single source of truth for "what URL
+  does this versioned route actually register at." Both the
+  Scanner and `Routing\ConflictDetector` call it, so the runtime
+  registration and the static-analysis detection stay in lockstep.
+- **`Routing\ConflictDetector` honours `#[Version]`** — `collect()`
+  now applies the same prefix the Scanner would, so `routes:check`
+  treats `/v1/widgets/{id}` and `/v2/widgets/{id}` as distinct
+  paths (no false-positive conflict). Same-version same-pattern
+  is still flagged as the real ambiguity it is.
 
 #### Tests
 
@@ -70,8 +79,11 @@ distinct paths and won't flag them as conflicts.
 - 8 Deprecation middleware unit tests (bare ISO date, full ISO
   with timezone, UTC conversion, null args, unparseable dates,
   deprecation-only / sunset-only, terminal response preservation).
+- 3 ConflictDetector tests covering the version-aware shape
+  (collect applies the version prefix, cross-version routes
+  aren't flagged, same-version same-pattern still flags).
 
-Suite 618 → 638 / 1329 → 1380.
+Suite 618 → 641 / 1329 → 1389.
 
 ---
 

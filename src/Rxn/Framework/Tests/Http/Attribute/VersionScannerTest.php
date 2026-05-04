@@ -205,22 +205,36 @@ final class VersionScannerTest extends TestCase
         // the same `/v1` prefix. Without trimming, a trailing
         // slash on the version label would yield a double-slash
         // path (`/v1//products`) which the Router can't match.
-        // Eval-defined controllers — one per label variant.
-        $cases = ['v1', '/v1', 'v1/', '/v1/'];
+        //
+        // Each variant gets its own eval'd controller — declared
+        // inside this test's namespace so `class_exists()` and
+        // `scan()` see the same class-string. Without the explicit
+        // `namespace ...;` inside the eval'd source, PHP would
+        // declare these in the global namespace, and passing the
+        // bare name to `scan()` would silently miss the route
+        // registrations (the bug Copilot flagged).
+        $namespace = __NAMESPACE__ . '\\StraySlashCases';
+        $cases     = ['v1', '/v1', 'v1/', '/v1/'];
         foreach ($cases as $i => $label) {
-            $cls = "VersionLabelCase$i";
-            if (!class_exists($cls)) {
+            $shortName = "VersionLabelCase$i";
+            $fqcn      = $namespace . '\\' . $shortName;
+            if (!class_exists($fqcn)) {
                 eval(sprintf(
-                    'class %s {
+                    'namespace %s; class %s {
                         #[\Rxn\Framework\Http\Attribute\Route("GET", "/products")]
                         #[\Rxn\Framework\Http\Attribute\Version(%s)]
                         public function show(): array { return []; }
                     }',
-                    $cls,
+                    $namespace,
+                    $shortName,
                     var_export($label, true),
                 ));
             }
-            $router = $this->scan([$cls]);
+            // Sanity: the FQCN we hand to `scan()` actually
+            // resolves to something Reflection can introspect.
+            $this->assertTrue(class_exists($fqcn), "eval'd class $fqcn must be loadable");
+
+            $router = $this->scan([$fqcn]);
             $hit    = $router->match('GET', '/v1/products');
             $this->assertNotNull(
                 $hit,

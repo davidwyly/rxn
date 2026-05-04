@@ -311,6 +311,58 @@ final class ConflictDetectorTest extends TestCase
         $this->assertStringContainsString("unknown constraint type 'nonsense'", $output);
     }
 
+    public function testCollectAppliesVersionPrefix(): void
+    {
+        $detector = new ConflictDetector();
+        $entries  = $detector->collect([Fixture\VersionedConflictController::class]);
+        $patterns = array_map(static fn ($e) => $e->pattern, $entries);
+
+        // The detector's notion of "the route's path" matches what
+        // the runtime Scanner actually registers — version prefix
+        // applied at collect time.
+        $this->assertContains('/v1/widgets/{id:int}', $patterns);
+        $this->assertContains('/v2/widgets/{id:int}', $patterns);
+        // Class-level v1 applies to the un-overridden index method.
+        $this->assertContains('/v1/widgets', $patterns);
+    }
+
+    public function testCrossVersionRoutesAreNotFlaggedAsConflict(): void
+    {
+        // /v1/widgets/{id:int} and /v2/widgets/{id:int} are
+        // distinct paths after version prefixing — same logical
+        // endpoint, different URLs at runtime. The detector must
+        // not block CI on these.
+        $detector = new ConflictDetector();
+        $entries  = $detector->collect([Fixture\VersionedConflictController::class]);
+        $conflicts = $detector->detect($entries);
+
+        $crossVersion = array_filter(
+            $conflicts,
+            static fn ($c) => ($c->a->methodName === 'showV1' && $c->b->methodName === 'showV2')
+                || ($c->a->methodName === 'showV2' && $c->b->methodName === 'showV1'),
+        );
+        $this->assertSame([], $crossVersion, 'cross-version routes must not be flagged as conflicts');
+    }
+
+    public function testSameVersionSamePatternStillFlagsConflict(): void
+    {
+        // showV1 + showV1Duplicate both end up at
+        // /v1/widgets/{id:int} — same pattern, same effective
+        // version, real ambiguity. The detector MUST flag this;
+        // version prefixing isn't an escape hatch from the
+        // detector's job.
+        $detector  = new ConflictDetector();
+        $entries   = $detector->collect([Fixture\VersionedConflictController::class]);
+        $conflicts = $detector->detect($entries);
+
+        $duplicate = array_filter(
+            $conflicts,
+            static fn ($c) => in_array('showV1', [$c->a->methodName, $c->b->methodName], true)
+                && in_array('showV1Duplicate', [$c->a->methodName, $c->b->methodName], true),
+        );
+        $this->assertNotEmpty($duplicate, 'same-version same-pattern routes must be flagged');
+    }
+
     private static function entry(string $method, string $pattern): RouteEntry
     {
         return new RouteEntry(

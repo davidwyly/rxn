@@ -3,6 +3,7 @@
 namespace Rxn\Framework\Http\Routing;
 
 use Rxn\Framework\Http\Attribute\Route;
+use Rxn\Framework\Http\Attribute\Version;
 
 /**
  * Compile-time route conflict detector. Scans `#[Route]` attributes
@@ -107,6 +108,17 @@ final class ConflictDetector
      * skipped — same rule the runtime Scanner applies, so detection
      * scope matches registration scope.
      *
+     * `#[Version]` is honoured here for the same reason: the
+     * detector's notion of "the route's path" has to match what
+     * the Scanner actually registers. Without this, two methods
+     * with identical `#[Route]` patterns but different
+     * `#[Version('v1')]` / `#[Version('v2')]` would still be
+     * flagged as conflicting — even though they end up at distinct
+     * `/v1/...` and `/v2/...` URLs at runtime.
+     *
+     * Method-level `#[Version]` overrides class-level (matches
+     * Scanner's resolution rule).
+     *
      * @param list<class-string> $controllers
      * @return list<RouteEntry>
      */
@@ -117,17 +129,23 @@ final class ConflictDetector
             if (!class_exists($class)) {
                 continue;
             }
-            $ref = new \ReflectionClass($class);
+            $ref          = new \ReflectionClass($class);
+            $classVersion = self::firstVersion($ref->getAttributes(Version::class));
             foreach ($ref->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
                 if ($method->getDeclaringClass()->getName() !== $ref->getName()) {
                     continue;
                 }
+                $methodVersion    = self::firstVersion($method->getAttributes(Version::class));
+                $effectiveVersion = $methodVersion ?? $classVersion;
                 foreach ($method->getAttributes(Route::class) as $attr) {
                     /** @var Route $route */
-                    $route = $attr->newInstance();
+                    $route   = $attr->newInstance();
+                    $pattern = $effectiveVersion === null
+                        ? $route->path
+                        : $effectiveVersion->applyTo($route->path);
                     $entries[] = new RouteEntry(
                         method:     strtoupper($route->method),
-                        pattern:    self::normalisePattern($route->path),
+                        pattern:    self::normalisePattern($pattern),
                         class:      $class,
                         methodName: $method->getName(),
                         file:       (string) $method->getFileName(),
@@ -137,6 +155,23 @@ final class ConflictDetector
             }
         }
         return $entries;
+    }
+
+    /**
+     * Pick the first `#[Version]` from a reflection-attribute list
+     * (or null when none). `#[Version]` isn't `IS_REPEATABLE`, so
+     * there's at most one — but reflection still hands us a list.
+     *
+     * @param list<\ReflectionAttribute<Version>> $attrs
+     */
+    private static function firstVersion(array $attrs): ?Version
+    {
+        if ($attrs === []) {
+            return null;
+        }
+        /** @var Version $v */
+        $v = $attrs[0]->newInstance();
+        return $v;
     }
 
     /**
