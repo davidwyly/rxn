@@ -80,11 +80,23 @@ final class Scanner
             // method, not per Route attribute, so the same response
             // header doesn't get added twice for repeat-routed
             // handlers.
+            //
+            // Prepend, not append: Pipeline runs middleware in
+            // registration order, so the first one wraps every
+            // later one. We need Deprecation OUTERMOST so its
+            // `process()` decorates whatever response comes back —
+            // including short-circuit responses from inner
+            // middleware (e.g. auth's 401, rate-limit's 429). If
+            // we appended, those failure paths would leave the
+            // route without the documented headers.
             $perRouteStack = $stack;
             if ($effectiveVersion !== null && self::hasDeprecation($effectiveVersion)) {
-                $perRouteStack[] = new Deprecation(
-                    $effectiveVersion->deprecatedAt,
-                    $effectiveVersion->sunsetAt,
+                array_unshift(
+                    $perRouteStack,
+                    new Deprecation(
+                        $effectiveVersion->deprecatedAt,
+                        $effectiveVersion->sunsetAt,
+                    ),
                 );
             }
 
@@ -157,10 +169,22 @@ final class Scanner
      * pass it through unchanged — apps that hand-prefix their
      * paths AND mark them with `#[Version]` shouldn't end up with
      * `/v1/v1/...`.
+     *
+     * The version label is trimmed of leading and trailing slashes
+     * before the prefix is built, so `'v1'` / `'/v1'` / `'v1/'` /
+     * `'/v1/'` all produce the same `/v1` prefix and concatenation
+     * never yields a double slash. An empty trimmed label is
+     * rejected — `#[Version('')]` is meaningless.
      */
     private static function prefixWithVersion(string $path, string $version): string
     {
-        $prefix = '/' . ltrim($version, '/');
+        $label = trim($version, '/');
+        if ($label === '') {
+            throw new \InvalidArgumentException(
+                "#[Version] label cannot be empty (got '$version')"
+            );
+        }
+        $prefix = '/' . $label;
         if (str_starts_with($path, $prefix . '/') || $path === $prefix) {
             return $path;
         }

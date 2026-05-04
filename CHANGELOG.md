@@ -59,16 +59,19 @@ distinct paths and won't flag them as conflicts.
 
 #### Tests
 
-- 9 Scanner integration tests (method-level prefixes, class-level
+- 12 Scanner integration tests (method-level prefixes, class-level
   applies, method overrides class, unversioned routes stay
   unprefixed, no cross-version conflicts, deprecation middleware
   attached when needed and not otherwise, RFC 8594 headers
-  formatted correctly, path-prefix idempotence).
+  formatted correctly, deprecation middleware decorates
+  short-circuit responses (auth 401 / rate-limit 429), version-
+  label tolerance for stray slashes, empty-version rejection,
+  path-prefix idempotence).
 - 8 Deprecation middleware unit tests (bare ISO date, full ISO
   with timezone, UTC conversion, null args, unparseable dates,
   deprecation-only / sunset-only, terminal response preservation).
 
-Suite 618 → 635 / 1329 → 1368.
+Suite 618 → 638 / 1329 → 1380.
 
 ---
 

@@ -23,12 +23,14 @@ namespace Rxn\Framework\Http\Attribute;
  * (`bin/rxn routes:check`) sees them as such and doesn't flag
  * them.
  *
- * Deprecation: pass `deprecatedAt` and/or `sunsetAt` (ISO 8601
- * date strings) and the Scanner attaches a `Versioning\Deprecation`
- * middleware that emits the corresponding RFC 8594 response
- * headers — `Deprecation:` for "this version is on the way out"
- * and `Sunset:` for "after this date, expect 410 Gone or
- * removal."
+ * Deprecation: pass `deprecatedAt` and/or `sunsetAt` (any
+ * `DateTimeImmutable`-parseable date string — bare ISO dates
+ * like `'2026-01-01'`, full ISO 8601 with timezone, RFC 7231
+ * IMF-fixdate, etc. all accepted) and the Scanner attaches a
+ * `Versioning\Deprecation` middleware that emits the corresponding
+ * RFC 8594 response headers — `Deprecation:` for "this version
+ * is on the way out" and `Sunset:` for "after this date, expect
+ * 410 Gone or removal."
  *
  *   #[Version('v1', deprecatedAt: '2026-01-01', sunsetAt: '2026-12-31')]
  *

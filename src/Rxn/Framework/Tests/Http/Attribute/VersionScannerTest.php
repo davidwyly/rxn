@@ -147,6 +147,116 @@ final class VersionScannerTest extends TestCase
         $this->assertSame([], $hit['middlewares']);
     }
 
+    public function testDeprecationMiddlewareIsOutermostInRouteStack(): void
+    {
+        // Real-world failure path: an auth middleware short-
+        // circuits with 401, never calling next. If Deprecation
+        // were innermost, the 401 response wouldn't get the
+        // RFC 8594 headers — clients hitting a deprecated
+        // endpoint with a missing token would never learn it's
+        // deprecated. So Deprecation must wrap the whole route
+        // stack: it sees the request before the auth middleware
+        // does, decorates whatever comes back (401 OR success),
+        // and forwards it.
+        $controller = new class {
+            #[\Rxn\Framework\Http\Attribute\Route('GET', '/auth-required')]
+            #[\Rxn\Framework\Http\Attribute\Middleware(Fixture\AlwaysReject::class)]
+            #[\Rxn\Framework\Http\Attribute\Version('v1', deprecatedAt: '2026-01-01', sunsetAt: '2026-12-31')]
+            public function show(): array { return []; }
+        };
+
+        $router = $this->scan([$controller::class]);
+        $hit    = $router->match('GET', '/v1/auth-required');
+        $this->assertNotNull($hit);
+
+        // Two middlewares: Deprecation (auto-attached) and
+        // AlwaysReject (the auth-style short-circuit). The
+        // contract on trial is the ORDER — Deprecation first.
+        $this->assertCount(2, $hit['middlewares']);
+        $this->assertInstanceOf(Deprecation::class, $hit['middlewares'][0]);
+
+        // End-to-end: run the route's middleware chain. The
+        // AlwaysReject middleware short-circuits with a 401, and
+        // the response should still emerge with Deprecation +
+        // Sunset headers attached because Deprecation wraps it.
+        $pipeline = new \Rxn\Framework\Http\Pipeline();
+        foreach ($hit['middlewares'] as $mw) {
+            $pipeline->add($mw);
+        }
+        $response = $pipeline->run(
+            new ServerRequest('GET', 'http://example.test/v1/auth-required'),
+            new class implements RequestHandlerInterface {
+                public function handle(ServerRequestInterface $request): ResponseInterface
+                {
+                    // Should never run — AlwaysReject short-circuits.
+                    return new Response(200);
+                }
+            },
+        );
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('Thu, 01 Jan 2026 00:00:00 GMT', $response->getHeaderLine('Deprecation'));
+        $this->assertSame('Thu, 31 Dec 2026 00:00:00 GMT', $response->getHeaderLine('Sunset'));
+    }
+
+    public function testVersionLabelTolerantOfStraySlashes(): void
+    {
+        // `'v1'` / `'/v1'` / `'v1/'` / `'/v1/'` should all produce
+        // the same `/v1` prefix. Without trimming, a trailing
+        // slash on the version label would yield a double-slash
+        // path (`/v1//products`) which the Router can't match.
+        $controllers = [];
+        foreach (['v1', '/v1', 'v1/', '/v1/'] as $i => $label) {
+            $controllers[] = new class($label) {
+                public function __construct(private string $label) {}
+            };
+            // Build a fresh anonymous class per label so the
+            // Version attribute is dynamic. PHP attribute args
+            // must be const-expressions, so use eval'd classes
+            // with the label baked in.
+        }
+
+        // Eval-defined controllers — one per label variant.
+        $cases = ['v1', '/v1', 'v1/', '/v1/'];
+        foreach ($cases as $i => $label) {
+            $cls = "VersionLabelCase$i";
+            if (!class_exists($cls)) {
+                eval(sprintf(
+                    'class %s {
+                        #[\Rxn\Framework\Http\Attribute\Route("GET", "/products")]
+                        #[\Rxn\Framework\Http\Attribute\Version(%s)]
+                        public function show(): array { return []; }
+                    }',
+                    $cls,
+                    var_export($label, true),
+                ));
+            }
+            $router = $this->scan([$cls]);
+            $hit    = $router->match('GET', '/v1/products');
+            $this->assertNotNull(
+                $hit,
+                "label '$label' must resolve to /v1/products",
+            );
+        }
+    }
+
+    public function testEmptyVersionLabelIsRejected(): void
+    {
+        // `#[Version('')]` is meaningless — the prefix would be
+        // bare `/`, which collides with every root route. Better
+        // to fail loud at scan time than silently produce
+        // surprising routing.
+        $controller = new class {
+            #[\Rxn\Framework\Http\Attribute\Route('GET', '/products')]
+            #[\Rxn\Framework\Http\Attribute\Version('')]
+            public function show(): array { return []; }
+        };
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/Version.*empty/');
+        $this->scan([$controller::class]);
+    }
+
     public function testPathAlreadyPrefixedIsNotDoublePrefixed(): void
     {
         // Apps that hand-write `/v1/foo` in #[Route] AND mark the
