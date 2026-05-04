@@ -8,7 +8,6 @@ use Psr\Http\Message\ServerRequestInterface;
 use Rxn\Framework\Http\Binding\Binder;
 use Rxn\Framework\Http\Binding\RequestDto;
 use Rxn\Framework\Http\Binding\ValidationException;
-use Rxn\Framework\Http\Route;
 use Rxn\Framework\Http\RouteGroup;
 use Rxn\Framework\Http\Router;
 

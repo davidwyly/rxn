@@ -36,9 +36,13 @@ use Rxn\Framework\Http\Binding\RequestDto;
  *   - `delete()` returns `true` (the row was deleted, 204 with
  *     empty body) or `false` (no such row, 404 Problem Details).
  *   - `search()` always returns a list (possibly empty). The
- *     registrar wraps it as 200 + `{data: [...]}`. Pagination
- *     metadata, if any, lives inside the search DTO's contract
- *     and is the implementation's call to surface in `meta`.
+ *     registrar wraps it as 200 + `{data: [...]}` — there is no
+ *     top-level `meta` slot. Pagination metadata (total count,
+ *     next-page link) is the `Http\Middleware\Pagination`
+ *     middleware's concern: stack it on the resource's GET
+ *     route via `$routes->search->middleware(new Pagination(...))`
+ *     and it adds `X-Total-Count` + RFC 8288 `Link` headers
+ *     without changing the response body shape.
  *
  * IDs are typed `int|string` — the registrar coerces the URL
  * placeholder according to the `idType` argument it received
