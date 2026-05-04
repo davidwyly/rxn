@@ -51,21 +51,41 @@ legacy AR base classes.
   missing → registrar maps to 404; `delete` returns `bool`
   → 204 / 404; `search` accepts a nullable filter DTO.
 - **`Rxn\Framework\Http\Resource\ResourceRegistrar`** — static
-  `register()` method takes the router, path, handler, create /
-  update DTO classes, optional search DTO, and an `idType`
-  constraint (default `'int'`; pass `'uuid'` / `'slug'` /
-  custom for non-integer IDs). Wires the five routes; each
-  handler closure does the DTO binding, validation-failure
-  wrapping (RFC 7807 Problem Details with `errors[]`), and
-  status-code mapping.
-- 15 integration tests against an in-memory `CrudHandler`
+  `register()` method takes the router (`Router` OR
+  `RouteGroup`), path, handler, create / update DTO classes,
+  optional search DTO, and an `idType` constraint (default
+  `'int'`; pass `'uuid'` / `'slug'` / custom for non-integer
+  IDs). Wires the five routes; each handler closure does the
+  DTO binding, validation-failure wrapping (RFC 7807 Problem
+  Details with `errors[]`), and status-code mapping. Returns a
+  `ResourceRoutes` bag — see below.
+- **`Rxn\Framework\Http\Resource\ResourceRoutes`** — the bag
+  of `Route` handles returned from `register()`. Public
+  readonly fields (`create`, `search`, `read`, `update`,
+  `delete`) so callers can attach per-op middleware without
+  re-deriving them through `Router::match`.
+  `ResourceRoutes::middleware(...)` chains the same middleware
+  onto all five routes at once. Three composition shapes
+  supported:
+    - **Group-based**: pass a `RouteGroup` instead of `Router`;
+      every registered route inherits the group's prefix +
+      middleware automatically.
+    - **Resource-wide**: chain
+      `ResourceRegistrar::register(...)->middleware($auth)`.
+    - **Per-op**: target the specific Route handle —
+      `$routes->update->middleware($adminOnly)`.
+- 19 integration tests against an in-memory `CrudHandler`
   fixture covering: registration shape, ID-type constraint
   rejection, create round-trip, validation failure → 422,
   read 200 / 404, update partial merge, update 404 / 422,
   delete 204 (true empty body) / 404, search 200 / list /
   filter from query / 422 on bad query, null-search-DTO
   passes null filter, idType=uuid produces string IDs at the
-  handler.
+  handler, register returns a ResourceRoutes value object,
+  middleware applies to all five routes via the bag's
+  `middleware()` chainer, individual route can carry
+  additional middleware via the public field, RouteGroup
+  registration inherits prefix + middleware.
 
 #### What's NOT in this PR (deliberate scope cut)
 
@@ -82,7 +102,7 @@ legacy AR base classes.
   `Scanner` discover resources at scan time. Useful but
   out-of-scope for the primitive.
 
-Suite 642 → 657 / 1391 → 1445.
+Suite 642 → 661 / 1391 → 1474.
 
 ---
 

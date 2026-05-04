@@ -5,12 +5,13 @@ namespace Rxn\Framework\Tests\Http\Resource;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
 use Rxn\Framework\Http\Resource\ResourceRegistrar;
+use Rxn\Framework\Http\Resource\ResourceRoutes;
 use Rxn\Framework\Http\Router;
 use Rxn\Framework\Tests\Http\Resource\Fixture\CreateWidget;
 use Rxn\Framework\Tests\Http\Resource\Fixture\InMemoryWidgetCrud;
 use Rxn\Framework\Tests\Http\Resource\Fixture\SearchWidgets;
+use Rxn\Framework\Tests\Http\Resource\Fixture\TagMiddleware;
 use Rxn\Framework\Tests\Http\Resource\Fixture\UpdateWidget;
 
 /**
@@ -261,6 +262,138 @@ final class ResourceRegistrarTest extends TestCase
 
         $this->assertIsString($registrarHandler->captured);
         $this->assertSame('550e8400-e29b-41d4-a716-446655440000', $registrarHandler->captured);
+    }
+
+    public function testRegisterReturnsResourceRoutesValueObject(): void
+    {
+        // The registrar exposes the five Route handles so callers
+        // can compose middleware without re-deriving them through
+        // Router::match. Each public field is the actual Route
+        // that the registrar wired to the corresponding op.
+        $router = new Router();
+        $routes = ResourceRegistrar::register(
+            $router,
+            '/widgets-2',
+            new InMemoryWidgetCrud(),
+            create: CreateWidget::class,
+            update: UpdateWidget::class,
+            search: SearchWidgets::class,
+        );
+
+        $this->assertInstanceOf(ResourceRoutes::class, $routes);
+        $this->assertCount(5, $routes->all());
+    }
+
+    public function testMiddlewareAppliesToAllFiveRoutes(): void
+    {
+        $router = new Router();
+        $tag    = new TagMiddleware('resource-wide');
+        ResourceRegistrar::register(
+            $router,
+            '/widgets-3',
+            new InMemoryWidgetCrud(),
+            create: CreateWidget::class,
+            update: UpdateWidget::class,
+            search: SearchWidgets::class,
+        )->middleware($tag);
+
+        // Every one of the five registered routes must now carry
+        // the tag middleware. Hit each via match() and inspect.
+        $checks = [
+            ['POST',   '/widgets-3'],
+            ['GET',    '/widgets-3'],
+            ['GET',    '/widgets-3/1'],
+            ['PATCH',  '/widgets-3/1'],
+            ['DELETE', '/widgets-3/1'],
+        ];
+        foreach ($checks as [$method, $path]) {
+            $hit = $router->match($method, $path);
+            $this->assertNotNull($hit, "$method $path must register");
+            $this->assertContains(
+                $tag,
+                $hit['middlewares'],
+                "$method $path must carry the resource-wide middleware",
+            );
+        }
+    }
+
+    public function testIndividualRouteCanCarryAdditionalMiddleware(): void
+    {
+        // Use case: extra check on destructive ops only. The
+        // PATCH/DELETE Route handles get an additional middleware,
+        // GET/POST stay clean. Apps don't have to re-look-up
+        // Route objects via match() — the ResourceRoutes bag has
+        // them as public fields.
+        $router       = new Router();
+        $resourceWide = new TagMiddleware('all');
+        $adminOnly    = new TagMiddleware('admin');
+
+        $routes = ResourceRegistrar::register(
+            $router,
+            '/widgets-4',
+            new InMemoryWidgetCrud(),
+            create: CreateWidget::class,
+            update: UpdateWidget::class,
+            search: SearchWidgets::class,
+        );
+        $routes->middleware($resourceWide);
+        $routes->update->middleware($adminOnly);
+        $routes->delete->middleware($adminOnly);
+
+        // Read still has only the resource-wide one.
+        $read = $router->match('GET', '/widgets-4/1');
+        $this->assertCount(1, $read['middlewares']);
+
+        // Update + delete carry both.
+        $update = $router->match('PATCH', '/widgets-4/1');
+        $this->assertCount(2, $update['middlewares']);
+        $this->assertContains($resourceWide, $update['middlewares']);
+        $this->assertContains($adminOnly,    $update['middlewares']);
+
+        $delete = $router->match('DELETE', '/widgets-4/1');
+        $this->assertCount(2, $delete['middlewares']);
+        $this->assertContains($adminOnly, $delete['middlewares']);
+    }
+
+    public function testRegisterAcceptsRouteGroupAndInheritsPrefixPlusMiddleware(): void
+    {
+        // Real-world shape: protected CRUD inside a versioned
+        // group. The group's prefix is prepended; the group's
+        // middleware stack is inherited automatically by every
+        // route the registrar adds.
+        $router    = new Router();
+        $groupAuth = new TagMiddleware('group-auth');
+
+        $router->group('/v1', function (\Rxn\Framework\Http\RouteGroup $g) use ($groupAuth) {
+            $g->middleware($groupAuth);
+            ResourceRegistrar::register(
+                $g,
+                '/widgets',
+                new InMemoryWidgetCrud(),
+                create: CreateWidget::class,
+                update: UpdateWidget::class,
+                search: SearchWidgets::class,
+            );
+        });
+
+        // Routes are at /v1/widgets — group prefix applied — and
+        // every one carries the group-auth middleware that
+        // RouteGroup::add stamps onto routes registered through it.
+        $checks = [
+            ['POST',   '/v1/widgets'],
+            ['GET',    '/v1/widgets'],
+            ['GET',    '/v1/widgets/1'],
+            ['PATCH',  '/v1/widgets/1'],
+            ['DELETE', '/v1/widgets/1'],
+        ];
+        foreach ($checks as [$method, $path]) {
+            $hit = $router->match($method, $path);
+            $this->assertNotNull($hit, "$method $path must register through the group");
+            $this->assertContains($groupAuth, $hit['middlewares']);
+        }
+
+        // Sanity: nothing landed at the un-prefixed path.
+        $this->assertNull($router->match('GET', '/widgets'));
     }
 
     /**

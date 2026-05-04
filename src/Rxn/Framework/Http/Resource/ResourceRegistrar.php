@@ -8,12 +8,14 @@ use Psr\Http\Message\ServerRequestInterface;
 use Rxn\Framework\Http\Binding\Binder;
 use Rxn\Framework\Http\Binding\RequestDto;
 use Rxn\Framework\Http\Binding\ValidationException;
+use Rxn\Framework\Http\Route;
+use Rxn\Framework\Http\RouteGroup;
 use Rxn\Framework\Http\Router;
 
 /**
  * Wire a `CrudHandler` to a five-route URL family in one call.
  *
- *   ResourceRegistrar::register(
+ *   $routes = ResourceRegistrar::register(
  *       $router,
  *       '/products',
  *       new ProductsCrud($repo),
@@ -30,28 +32,44 @@ use Rxn\Framework\Http\Router;
  *   PATCH  /products/{id:int}              → update
  *   DELETE /products/{id:int}              → delete
  *
+ * The returned `ResourceRoutes` carries the five `Route` handles
+ * so callers can wire middleware after registration:
+ *
+ *   $routes->middleware($bearerAuth);             // all five
+ *   $routes->update->middleware($adminOnly);      // PATCH only
+ *
+ * Both `Router` and `RouteGroup` are accepted as the first arg —
+ * registering through a group inherits the group's prefix and
+ * middleware stack, so the natural shape for protected APIs is:
+ *
+ *   $router->group('/v1', function (RouteGroup $g) use ($auth) {
+ *       $g->middleware($auth);
+ *       ResourceRegistrar::register($g, '/products', $crud, ...);
+ *   });
+ *
  * Each closure handles the wrapping the framework expects:
  *
  *   - `create` binds the create DTO from the request, calls the
- *     handler, returns `{data, meta: {status: 201}}` on success
- *     or `{meta: {status: 422, errors: [...]}}` on validation
- *     failure (RFC 7807 Problem Details via `App::serve`'s
- *     envelope mapper).
+ *     handler, returns `{data, meta: {status: 201}}` on success.
+ *     Validation failure returns a PSR-7 Problem Details
+ *     response (422 + `application/problem+json` with
+ *     `errors[]`); the array envelope mapper isn't involved
+ *     because the response is built directly.
  *   - `search` optionally binds a filter DTO from the query
  *     string — registrations without a `search` DTO call the
  *     handler with `null`. Result list is wrapped as
- *     `{data: [...]}`.
- *   - `read` calls the handler; `null` → 404 Problem Details.
- *   - `update` binds + validates the DTO, then `null` from the
- *     handler → 404, 422 on validation failure.
- *   - `delete` returns a true PSR-7 204 (empty body) on success;
- *     `false` from the handler → 404.
- *
- * Apps can stack route-level middleware on the resource as a
- * group via `Router::group()` before calling `register()`, or
- * post-hoc by mutating each registered Route through the Router
- * (the registrar doesn't return Route handles — middleware
- * composition happens at the group level).
+ *     `{data: [...]}`. Validation failure → PSR-7 Problem
+ *     Details (422) directly, same as create.
+ *   - `read` calls the handler; `null` from the handler →
+ *     `{meta: {status: 404, title: 'Not Found'}}` envelope
+ *     (mapped to 404 application/problem+json by `App::serve`).
+ *   - `update` binds + validates the DTO; `null` from the
+ *     handler → 404 envelope. Validation failure → 422 PSR-7
+ *     Problem Details.
+ *   - `delete` returns a true PSR-7 204 response (empty body)
+ *     on success — bypassing the array envelope mapper because
+ *     HTTP requires 204 to have no content. False from the
+ *     handler → 404 envelope.
  *
  * Storage-agnostic: the registrar only knows the `CrudHandler`
  * interface. `davidwyly/rxn-orm`'s `RxnOrmCrudHandler` base
@@ -62,8 +80,12 @@ use Rxn\Framework\Http\Router;
 final class ResourceRegistrar
 {
     /**
-     * @param class-string<RequestDto>  $create  request body shape for POST
-     * @param class-string<RequestDto>  $update  request body shape for PATCH
+     * @param Router|RouteGroup        $on      Where to register. RouteGroup
+     *                                          inherits its parent's prefix +
+     *                                          middleware stack on every route
+     *                                          this registrar adds.
+     * @param class-string<RequestDto> $create  request body shape for POST
+     * @param class-string<RequestDto> $update  request body shape for PATCH
      * @param class-string<RequestDto>|null $search query shape for GET (no body) — null
      *                                              means "no filter, hand the handler null"
      * @param string $idType Router placeholder type — `'int'` (default), `'uuid'`,
@@ -74,18 +96,18 @@ final class ResourceRegistrar
      *                       handler sees it (int vs. string).
      */
     public static function register(
-        Router $router,
+        Router|RouteGroup $on,
         string $path,
         CrudHandler $handler,
         string $create,
         string $update,
         ?string $search = null,
         string $idType = 'int',
-    ): void {
+    ): ResourceRoutes {
         $itemPath = rtrim($path, '/') . '/{id:' . $idType . '}';
 
         // POST /path — create
-        $router->post(
+        $createRoute = $on->post(
             $path,
             static function (array $params, ServerRequestInterface $request) use ($handler, $create): array|ResponseInterface {
                 try {
@@ -99,7 +121,7 @@ final class ResourceRegistrar
         );
 
         // GET /path — search (optionally filtered)
-        $router->get(
+        $searchRoute = $on->get(
             $path,
             static function (array $params, ServerRequestInterface $request) use ($handler, $search): array|ResponseInterface {
                 $filter = null;
@@ -116,9 +138,9 @@ final class ResourceRegistrar
         );
 
         // GET /path/{id:type} — read
-        $router->get(
+        $readRoute = $on->get(
             $itemPath,
-            static function (array $params) use ($handler, $idType): array {
+            static function (array $params, ServerRequestInterface $request) use ($handler, $idType): array {
                 $row = $handler->read(self::coerceId($params['id'], $idType));
                 if ($row === null) {
                     return ['meta' => ['status' => 404, 'title' => 'Not Found']];
@@ -128,7 +150,7 @@ final class ResourceRegistrar
         );
 
         // PATCH /path/{id:type} — update
-        $router->patch(
+        $updateRoute = $on->patch(
             $itemPath,
             static function (array $params, ServerRequestInterface $request) use ($handler, $update, $idType): array|ResponseInterface {
                 try {
@@ -146,9 +168,9 @@ final class ResourceRegistrar
         );
 
         // DELETE /path/{id:type} — delete
-        $router->delete(
+        $deleteRoute = $on->delete(
             $itemPath,
-            static function (array $params) use ($handler, $idType): array|ResponseInterface {
+            static function (array $params, ServerRequestInterface $request) use ($handler, $idType): array|ResponseInterface {
                 if ($handler->delete(self::coerceId($params['id'], $idType))) {
                     // 204 No Content — empty body, per HTTP spec.
                     // Return a true PSR-7 response so the array
@@ -157,6 +179,14 @@ final class ResourceRegistrar
                 }
                 return ['meta' => ['status' => 404, 'title' => 'Not Found']];
             },
+        );
+
+        return new ResourceRoutes(
+            create: $createRoute,
+            search: $searchRoute,
+            read:   $readRoute,
+            update: $updateRoute,
+            delete: $deleteRoute,
         );
     }
 

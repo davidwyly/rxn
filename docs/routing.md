@@ -267,10 +267,35 @@ extend its `RxnOrmCrudHandler` base class for the relational
 common case (set `TABLE` constant, done); apps using Doctrine /
 raw PDO / a remote API write their own ~50-LOC handler.
 
-**Schema-as-source-of-truth via codegen:** `bin/rxn
-scaffold:from-table <name>` reads `information_schema` and
-writes the DTO files + a handler stub. One-shot, not runtime —
-no DB connection required at boot.
+**Composing middleware:** `register()` accepts either a
+`Router` or a `RouteGroup`, and returns a `ResourceRoutes` bag
+holding the five `Route` handles. Apps stack middleware in
+whichever shape matches the protection policy:
+
+```php
+// Group-based: every CRUD route inherits the group's middleware.
+$router->group('/v1', function (RouteGroup $g) use ($auth) {
+    $g->middleware($auth);
+    ResourceRegistrar::register($g, '/products', $crud, /* … */);
+});
+
+// Per-resource: chain on the returned bag.
+ResourceRegistrar::register($router, '/products', $crud, /* … */)
+    ->middleware($bearerAuth);
+
+// Per-op: target the specific Route handle on the bag.
+$routes = ResourceRegistrar::register($router, '/products', $crud, /* … */);
+$routes->update->middleware($adminOnly);
+$routes->delete->middleware($adminOnly);
+```
+
+**Schema-as-source-of-truth via codegen — *future*:** the plan
+is `bin/rxn scaffold:from-table <name>` reading
+`information_schema` to write the DTO files + a handler stub,
+one-shot at scaffold time so there's no DB connection required
+at boot. **Not yet implemented** — tracked under horizons theme
+1.6 follow-ups; the core primitive in this section is what
+ships today.
 
 ### Using matched routes with the pipeline
 
