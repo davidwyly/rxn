@@ -75,6 +75,14 @@ explicit `$router->get(...)` registration.
   `make:controller`, `make:record` (each depended on deleted
   framework code). Remaining commands: `openapi`, `openapi:check`,
   `routes:check`, `dump:hot`.
+- **`bin/bench`** — dropped the storage-flavoured cases that
+  required `davidwyly/rxn-orm` and the deleted `Model\ActiveRecord`
+  (`builder.select.compound`, `builder.select.subquery`,
+  `builder.insert.multirow`, `builder.update.simple`,
+  `builder.delete.simple`, `active_record.hydrate_100`). Those are
+  benchmarking external code; the rxn-orm repo's own bench harness
+  is the right home. Framework primitives still benched: Router,
+  Pipeline, Container, Binder, Validator, PsrAdapter.
 
 #### Removed (tests)
 
@@ -91,7 +99,7 @@ assertion.
 
 #### Numbers
 
-- Suite: 739 → 616 / 1321 (123 tests gone with the deleted code).
+- Suite: 739 → 617 / 1324 (122 tests gone with the deleted code, 1 added for the parameterised-get cache contract).
 - Framework LOC: ~13K → ~11K (~2K LOC removed).
 - Middleware count: 9 → 8 (Transaction dropped).
 - Composer requires shrunk: `ext-pdo` removed; `require-dev`

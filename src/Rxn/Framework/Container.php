@@ -158,11 +158,20 @@ class Container implements ContainerInterface
         // caches don't grow with case-variant aliases of the same class.
         $class_name = $this->parseClassName(self::reflectionFor($class_name)->getName());
 
-        // Singleton cache: same instance on subsequent `get()`s. Direct
-        // isset rather than has() — PSR-11 has() now reports
-        // "constructible" (class_exists), which is a different thing
-        // from "have we cached an instance".
-        if (isset($this->instances[$class_name])) {
+        // Singleton cache: same instance on subsequent `get()`s.
+        //
+        // BUT only when the caller didn't pass `$parameters` —
+        // parameterised resolutions are explicit overrides and
+        // shouldn't (a) silently return a previously-cached
+        // unparameterised instance, or (b) pollute the cache so
+        // a later `get($class)` returns the parameterised version.
+        // The contract: pass `$parameters` → get a fresh instance,
+        // not cached; no `$parameters` → autowire + cache.
+        $cacheable = $parameters === [];
+        if ($cacheable && isset($this->instances[$class_name])) {
+            // Direct isset rather than has() — PSR-11 has() now
+            // reports "constructible" (class_exists), which is a
+            // different thing from "have we cached an instance".
             return $this->instances[$class_name];
         }
 
@@ -176,9 +185,11 @@ class Container implements ContainerInterface
         } finally {
             unset($this->resolving[$class_name]);
         }
-        // $class_name is already normalised; skip addInstance() to
-        // avoid a redundant parseClassName() call.
-        $this->instances[$class_name] = $instance;
+        if ($cacheable) {
+            // $class_name is already normalised; skip addInstance() to
+            // avoid a redundant parseClassName() call.
+            $this->instances[$class_name] = $instance;
+        }
 
         return $instance;
     }

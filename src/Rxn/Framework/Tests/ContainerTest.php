@@ -90,6 +90,36 @@ final class ContainerTest extends TestCase
         $this->assertSame($a->bag, $b->bag);
     }
 
+    public function testGetWithParametersBypassesAndDoesNotPolluteCache(): void
+    {
+        // The `$parameters` arg lets callers override autowired
+        // ctor values for a one-off resolution. With singleton
+        // caching, that override would be silently lost (or worse:
+        // poison the cache so subsequent `get()` returns the
+        // parameterised instance). The contract is explicit:
+        //
+        //   - $parameters === []  → cached singleton
+        //   - $parameters !== []  → fresh instance, not cached
+        //
+        // Without this rule, the override flag is a footgun.
+        $c = new Container();
+        $first = $c->get(NeedsDefaultBag::class);
+
+        // Pass parameters (positional, keyed by ctor-param index)
+        // → fresh instance, not the cached one.
+        $custom = new \Rxn\Framework\Tests\Fixture\Container\DefaultBag();
+        $custom->items[] = 'override';
+        $second = $c->get(NeedsDefaultBag::class, [0 => $custom]);
+        $this->assertNotSame($first, $second, 'parameterised get() must not return cached singleton');
+        $this->assertSame($custom, $second->bag, 'parameter override must reach the constructor');
+
+        // Subsequent unparameterised get() still returns the
+        // ORIGINAL cached singleton — the parameterised resolution
+        // didn't pollute the cache.
+        $third = $c->get(NeedsDefaultBag::class);
+        $this->assertSame($first, $third, 'cache must be unaffected by parameterised resolution');
+    }
+
     public function testBindReturnsSelfForChaining(): void
     {
         $c = new Container();

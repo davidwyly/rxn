@@ -35,11 +35,26 @@ final class BearerAuth implements MiddlewareInterface
     /** @var array<string, mixed>|null */
     private static ?array $current = null;
 
-    /** @param callable(string): (array<string, mixed>|null) $resolver */
+    /** @var callable(string): (array<string, mixed>|null) */
+    private $resolver;
+
+    /**
+     * `callable` is type-hinted on the parameter so a non-callable
+     * `$resolver` fails fast at construction with a TypeError, not
+     * later at the first request. Storing on an untyped property
+     * (vs. `\Closure`) is intentional: callers can pass
+     * `[$obj, 'method']` arrays, `Class::method` strings, invokable
+     * objects — anything `is_callable($x)` accepts — without
+     * wrapping in `Closure::fromCallable()`.
+     *
+     * @param callable(string): (array<string, mixed>|null) $resolver
+     */
     public function __construct(
-        private $resolver,
+        callable $resolver,
         private readonly string $headerName = 'Authorization',
-    ) {}
+    ) {
+        $this->resolver = $resolver;
+    }
 
     public function process(
         ServerRequestInterface $request,
@@ -83,9 +98,10 @@ final class BearerAuth implements MiddlewareInterface
 
     /**
      * Pull the token out of an `Authorization: Bearer <token>`
-     * header value. Case-insensitive on the scheme; strict on the
-     * single space between scheme and token (matches the original
-     * implementation's behaviour).
+     * header value. Case-insensitive on the scheme; tolerates one
+     * or more whitespace characters between scheme and token, and
+     * optional trailing whitespace — same flexibility most HTTP
+     * stacks accept on the `Authorization` header.
      */
     private static function extractBearer(string $header): ?string
     {

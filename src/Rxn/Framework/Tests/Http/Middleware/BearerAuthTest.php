@@ -48,7 +48,7 @@ final class BearerAuthTest extends TestCase
 
     public function testCurrentClearedAfterRequest(): void
     {
-        $resolver = fn () => ['id' => 1];
+        $resolver = fn (string $token) => ['id' => 1];
 
         (new BearerAuth($resolver))->process(
             $this->request(['Authorization' => 'Bearer ok']),
@@ -62,7 +62,7 @@ final class BearerAuthTest extends TestCase
 
     public function testMissingHeaderReturns401(): void
     {
-        $resolver = fn () => ['id' => 1];
+        $resolver = fn (string $token) => ['id' => 1];
 
         $response = (new BearerAuth($resolver))->process(
             $this->request(),
@@ -83,7 +83,7 @@ final class BearerAuthTest extends TestCase
 
     public function testMalformedHeaderReturns401(): void
     {
-        $resolver = fn () => ['id' => 1];
+        $resolver = fn (string $token) => ['id' => 1];
 
         $response = (new BearerAuth($resolver))->process(
             $this->request(['Authorization' => 'Basic dXNlcjpwYXNz']),
@@ -95,7 +95,7 @@ final class BearerAuthTest extends TestCase
 
     public function testRejectedTokenReturns401(): void
     {
-        $resolver = fn () => null;  // resolver always rejects
+        $resolver = fn (string $token) => null;  // resolver always rejects
 
         $terminalCalled = false;
         $response = (new BearerAuth($resolver))->process(
@@ -116,7 +116,7 @@ final class BearerAuthTest extends TestCase
         // treat it as a rejection rather than letting the request
         // through with an empty principal that downstream code would
         // need to defensively check.
-        $resolver = fn () => [];
+        $resolver = fn (string $token) => [];
 
         $response = (new BearerAuth($resolver))->process(
             $this->request(['Authorization' => 'Bearer x']),

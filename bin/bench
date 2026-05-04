@@ -5,8 +5,7 @@ namespace Rxn\Framework\Bench;
 
 /**
  * Microbenchmarks for the framework's building blocks. Not a
- * full-stack HTTP benchmark — App::run()'s startup flow has
- * open bugs that make end-to-end numbers meaningless today.
+ * full-stack HTTP benchmark — see `bench/compare/` for that.
  *
  * Each case is run for ~250ms with a ~50ms warmup. Output is a
  * table of ops/sec and ns/op so apples-to-apples comparisons
@@ -17,6 +16,11 @@ namespace Rxn\Framework\Bench;
  *   php bin/bench router       # filter by substring
  *   php bin/bench --json       # JSON array, one object per case
  *   php bin/bench --json router
+ *
+ * Storage / query-builder cases live in the rxn-orm repo's own
+ * bench harness — this file only covers framework-resident
+ * primitives (Router, Pipeline, Container, Binder, Validator,
+ * PsrAdapter).
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -36,15 +40,8 @@ use Rxn\Framework\Http\Binding\Binder;
 use Rxn\Framework\Http\Binding\RequestDto;
 use Rxn\Framework\Http\Pipeline;
 use Rxn\Framework\Http\PsrAdapter;
-use Rxn\Framework\Http\Response;
 use Rxn\Framework\Http\Router;
-use Rxn\Framework\Model\ActiveRecord;
 use Rxn\Framework\Utility\Validator;
-use Rxn\Orm\Builder\Delete;
-use Rxn\Orm\Builder\Insert;
-use Rxn\Orm\Builder\Query;
-use Rxn\Orm\Builder\Raw;
-use Rxn\Orm\Builder\Update;
 
 // Argv parsing: positional substring filter + optional --json flag.
 // Stays minimal; the driver in bench/ab.php is the consumer of --json.
@@ -183,73 +180,6 @@ class BenchA { public function __construct(public BenchB $b) {} }
 $cases['container.get.depth_3'] = function () {
     $c = new Container();
     return $c->get(BenchA::class);
-};
-
-// Query builder: realistic compound SELECT
-$cases['builder.select.compound'] = function () {
-    (new Query())
-        ->select(['u.id', 'u.email'])
-        ->from('users', 'u')
-        ->leftJoin('orders', 'o.user_id', '=', 'u.id', 'o')
-        ->where('u.active', '=', 1)
-        ->andWhereIn('u.role', ['admin', 'owner'])
-        ->andWhereIsNull('u.deleted_at')
-        ->groupBy('u.id')
-        ->orderBy('u.id', 'DESC')
-        ->limit(50)
-        ->toSql();
-};
-
-$cases['builder.select.subquery'] = function () {
-    $sub = (new Query())
-        ->select([Raw::of('COUNT(*)')])
-        ->from('orders')
-        ->where('user_id', '=', Raw::of('u.id'));
-    (new Query())
-        ->select(['u.id'])
-        ->selectSubquery($sub, 'order_count')
-        ->from('users', 'u')
-        ->where('u.active', '=', 1)
-        ->toSql();
-};
-
-$cases['builder.insert.multirow'] = function () {
-    (new Insert())
-        ->into('users')
-        ->rows([
-            ['email' => 'a@example.com', 'role' => 'admin'],
-            ['email' => 'b@example.com', 'role' => 'member'],
-            ['email' => 'c@example.com', 'role' => 'member'],
-        ])
-        ->toSql();
-};
-
-$cases['builder.update.simple'] = function () {
-    (new Update())
-        ->table('users')
-        ->set(['role' => 'admin', 'updated_at' => Raw::of('NOW()')])
-        ->where('id', '=', 42)
-        ->toSql();
-};
-
-$cases['builder.delete.simple'] = function () {
-    (new Delete())
-        ->from('users')
-        ->where('deleted_at', '<', '2025-01-01')
-        ->toSql();
-};
-
-// ActiveRecord hydrate on a batch of rows
-class BenchAR extends ActiveRecord
-{
-    public const TABLE = 'bench';
-}
-$rows100 = array_map(
-    fn (int $i) => ['id' => $i, 'email' => "u$i@example.com", 'role' => 'member'],
-    range(1, 100)
-);
-$cases['active_record.hydrate_100'] = function () use ($rows100) {
-    ActiveRecord::hydrate($rows100, BenchAR::class);
 };
 
 // PSR-7: build a ServerRequest from a fixed set of globals
