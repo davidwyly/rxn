@@ -260,6 +260,34 @@ final class VersionScannerTest extends TestCase
         $this->scan([$controller::class]);
     }
 
+    public function testRootPathPlusVersionDoesNotProduceTrailingSlash(): void
+    {
+        // `#[Route('/')]` + `#[Version('v1')]` should land at
+        // `/v1`, not `/v1/`. The trailing-slash form would still
+        // match at runtime (Router::compile normalises it away),
+        // but the stored pattern would surface as `/v1/` in
+        // Router::url() output and ConflictDetector reports —
+        // two URLs for the same logical route is the kind of
+        // inconsistency that bites later.
+        $controller = new class {
+            #[\Rxn\Framework\Http\Attribute\Route('GET', '/')]
+            #[\Rxn\Framework\Http\Attribute\Version('v1')]
+            public function index(): array { return []; }
+        };
+
+        $router = $this->scan([$controller::class]);
+
+        // Direct match at /v1 (no trailing slash).
+        $this->assertNotNull($router->match('GET', '/v1'));
+
+        // The stored pattern matches what Router::url() would
+        // emit. Iterate the registered routes to verify.
+        // (Router doesn't expose a list-routes API directly, so
+        // sample via match + dump-assert.)
+        $hit = $router->match('GET', '/v1');
+        $this->assertSame('/v1', $hit['pattern']);
+    }
+
     public function testPathAlreadyPrefixedIsNotDoublePrefixed(): void
     {
         // Apps that hand-write `/v1/foo` in #[Route] AND mark the

@@ -68,12 +68,21 @@ final class Version
         $label = trim($this->version, '/');
         if ($label === '') {
             throw new \InvalidArgumentException(
-                "#[Version] label cannot be empty (got '$this->version')"
+                "#[Version] label cannot be empty (got '{$this->version}')"
             );
         }
         $prefix = '/' . $label;
         if (str_starts_with($path, $prefix . '/') || $path === $prefix) {
             return $path;
+        }
+        // Root path special case: `'/'` + version `'v1'` should
+        // yield `'/v1'`, not `'/v1/'`. Without this, the stored
+        // pattern carries a trailing slash that `Router::url()`
+        // and `ConflictDetector` reports would surface, even
+        // though `Router::compile()` would normalise it away
+        // during match. Better to keep one canonical form.
+        if ($path === '' || $path === '/') {
+            return $prefix;
         }
         // `$path` is conventionally rooted at `/` — concat is enough.
         return $prefix . (str_starts_with($path, '/') ? $path : '/' . $path);
