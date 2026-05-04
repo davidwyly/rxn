@@ -112,6 +112,13 @@ Opinionated pieces worth naming:
 - **Typed route constraints** (`{id:int}`, `{slug:slug}`,
   `{id:uuid}`, custom) so `/users/foo` falls through to 404
   instead of reaching a controller that has to validate and throw.
+- **API versioning as a primitive** — `#[Version('v1')]` on a
+  method (or class) prefixes the route's path; `#[Version('v1',
+  deprecatedAt: '…', sunsetAt: '…')]` auto-attaches a middleware
+  that emits RFC 8594 `Deprecation:` / `Sunset:` headers. Multiple
+  versions of the same logical endpoint coexist as distinct paths;
+  `routes:check` knows the difference between "intentional
+  cross-version routes" and "real conflict."
 - **Compile-time route conflict detection.** `bin/rxn routes:check`
   flags ambiguous `#[Route]` patterns before they ship —
   `/items/{id:int}` vs `/items/{slug:slug}` (slug accepts
@@ -229,7 +236,7 @@ cumulative scoreboard is in
 
 ```bash
 composer install
-vendor/bin/phpunit          # 618 tests, 1329 assertions
+vendor/bin/phpunit          # 642 tests, 1391 assertions
 bin/rxn help                # CLI subcommands
 ```
 
@@ -281,7 +288,7 @@ CI runs lint + phpunit against PHP 8.2, 8.3, and 8.4
 
 Test counts:
 
-- **Rxn framework:** 618 tests / 1329 assertions (`vendor/bin/phpunit`).
+- **Rxn framework:** 642 tests / 1391 assertions (`vendor/bin/phpunit`).
 - **[`davidwyly/rxn-orm`](https://github.com/davidwyly/rxn-orm)**
   (query builder): 68 tests / 132 assertions, run in that repo.
 - **[`davidwyly/rxn-observe`](https://github.com/davidwyly/rxn-observe)**

@@ -142,6 +142,68 @@ $router->group('/api/v1', function (RouteGroup $g) use ($rateLimit, $auth) {
 `GET /api/v1/products/42` inherits `$rateLimit`; the `/admin/*`
 routes inherit `$rateLimit` + `$auth`.
 
+### API versioning — `#[Version]`
+
+`#[Version('v1')]` on a controller method (or class) prefixes
+its `#[Route]` paths with `/v1`. The `Scanner` registers each
+version as a distinct path, so multiple versions of the same
+logical endpoint coexist:
+
+```php
+use Rxn\Framework\Http\Attribute\{Route, Version};
+
+class ProductsController
+{
+    #[Route('GET', '/products/{id:int}')]
+    #[Version('v1')]
+    public function showV1(int $id): array { /* … */ }
+
+    #[Route('GET', '/products/{id:int}')]
+    #[Version('v2')]
+    public function showV2(int $id): array { /* … */ }
+}
+```
+
+After `Scanner::register()`:
+
+- `GET /v1/products/42` → `showV1`
+- `GET /v2/products/42` → `showV2`
+
+Class-level `#[Version]` applies to every `#[Route]` in the
+class. Method-level wins when both are present.
+
+`bin/rxn routes:check` won't flag cross-version routes as
+conflicts — `/v1/products/{id:int}` and `/v2/products/{id:int}`
+are different paths in the Router.
+
+#### Deprecation signals
+
+Pass `deprecatedAt` and/or `sunsetAt` (any `DateTimeImmutable`-
+parseable date string) and the Scanner auto-attaches a
+`Versioning\Deprecation` middleware that emits the matching
+RFC 8594 response headers:
+
+```php
+#[Route('GET', '/old/{id:int}')]
+#[Version('v1', deprecatedAt: '2026-01-01', sunsetAt: '2026-12-31')]
+public function show(int $id): array { /* … */ }
+```
+
+Outgoing responses gain:
+
+- `Deprecation: Thu, 01 Jan 2026 00:00:00 GMT`
+- `Sunset:      Thu, 31 Dec 2026 00:00:00 GMT`
+
+Both are advisory — they don't change response status, just
+signal to API clients (and gateways) that the endpoint is on
+its way out. Apps that prefer to wire the middleware by hand
+can construct it directly:
+
+```php
+$router->get('/products', $handler)
+    ->middleware(new \Rxn\Framework\Http\Versioning\Deprecation('2026-01-01', '2026-12-31'));
+```
+
 ### Using matched routes with the pipeline
 
 `Router::match()` returns the matched route's `middlewares` alongside

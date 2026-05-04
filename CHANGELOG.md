@@ -12,6 +12,81 @@ read alongside the wins.
 
 ## Unreleased
 
+### `#[Version]` attribute primitive (`feat/version-attribute`)
+
+Recovers what the convention router's `/v{N}/{controller}/{action}`
+URL shape gave us — automatic URL-versioned routing — without the
+convention router. Apps now declare versions via attribute:
+
+```php
+class ProductsController
+{
+    #[Route('GET', '/products/{id:int}')]
+    #[Version('v1')]
+    public function showV1(int $id): array { /* … */ }
+
+    #[Route('GET', '/products/{id:int}')]
+    #[Version('v2')]
+    public function showV2(int $id): array { /* … */ }
+}
+```
+
+The `Scanner` registers each at `/v1/products/{id:int}` and
+`/v2/products/{id:int}`. Class-level `#[Version]` applies to
+every route in the class; method-level wins when both are
+present. `routes:check` sees `/v1/...` and `/v2/...` as
+distinct paths and won't flag them as conflicts.
+
+#### Added
+
+- **`Rxn\Framework\Http\Attribute\Version`** — value object
+  attribute. `version` (label, e.g. `'v1'` / `'1.0'` /
+  `'2025-10-15'`), optional `deprecatedAt` / `sunsetAt` (any
+  `DateTimeImmutable`-parseable date string).
+- **`Rxn\Framework\Http\Versioning\Deprecation`** — PSR-15
+  middleware that emits RFC 8594 `Deprecation:` / `Sunset:`
+  headers. Both as IMF-fixdate (`Thu, 01 Jan 2026 00:00:00 GMT`).
+  Unparseable date inputs are silently dropped — the contract is
+  best-effort signalling, not "die on bad config."
+- **Scanner integration** — when a route's effective `#[Version]`
+  carries `deprecatedAt` / `sunsetAt`, the Scanner auto-attaches
+  the `Deprecation` middleware to that route. Apps don't write
+  per-handler header boilerplate.
+- **Path-prefix idempotence** — Scanner detects routes that
+  already start with the version prefix and doesn't double-prefix
+  them. So a hand-written `'/v1/old'` + `#[Version('v1')]` lands
+  at `/v1/old`, not `/v1/v1/old`.
+- **`Version::applyTo()`** — single source of truth for "what URL
+  does this versioned route actually register at." Both the
+  Scanner and `Routing\ConflictDetector` call it, so the runtime
+  registration and the static-analysis detection stay in lockstep.
+- **`Routing\ConflictDetector` honours `#[Version]`** — `collect()`
+  now applies the same prefix the Scanner would, so `routes:check`
+  treats `/v1/widgets/{id}` and `/v2/widgets/{id}` as distinct
+  paths (no false-positive conflict). Same-version same-pattern
+  is still flagged as the real ambiguity it is.
+
+#### Tests
+
+- 13 Scanner integration tests (method-level prefixes, class-level
+  applies, method overrides class, unversioned routes stay
+  unprefixed, no cross-version conflicts, deprecation middleware
+  attached when needed and not otherwise, RFC 8594 headers
+  formatted correctly, deprecation middleware decorates
+  short-circuit responses (auth 401 / rate-limit 429), version-
+  label tolerance for stray slashes, empty-version rejection,
+  root-path produces no trailing slash, path-prefix idempotence).
+- 8 Deprecation middleware unit tests (bare ISO date, full ISO
+  with timezone, UTC conversion, null args, unparseable dates,
+  deprecation-only / sunset-only, terminal response preservation).
+- 3 ConflictDetector tests covering the version-aware shape
+  (collect applies the version prefix, cross-version routes
+  aren't flagged, same-version same-pattern still flags).
+
+Suite 618 → 642 / 1329 → 1391.
+
+---
+
 ### Strip convention router + legacy AR layer (`chore/strip-convention-router`)
 
 The convention router (`App::run()`, `Service\Api`, `Service\Stats`,
