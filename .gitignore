@@ -60,3 +60,4 @@ Thumbs.db
 
 # Quickstart example's file-backed JSON store (created at request time)
 /var/
+/.claude/

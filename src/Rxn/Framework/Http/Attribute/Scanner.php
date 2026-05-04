@@ -5,22 +5,33 @@ namespace Rxn\Framework\Http\Attribute;
 use Psr\Http\Server\MiddlewareInterface;
 use Rxn\Framework\Container;
 use Rxn\Framework\Http\Router;
+use Rxn\Framework\Http\Versioning\Deprecation;
 
 /**
- * Turn #[Route] + #[Middleware] attributes on controller classes
- * into live entries on a Router. Class-level #[Middleware] wraps
- * every method's route; method-level #[Middleware] adds to the
- * stack after class-level. Each middleware class is resolved
- * through the container so autowired constructor deps work.
+ * Turn #[Route] + #[Middleware] + #[Version] attributes on
+ * controller classes into live entries on a Router.
+ *
+ *   - **Class-level `#[Middleware]`** wraps every method's route;
+ *     method-level `#[Middleware]` adds to the stack after
+ *     class-level.
+ *   - **Class-level `#[Version]`** prefixes every route in the
+ *     class with `/$version`. Method-level `#[Version]` overrides
+ *     class-level when both are present.
+ *   - **`#[Version]` with `deprecatedAt` / `sunsetAt`** auto-
+ *     attaches a `Versioning\Deprecation` middleware to the
+ *     route — outgoing responses gain RFC 8594 `Deprecation:` /
+ *     `Sunset:` headers without per-handler boilerplate.
  *
  *   (new Scanner($container))->register(
  *       $router,
  *       [ProductsController::class, OrdersController::class],
  *   );
  *
- * The handler stored on the route is `[ClassName, 'method']` —
- * callers pick the dispatch strategy (container->get + invoke,
- * direct call on a fresh instance, etc.).
+ * Each middleware class is resolved through the container so
+ * autowired constructor deps work. The handler stored on the
+ * route is `[ClassName, 'method']` — callers pick the dispatch
+ * strategy (container->get + invoke, direct call on a fresh
+ * instance, etc.).
  */
 final class Scanner
 {
@@ -44,6 +55,7 @@ final class Scanner
         }
         $ref = new \ReflectionClass($class);
         $classMiddlewares = $this->resolveMiddlewareAttrs($ref->getAttributes(Middleware::class));
+        $classVersion     = $this->firstVersion($ref->getAttributes(Version::class));
 
         foreach ($ref->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
             if ($method->getDeclaringClass()->getName() !== $ref->getName()) {
@@ -56,16 +68,39 @@ final class Scanner
             $methodMiddlewares = $this->resolveMiddlewareAttrs($method->getAttributes(Middleware::class));
             $stack             = array_merge($classMiddlewares, $methodMiddlewares);
 
+            // Method-level #[Version] wins over class-level. The
+            // effective version applies to every #[Route] on this
+            // method (the same handler can serve multiple verbs /
+            // paths via repeated #[Route], but they all share the
+            // method's version annotation).
+            $methodVersion    = $this->firstVersion($method->getAttributes(Version::class));
+            $effectiveVersion = $methodVersion ?? $classVersion;
+
+            // Auto-attach the deprecation middleware once per
+            // method, not per Route attribute, so the same response
+            // header doesn't get added twice for repeat-routed
+            // handlers.
+            $perRouteStack = $stack;
+            if ($effectiveVersion !== null && self::hasDeprecation($effectiveVersion)) {
+                $perRouteStack[] = new Deprecation(
+                    $effectiveVersion->deprecatedAt,
+                    $effectiveVersion->sunsetAt,
+                );
+            }
+
             foreach ($routeAttrs as $attr) {
                 /** @var Route $route */
-                $route  = $attr->newInstance();
-                $handle = [$class, $method->getName()];
-                $entry  = $router->add($route->method, $route->path, $handle);
+                $route   = $attr->newInstance();
+                $path    = $effectiveVersion === null
+                    ? $route->path
+                    : self::prefixWithVersion($route->path, $effectiveVersion->version);
+                $handle  = [$class, $method->getName()];
+                $entry   = $router->add($route->method, $path, $handle);
                 if ($route->name !== null) {
                     $entry->name($route->name);
                 }
-                if ($stack !== []) {
-                    $entry->middleware(...$stack);
+                if ($perRouteStack !== []) {
+                    $entry->middleware(...$perRouteStack);
                 }
             }
         }
@@ -90,5 +125,46 @@ final class Scanner
             $out[] = $instance;
         }
         return $out;
+    }
+
+    /**
+     * Take the first `#[Version]` attribute on a method or class.
+     * `#[Version]` is not declared `IS_REPEATABLE`, so there's at
+     * most one, but reflection still hands us a list — we just
+     * pick element zero or null.
+     *
+     * @param list<\ReflectionAttribute<Version>> $attrs
+     */
+    private function firstVersion(array $attrs): ?Version
+    {
+        if ($attrs === []) {
+            return null;
+        }
+        /** @var Version $v */
+        $v = $attrs[0]->newInstance();
+        return $v;
+    }
+
+    private static function hasDeprecation(Version $version): bool
+    {
+        return $version->deprecatedAt !== null || $version->sunsetAt !== null;
+    }
+
+    /**
+     * `'/products/{id:int}'` + version `'v1'` → `'/v1/products/{id:int}'`.
+     *
+     * If the route path already starts with the version prefix,
+     * pass it through unchanged — apps that hand-prefix their
+     * paths AND mark them with `#[Version]` shouldn't end up with
+     * `/v1/v1/...`.
+     */
+    private static function prefixWithVersion(string $path, string $version): string
+    {
+        $prefix = '/' . ltrim($version, '/');
+        if (str_starts_with($path, $prefix . '/') || $path === $prefix) {
+            return $path;
+        }
+        // `$path` is conventionally rooted at `/` — concat is enough.
+        return $prefix . (str_starts_with($path, '/') ? $path : '/' . $path);
     }
 }
