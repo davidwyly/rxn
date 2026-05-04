@@ -259,6 +259,21 @@ Caddy / Apache for production. Apps that need DI / config /
 logging wire those at the composition root and inject them into
 handlers — the framework itself stays out of that decision.
 
+### Worked example — `examples/quickstart/`
+
+210 LOC across three files exercising the full modern stack:
+DTO binding + attribute validation, BearerAuth, RequestId,
+HealthCheck, typed route constraints (`{id:int}`), RFC 7807
+Problem Details on every failure path. File-backed JSON repo so
+no database is needed.
+
+```bash
+php -S 127.0.0.1:9871 -t examples/quickstart/public
+```
+
+See [`examples/quickstart/README.md`](examples/quickstart/README.md)
+for the full curl walkthrough.
+
 ### CI / cross-framework comparison
 
 CI runs lint + phpunit against PHP 8.2, 8.3, and 8.4
