@@ -150,7 +150,7 @@ final class ResourceRegistrar
                 if ($search !== null) {
                     try {
                         /** @var RequestDto $filter */
-                        $filter = Binder::bindRequest($search, $request);
+                        $filter = Binder::bind($search, $request->getQueryParams());
                     } catch (ValidationException $e) {
                         return self::problem(422, 'Unprocessable Entity', $e->errors());
                     }
