@@ -8,51 +8,40 @@ These pages go into more depth than the top-level README quickstart.
 
 ## Request lifecycle
 
-A single request enters through `public/index.php`, boots the
-environment via `Startup`, then flows through the optional router
-and middleware pipeline before landing at a controller action.
-Success lands on the `{data, meta}` envelope with
-`Content-Type: application/json`; every uncaught exception rolls
-back into `Response::getFailure` and renders as an RFC 7807
-Problem Details document with `Content-Type:
-application/problem+json`. Those are the only two exit paths.
+`App::serve(Router)` is the entry point. Boot-free — no
+constructor, no Container plumbing, no DB connection during
+request setup. The request flows through the configured Router
+to find a matched route, the route's middleware pipeline runs,
+and the matched handler is invoked. Success lands on the
+`{data, meta}` envelope with `Content-Type: application/json`;
+every uncaught exception either rolls back into a Problem Details
+(`Content-Type: application/problem+json`) response from a
+caller-installed exception middleware, or propagates past
+`serve()` to the SAPI's default error path.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Client
-    participant Index as public/index.php
+    participant Front as front controller
     participant App
-    participant Startup
-    participant Registry
-    participant Router as Router (optional)
-    participant Pipeline as Pipeline (optional)
-    participant Controller
-    participant Response
+    participant Router
+    participant Pipeline
+    participant Handler
 
-    Client->>Index: HTTP request
-    Index->>App: new App()
-    App->>Startup: boot (.env, autoload, databases)
-    App->>Registry: reflect schema (lazy)
-    App->>App: resolve Request + Api
-    alt explicit routing
-        App->>Router: match(method, path)
-        Router-->>App: Route (handler, params, middlewares)
-    else convention routing
-        App->>App: version/controller/action from URL
-    end
-    opt middleware attached
-        App->>Pipeline: handle(request, dispatcher)
-    end
-    App->>Controller: trigger()
-    Controller->>Controller: invoke action_v{N}
-    alt success
-        Controller->>Response: getSuccess($data)
-        Response-->>App: {data, meta} envelope
-        App-->>Client: application/json
-    else thrown exception
-        Controller->>Response: getFailure($exception)
-        Response-->>App: Problem Details (RFC 7807)
+    Client->>Front: HTTP request
+    Front->>App: App::serve($router)
+    App->>App: build PSR-7 ServerRequest from globals
+    App->>Router: match(method, path)
+    alt match
+        Router-->>App: route (handler, params, middlewares)
+        App->>Pipeline: run middlewares + terminal handler
+        Pipeline->>Handler: invoke ($params, $request)
+        Handler-->>Pipeline: ResponseInterface
+        Pipeline-->>App: ResponseInterface
+        App-->>Client: application/json or application/problem+json
+    else miss (404 / 405)
+        Router-->>App: null
         App-->>Client: application/problem+json
     end
 ```
@@ -62,16 +51,15 @@ sequenceDiagram
 | Topic | Notes |
 |---|---|
 | [Design philosophy](design-philosophy.md) | The ten principles that let Rxn be fast, readable, and small at the same time |
-| [Routing](routing.md) | Convention-based URLs and the explicit `Router` |
+| [Routing](routing.md) | The explicit `Http\Router` + `#[Route]` attribute scanning |
 | [Dependency injection](dependency-injection.md) | Container, autowiring, method injection |
 | [Request binding + validation](request-binding.md) | DTO hydration + attribute-driven validation |
-| [Scaffolding](scaffolding.md) | Auto-CRUD endpoints against a live schema |
 | [Error handling](error-handling.md) | Exceptions + RFC 7807 Problem Details |
-| [Building blocks](building-blocks.md) | Pipeline + shipped middlewares, Logger, RateLimiter, Scheduler, Auth, Migration, Chain, TestClient, SwaggerUi |
-| [PSR-7 / PSR-15 interop](psr-7-interop.md) | The framework's PSR-15 stance and the bench evidence behind the ingress cost analysis (page predates the PSR-15 native migration — see CHANGELOG) |
-| [Horizons](horizons.md) | Research directions that could reposition the framework — schema as truth taken further, observability ships in the box, fiber-aware concurrency (already proven), profile-guided compilation. Each direction sized with cost, mechanism, and ship signal. |
+| [Building blocks](building-blocks.md) | Pipeline + shipped middlewares, Logger, RateLimiter, Scheduler, TestClient, SwaggerUi |
+| [PSR-7 / PSR-15 interop](psr-7-interop.md) | The framework's PSR-15 stance |
+| [Horizons](horizons.md) | Research directions that could reposition the framework — schema as truth taken further, observability ships in the box (event surface + plugin), fiber-aware concurrency (proven), profile-guided compilation (proven). Each direction sized with cost, mechanism, and ship signal. |
 | [Plugin architecture](plugin-architecture.md) | First-party plugins as the unit of trust extension. Repository / versioning conventions, the parity-harness contract. |
-| [CLI](cli.md) | `bin/rxn` — migrations, scaffolding, OpenAPI spec |
+| [CLI](cli.md) | `bin/rxn` — OpenAPI spec, route conflict checks, dump:hot |
 | [Benchmarks](benchmarks.md) | `bin/bench` — microbenchmarks for the building blocks |
 | [OPcache preload](opcache-preload.md) | `bin/preload.php` — pre-compile the framework at fpm boot |
 

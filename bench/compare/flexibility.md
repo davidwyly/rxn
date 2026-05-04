@@ -34,9 +34,7 @@ shipped; build it yourself.
 | **Query builder** (SELECT + JOIN + WHERE + subqueries + upsert) | [X] `davidwyly/rxn-orm` (auto-required) | [ ] | [~] doctrine/dbal | [ ] |
 | **ActiveRecord** (hydrate, hasMany / hasOne / belongsTo) | [X] | [ ] | [~] doctrine/orm | [ ] |
 | **Scaffolded CRUD against a live schema** | [X] `Record` + `CrudController` | [ ] | [~] api-platform | [ ] |
-| **Database migrations** (timestamped `*.sql` runner) | [X] | [ ] | [~] doctrine/migrations | [ ] |
-| **CSRF synchronizer tokens** (constant-time compare) | [X] `Session::token()` | [ ] | [~] symfony/security-csrf | [ ] |
-| **Bearer-token auth scaffold** (extract + verify hooks) | [X] `Service\Auth` | [ ] | [~] symfony/security | [ ] |
+| **Bearer-token auth scaffold** (extract + verify hooks) | [X] `Http\Middleware\BearerAuth` | [ ] | [~] symfony/security | [ ] |
 | **Rate limiting** (file-backed, `flock`-protected) | [X] `Utility\RateLimiter` | [ ] | [~] symfony/rate-limiter | [ ] |
 | **CORS w/ preflight** | [X] `Http\Middleware\Cors` | [ ] | [~] nelmio/cors-bundle | [ ] |
 | **Request-id correlation middleware** | [X] | [ ] | [ ] | [ ] |

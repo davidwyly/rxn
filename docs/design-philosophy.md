@@ -150,13 +150,6 @@ final class ProductController {
 }
 ```
 
-A **convention router** also ships (`/v{N}/{controller}/{action}/...`
-parsed from `$_GET` into `App::run`). It's older than the
-explicit Router and is preserved for apps that already depend on
-it, but it isn't the recommended path for new code — attribute /
-explicit routing matches the framework's marketing identity and
-the example app.
-
 The same "common case at zero cost" pattern shows up across the
 framework:
 
@@ -258,8 +251,7 @@ read four files.
 
 ## 10. Honesty about tradeoffs
 
-The README says **alpha**. The benchmarks docs note that
-`App::run()` has open bugs. The compile-path docs say *don't use
+The README says **alpha**. The compile-path docs say *don't use
 this under FPM unless you understand it*. The cross-framework
 comparison harness states that `php -S` is a development server
 and absolute numbers don't transfer to FPM-behind-nginx.
@@ -364,17 +356,17 @@ principles are how we keep the substrate healthy.
 
 | Principle | Concrete example |
 |---|---|
-| 1 — opinionated narrowing | `Response::__construct` produces JSON; `App::run` rolls every uncaught exception into RFC 7807; no Accept header branch anywhere |
+| 1 — opinionated narrowing | `App::serve()` always emits JSON or `application/problem+json`; no Accept header branch anywhere |
 | 2 — schema as truth | `Binding\RequestDto` + `#[Required]` etc. → consumed by `Binder`, `Validator`, `OpenApi\Generator`, `Binder::compileFor`, `Codegen\JsValidatorEmitter`, `Codegen\PolyparityExporter`, `Codegen\Snapshot\OpenApiSnapshot` (gate) |
 | 3 — same code, two profiles | `Validator::check` / `Validator::compile`; `Binder::bind` / `Binder::compileFor`; `Container::get` (transparent) |
 | 4 — schema-compile PHP, not C | `bench/ab/experiments/2026-04-29-compiled-json-encoder.md` — negative result that produced the rule |
-| 5 — convention + escape hatch | `App::run` convention router → `Http\Router` explicit; `Container` autowire → `bind()` |
+| 5 — convention + escape hatch | `Http\Attribute\Scanner` reads `#[Route]` automatically → `Http\Router` explicit when attributes don't fit; `Container` autowire → `bind()` for interface→concrete |
 | 6 — measure to commit | `bench/ab.php` driver, 16 experiment writeups, 4 negative-result branches preserved on origin |
-| 7 — transparent vs visible opt-in | Container's 5 stacked caches: zero API change. `Validator::compile`: visible because of the FPM tradeoff |
-| 8 — smallness as constraint | ~13k LOC framework, ~3k LOC dispatch spine (Container, Router, Pipeline, Binder, Validator, Request, Response) — readable in one sitting; the rest is opt-in subsystems |
+| 7 — transparent vs visible opt-in | Container's stacked caches: zero API change. `Validator::compile`: visible because of the FPM tradeoff |
+| 8 — smallness as constraint | ~11k LOC framework, dispatch spine (Container, Router, Pipeline, Binder, Validator) — readable in one sitting; the rest is opt-in subsystems |
 | 9 — ergonomics are performance | `bin/preload.php`, `bench/ab/CONSOLIDATION.md`, `docs/index.md`'s topic table |
-| 10 — honesty | "alpha" status in README, `App::run` open-bugs note in `docs/benchmarks.md`, the long-lived-worker caveat in every compile-path docstring |
-| 11 — optional deps via lazy autoload | `Psr16IdempotencyStore` (typehints `\Psr\SimpleCache\CacheInterface`) and `Database::run()` / `ActiveRecord` (typehint `\Rxn\Orm\Builder\Buildable` / `Query`); both packages live in `composer.json`'s `suggest` block, framework loads cleanly without them |
+| 10 — honesty | "alpha" status in README; the long-lived-worker caveat in every compile-path docstring; the sync-only contract on `Events::currentPairId()` / `BearerAuth::current()` / `TraceContext::current()` |
+| 11 — optional deps via lazy autoload | `Psr16IdempotencyStore` (typehints `\Psr\SimpleCache\CacheInterface`); the `davidwyly/rxn-orm` and `davidwyly/rxn-observe` plugins live in `composer.json`'s `suggest` block, framework loads cleanly without them |
 
 ## Per-request state is sync-only by design
 

@@ -2,7 +2,6 @@
 
 namespace Rxn\Framework\Http\Health;
 
-use Rxn\Framework\Http\Response;
 use Rxn\Framework\Http\Router;
 
 /**

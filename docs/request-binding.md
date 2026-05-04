@@ -31,16 +31,16 @@ final class CreateProduct implements RequestDto
     public ?string $note = null;
 }
 
-class ProductsController extends \Rxn\Framework\Http\Controller
+class ProductsController
 {
-    public function create_v1(CreateProduct $input): array
+    public function create(CreateProduct $input): array
     {
         return ['id' => $this->save($input)];
     }
 }
 ```
 
-`POST /v1.1/products` with `{"name": "Widget", "price": "1299"}`:
+`POST /products` with `{"name": "Widget", "price": "1299"}`:
 
 ```json
 {
@@ -49,7 +49,7 @@ class ProductsController extends \Rxn\Framework\Http\Controller
 }
 ```
 
-`POST /v1.1/products` with missing / bad fields — one response,
+`POST /products` with missing / bad fields — one response,
 every failure:
 
 ```json
@@ -58,7 +58,7 @@ every failure:
   "title": "Unprocessable Entity",
   "status": 422,
   "detail": "Validation failed",
-  "instance": "/v1.1/products/create",
+  "instance": "/products",
   "errors": [
     { "field": "name",  "message": "is required" },
     { "field": "price", "message": "must be >= 0" },
@@ -69,14 +69,14 @@ every failure:
 
 ## How it works
 
-`Controller::invokeObjectsToInject` checks each method parameter:
-if the type implements `Rxn\Framework\Http\Binding\RequestDto` it
-calls `Binder::bind($class)` instead of the container. The Binder:
+Apps call `Binder::bindRequest($dtoClass, $request)` (or
+`Binder::bind($dtoClass)` from a non-PSR-7 context) when they
+want a populated DTO; the Binder handles the rest:
 
-1. Merges `$_GET + $_POST` into a request bag (POST wins on
-   conflicts). The `JsonBody` middleware (when installed) is what
-   decodes `application/json` bodies into `$_POST`, so JSON and
-   form requests both work.
+1. Merges query params + parsed body into a request bag (body
+   wins on conflicts). The `JsonBody` middleware (when installed)
+   is what decodes `application/json` bodies into the parsed-body
+   slot, so JSON and form requests both work.
 2. Walks the DTO's public properties, coercing string request
    values to the declared PHP type:
    - `string` ← scalars

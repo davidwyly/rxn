@@ -6,22 +6,12 @@ namespace Rxn\Framework;
 /**
  * Rxn CLI entrypoint.
  *
- *   bin/rxn migrate
- *   bin/rxn migrate:status
- *   bin/rxn make:controller <NsPrefix> <Name> <Version>
- *   bin/rxn make:record     <NsPrefix> <Name> <table_name>
  *   bin/rxn openapi         [--out=path.json] [--title=t] [--version=v] [--ns=App]
  *   bin/rxn openapi:check   [--snapshot=path.json] [--update] [--allow-breaking]
  *   bin/rxn routes:check    [--ns=App] [--root=DIR]
  *   bin/rxn dump:hot        --profile=PATH [--top=N] [--cache=DIR] [--ns=App] [--root=DIR]
  *
  * Environment knobs:
- *   APP_MIGRATION_DIR     default: <project>/app/migrations
- *   APP_CLI_DATABASE      which DATABASE_<NAME>_* to use, default: write
- *   RXN_CLI_OUTPUT_ROOT   where make:* writes generated files
- *                         (default: project root). Exists so tests and
- *                         sandboxes can redirect the output away from
- *                         the real app/ tree.
  *   APP_NAMESPACE         app PSR-4 prefix (used by `openapi` discovery
  *                         when --ns isn't passed)
  */
@@ -44,22 +34,6 @@ function rxn_load_env(string $projectRoot): void
     // phpdotenv v3 API — new \Dotenv\Dotenv(string) broke at the
     // major-version bump.
     \Dotenv\Dotenv::create($configDir)->load();
-}
-
-function rxn_make_database(string $projectRoot): Data\Database
-{
-    rxn_load_env($projectRoot);
-    $source = getenv('APP_CLI_DATABASE') ?: Data\Database::DEFAULT_WRITE;
-    return new Data\Database($source);
-}
-
-function rxn_migration_dir(string $projectRoot): string
-{
-    $env = getenv('APP_MIGRATION_DIR');
-    if (is_string($env) && $env !== '') {
-        return $env;
-    }
-    return $projectRoot . '/app/migrations';
 }
 
 function rxn_write_file(string $path, string $contents): void
@@ -109,10 +83,6 @@ function rxn_help(): void
 Usage: bin/rxn <command> [args]
 
 Commands:
-  migrate                                   apply pending migrations
-  migrate:status                            list applied + pending migrations
-  make:controller <NsPrefix> <Name> <V>     scaffold a versioned controller
-  make:record <NsPrefix> <Name> <table>     scaffold a record model
   openapi [--out=PATH] [--title=T] [--version=V] [--ns=NS] [--root=DIR]
                                             emit an OpenAPI 3 spec from
                                             discovered controllers
@@ -137,9 +107,8 @@ Commands:
                                             for hot DTOs. Default top=20.
 
 Environment:
-  APP_MIGRATION_DIR     default: <project>/app/migrations
-  APP_CLI_DATABASE      which DATABASE_<NAME>_* to use, default: write
-  RXN_CLI_OUTPUT_ROOT   redirect make:* output (default: project root)
+  APP_NAMESPACE         app PSR-4 prefix (used by `openapi` discovery
+                        when --ns isn't passed)
 
 HELP;
 }
@@ -150,77 +119,6 @@ $command = array_shift($argv) ?? 'help';
 
 try {
     switch ($command) {
-        case 'migrate':
-            $database  = rxn_make_database($projectRoot);
-            $migration = new Data\Migration($database, rxn_migration_dir($projectRoot));
-            $ran       = $migration->run();
-            if ($ran === []) {
-                echo "Nothing to apply.\n";
-            } else {
-                echo 'Applied ' . count($ran) . " migration(s):\n";
-                foreach ($ran as $file) {
-                    echo "  $file\n";
-                }
-            }
-            exit(0);
-
-        case 'migrate:status':
-            $database  = rxn_make_database($projectRoot);
-            $migration = new Data\Migration($database, rxn_migration_dir($projectRoot), false);
-            $applied   = $migration->applied();
-            $available = $migration->available();
-            $pending   = array_values(array_diff($available, $applied));
-            echo 'Applied (' . count($applied) . "):\n";
-            foreach ($applied as $f) {
-                echo "  [X] $f\n";
-            }
-            echo 'Pending (' . count($pending) . "):\n";
-            foreach ($pending as $f) {
-                echo "  [ ] $f\n";
-            }
-            exit(0);
-
-        case 'make:controller':
-            $nsPrefix = $argv[0] ?? null;
-            $name     = $argv[1] ?? null;
-            $version  = $argv[2] ?? null;
-            if ($nsPrefix === null || $name === null || $version === null) {
-                fwrite(STDERR, "Usage: bin/rxn make:controller <NsPrefix> <Name> <Version>\n");
-                exit(2);
-            }
-            if (!ctype_digit((string)$version)) {
-                fwrite(STDERR, "Version must be an integer.\n");
-                exit(2);
-            }
-            $fullNs = trim($nsPrefix, '\\') . '\\Http\\Controller\\v' . $version;
-            $path   = $outputRoot . '/app/Http/Controller/v' . $version . '/' . $name . 'Controller.php';
-            $body   = "<?php declare(strict_types=1);\n\nnamespace $fullNs;\n\n"
-                    . "class {$name}Controller extends \\Rxn\\Framework\\Http\\Controller\n{\n"
-                    . "    public function show_v1()\n"
-                    . "    {\n"
-                    . "        return ['ok' => true];\n"
-                    . "    }\n"
-                    . "}\n";
-            rxn_write_file($path, $body);
-            exit(0);
-
-        case 'make:record':
-            $nsPrefix = $argv[0] ?? null;
-            $name     = $argv[1] ?? null;
-            $table    = $argv[2] ?? null;
-            if ($nsPrefix === null || $name === null || $table === null) {
-                fwrite(STDERR, "Usage: bin/rxn make:record <NsPrefix> <Name> <table_name>\n");
-                exit(2);
-            }
-            $fullNs = trim($nsPrefix, '\\') . '\\Model\\v1';
-            $path   = $outputRoot . '/app/Model/v1/' . $name . '.php';
-            $body   = "<?php declare(strict_types=1);\n\nnamespace $fullNs;\n\n"
-                    . "class $name extends \\Rxn\\Framework\\Model\\Record\n{\n"
-                    . "    protected \$table = '$table';\n"
-                    . "}\n";
-            rxn_write_file($path, $body);
-            exit(0);
-
         case 'openapi':
             $opts = rxn_parse_flags($argv);
             rxn_load_env($projectRoot);

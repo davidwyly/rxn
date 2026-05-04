@@ -77,15 +77,80 @@ final class ContainerTest extends TestCase
     }
 
 
-    public function testDefaultObjectParameterIsNotSharedAcrossInstances(): void
+    public function testGetReturnsTheSameInstanceOnSecondCall(): void
     {
+        // Container caches each resolved type as a singleton — same
+        // instance on subsequent get()s. (Previous behaviour split
+        // singletons-vs-transient by extending a `Service` base
+        // class; that base went away with the convention router.)
         $c = new Container();
+        $a = $c->get(NeedsDefaultBag::class);
+        $b = $c->get(NeedsDefaultBag::class);
+        $this->assertSame($a, $b);
+        $this->assertSame($a->bag, $b->bag);
+    }
 
+    public function testGetWithParametersBypassesAndDoesNotPolluteCache(): void
+    {
+        // The `$parameters` arg lets callers override autowired
+        // ctor values for a one-off resolution. With singleton
+        // caching, that override would be silently lost (or worse:
+        // poison the cache so subsequent `get()` returns the
+        // parameterised instance). The contract is explicit:
+        //
+        //   - $parameters === []  → cached singleton
+        //   - $parameters !== []  → fresh instance, not cached
+        //
+        // Without this rule, the override flag is a footgun.
+        $c = new Container();
+        $first = $c->get(NeedsDefaultBag::class);
 
-        $fromDefaultA = $c->get(NeedsDefaultBag::class);
-        $fromDefaultB = $c->get(NeedsDefaultBag::class);
+        // Pass parameters (positional, keyed by ctor-param index)
+        // → fresh instance, not the cached one.
+        $custom = new \Rxn\Framework\Tests\Fixture\Container\DefaultBag();
+        $custom->items[] = 'override';
+        $second = $c->get(NeedsDefaultBag::class, [0 => $custom]);
+        $this->assertNotSame($first, $second, 'parameterised get() must not return cached singleton');
+        $this->assertSame($custom, $second->bag, 'parameter override must reach the constructor');
 
-        $this->assertNotSame($fromDefaultA->bag, $fromDefaultB->bag);
+        // Subsequent unparameterised get() still returns the
+        // ORIGINAL cached singleton — the parameterised resolution
+        // didn't pollute the cache.
+        $third = $c->get(NeedsDefaultBag::class);
+        $this->assertSame($first, $third, 'cache must be unaffected by parameterised resolution');
+    }
+
+    public function testGetWithParametersAlsoBypassesCacheForFactoryBindings(): void
+    {
+        // The same parameterised-resolution-no-cache contract that
+        // applies to the autowire path also has to hold for callable
+        // factory bindings. Without the symmetric guard, a
+        // `get($abstract, $params)` against a factory-bound abstract
+        // would: (a) run the factory normally (which doesn't see
+        // `$params`), (b) cache the result, (c) poison every future
+        // unparameterised `get($abstract)` for the rest of the
+        // process — same footgun the autowire path closed.
+        $c = new Container();
+        $factoryCalls = 0;
+        $c->bind(Clock::class, function () use (&$factoryCalls) {
+            $factoryCalls++;
+            return new SystemClock();
+        });
+
+        // First call (no params) — cached.
+        $first = $c->get(Clock::class);
+        $this->assertSame(1, $factoryCalls);
+
+        // Parameterised call — fresh, must NOT cache.
+        $second = $c->get(Clock::class, [0 => 'ignored-by-factory']);
+        $this->assertSame(2, $factoryCalls, 'parameterised call must re-run the factory');
+        $this->assertNotSame($first, $second, 'parameterised get() must not return cached singleton from factory');
+
+        // Subsequent unparameterised call — original cached
+        // instance, factory NOT invoked again.
+        $third = $c->get(Clock::class);
+        $this->assertSame(2, $factoryCalls, 'cache must be unpolluted by the parameterised call');
+        $this->assertSame($first, $third);
     }
 
     public function testBindReturnsSelfForChaining(): void

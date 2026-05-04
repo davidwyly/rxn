@@ -87,9 +87,9 @@ final class CliTest extends TestCase
     {
         $result = $this->runCli(['help']);
         $this->assertSame(0, $result['status']);
-        $this->assertStringContainsString('make:controller', $result['stdout']);
-        $this->assertStringContainsString('make:record', $result['stdout']);
-        $this->assertStringContainsString('migrate', $result['stdout']);
+        $this->assertStringContainsString('openapi', $result['stdout']);
+        $this->assertStringContainsString('routes:check', $result['stdout']);
+        $this->assertStringContainsString('dump:hot', $result['stdout']);
     }
 
     public function testUnknownCommandExitsNonZero(): void
@@ -97,52 +97,6 @@ final class CliTest extends TestCase
         $result = $this->runCli(['nope']);
         $this->assertNotSame(0, $result['status']);
         $this->assertStringContainsString('Unknown command', $result['stderr']);
-    }
-
-    public function testMakeControllerRejectsMissingArgs(): void
-    {
-        $result = $this->runCli(['make:controller', 'Acme']);
-        $this->assertSame(2, $result['status']);
-        $this->assertStringContainsString('Usage', $result['stderr']);
-    }
-
-    public function testMakeControllerRejectsNonNumericVersion(): void
-    {
-        $result = $this->runCli(['make:controller', 'Acme', 'Foo', 'abc']);
-        $this->assertSame(2, $result['status']);
-        $this->assertStringContainsString('Version must be an integer', $result['stderr']);
-    }
-
-    public function testMakeControllerCreatesLintCleanFile(): void
-    {
-        $result = $this->runCli(
-            ['make:controller', 'Sandbox\\App', 'Widget', '3'],
-            ['RXN_CLI_OUTPUT_ROOT' => $this->sandbox]
-        );
-        $this->assertSame(0, $result['status'], $result['stderr']);
-
-        $generated = $this->sandbox . '/app/Http/Controller/v3/WidgetController.php';
-        $this->assertFileExists($generated);
-
-        $contents = file_get_contents($generated);
-        $this->assertStringContainsString('namespace Sandbox\\App\\Http\\Controller\\v3;', $contents);
-        $this->assertStringContainsString('class WidgetController', $contents);
-
-        // php -l should accept the generated file.
-        exec(escapeshellcmd(PHP_BINARY) . ' -l ' . escapeshellarg($generated), $lintOutput, $lintStatus);
-        $this->assertSame(0, $lintStatus, implode("\n", $lintOutput));
-    }
-
-    public function testMakeControllerRefusesToOverwrite(): void
-    {
-        $env = ['RXN_CLI_OUTPUT_ROOT' => $this->sandbox];
-
-        $first = $this->runCli(['make:controller', 'Sandbox\\App', 'Widget', '3'], $env);
-        $this->assertSame(0, $first['status']);
-
-        $second = $this->runCli(['make:controller', 'Sandbox\\App', 'Widget', '3'], $env);
-        $this->assertSame(3, $second['status']);
-        $this->assertStringContainsString('already exists', $second['stderr']);
     }
 
     public function testOpenapiEmitsJsonToStdout(): void
@@ -474,18 +428,4 @@ final class CliTest extends TestCase
         );
     }
 
-    public function testMakeRecordCreatesFile(): void
-    {
-        $result = $this->runCli(
-            ['make:record', 'Sandbox\\App', 'Widget', 'widgets'],
-            ['RXN_CLI_OUTPUT_ROOT' => $this->sandbox]
-        );
-        $this->assertSame(0, $result['status'], $result['stderr']);
-
-        $generated = $this->sandbox . '/app/Model/v1/Widget.php';
-        $this->assertFileExists($generated);
-
-        $contents = file_get_contents($generated);
-        $this->assertStringContainsString("protected \$table = 'widgets';", $contents);
-    }
 }
