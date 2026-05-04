@@ -456,6 +456,35 @@ final class ResourceRegistrarTest extends TestCase
         );
     }
 
+    public function testRegisterThrowsOnEmptyStringCreateDtoClass(): void
+    {
+        // Empty string would pass array_filter's default truthiness
+        // check (non-empty string is truthy), but '' is not a valid
+        // class name. Validation must catch it unconditionally.
+        $this->expectException(\InvalidArgumentException::class);
+
+        ResourceRegistrar::register(
+            new Router(),
+            '/bad',
+            new InMemoryWidgetCrud(),
+            create: '',                 // ← empty string, not a class
+            update: UpdateWidget::class,
+        );
+    }
+
+    public function testRegisterThrowsOnEmptyStringUpdateDtoClass(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        ResourceRegistrar::register(
+            new Router(),
+            '/bad',
+            new InMemoryWidgetCrud(),
+            create: CreateWidget::class,
+            update: '',                 // ← empty string, not a class
+        );
+    }
+
     /**
      * Resolve a matched route + invoke its handler against a
      * synthetic request, normalising the array vs ResponseInterface

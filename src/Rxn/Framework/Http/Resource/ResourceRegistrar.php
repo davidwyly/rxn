@@ -111,7 +111,14 @@ final class ResourceRegistrar
 
         // Validate DTO class-strings at registration time so mis-wired
         // calls fail immediately rather than on first request with a 500.
-        foreach (array_filter([$create, $update, $search]) as $dtoClass) {
+        // $create and $update are checked unconditionally (empty string
+        // would pass array_filter's default truthiness check and slip
+        // through undetected). $search is included only when non-null.
+        $dtoClasses = [$create, $update];
+        if ($search !== null) {
+            $dtoClasses[] = $search;
+        }
+        foreach ($dtoClasses as $dtoClass) {
             if (!is_subclass_of($dtoClass, RequestDto::class)) {
                 throw new \InvalidArgumentException(
                     "{$dtoClass} must implement " . RequestDto::class,
