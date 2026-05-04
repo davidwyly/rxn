@@ -140,6 +140,13 @@ dependency — they're plain value objects, so apps that don't
 subscribe pay zero runtime cost beyond a static-slot null check
 per emit.
 
+**Consumer:** the `OpenTelemetryListener` for theme 2.1 lives in
+the [`davidwyly/rxn-observe`](https://github.com/davidwyly/rxn-observe)
+plugin, not in core — keeps the framework's composer manifest
+free of OTel-SDK dependencies. Apps that want span trees
+`composer require davidwyly/rxn-observe`; apps that don't pay
+nothing.
+
 #### Added
 
 - **`Rxn\Framework\Observability\Events`** static helper:

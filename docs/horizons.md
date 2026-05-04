@@ -243,42 +243,35 @@ projects.
 
 ---
 
-### 2.1 OpenTelemetry spans via PSR-14
+### 2.1 OpenTelemetry spans via PSR-14 — REALIZED
 
-**Claim:** Every middleware, route, binder, validator emits an
-OpenTelemetry span via a built-in PSR-14 listener. Toggle with
-one config flag.
+Lives in the [`davidwyly/rxn-observe`](https://github.com/davidwyly/rxn-observe)
+plugin, not in core. The plugin's `Rxn\Observe\OpenTelemetryListener`
+subscribes to the framework's `FrameworkEvent` interface (theme 2.0)
+and translates each event into the matching OTel call: root request
+span, per-middleware children, handler span, route metadata, binder
++ validation as span events.
 
-**Mechanism:** Internal events:
-- `RequestReceived` (in `Pipeline::run`)
-- `MiddlewareEntered` / `MiddlewareExited` (per-middleware,
-  injected via the Pipeline)
-- `RouteMatched` (after `Router::match`)
-- `BinderInvoked` (around `Binder::bindRequest`)
-- `ValidationCompleted`
-- `HandlerInvoked` (start of the user handler)
-- `ResponseEmitted` (at `PsrAdapter::emit`)
+**Why a plugin, not core:** A first-party OTel listener inside core
+would have pulled `open-telemetry/api` (and effectively `sdk`) into
+every Rxn install — including apps that don't need distributed
+tracing. The plugin pattern matches `davidwyly/rxn-orm`: core stays
+lean, the integration ships separately, the framework's `composer
+suggest` block documents how to opt in.
 
-A built-in `OpenTelemetryListener` subscribes to all of these,
-opens / closes spans, propagates context. Apps that don't
-configure an OTel exporter pay a no-op cost (the listener
-checks).
+**Cost reality:** ~200 LOC of listener code + 9 integration tests
+in the plugin repo. The framework-side cost (theme 2.0) was the
+event surface itself; the listener is a thin shim on top.
 
-**Cost:** ~400 LOC for the events + listener. Zero new
-dependencies if the user provides an OTel SDK; the listener
-type-hints `Psr\Log\LoggerInterface`-style on the OTel
-contracts.
+**Status:** Shipped. Span tree forms correctly against the OTel
+SDK + `InMemoryExporter` in the plugin's test suite. The Jaeger /
+Honeycomb walkthrough is a follow-up validation step — the same
+listener feeds any OTLP-speaking collector via whichever exporter
+the app installs.
 
-**Distinctiveness:** The five PSRs already provide the bones.
-Rxn just has to ship the listener. **No other PHP framework
-ships first-party OTel integration that Just Works** — Symfony
-needs `OpenTelemetryBundle`, Laravel has third-party packages,
-Slim has nothing native.
-
-**Ship signal:** Trace a real request end-to-end through Jaeger
-or Honeycomb. If the span tree is readable without further
-configuration, ship. If it requires per-app annotation, the
-event surface needs more thought first.
+**Distinctiveness still holds:** No PHP framework ships
+first-party OTel integration that Just Works. `rxn-observe` is the
+listener; Rxn core's event surface is the integration point.
 
 ---
 
