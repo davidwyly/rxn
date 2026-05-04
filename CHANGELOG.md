@@ -99,7 +99,7 @@ assertion.
 
 #### Numbers
 
-- Suite: 739 → 617 / 1324 (122 tests gone with the deleted code, 1 added for the parameterised-get cache contract).
+- Suite: 739 → 618 / 1329 (122 tests gone with the deleted code, 2 added for the parameterised-get cache contract — autowire path + factory-binding path).
 - Framework LOC: ~13K → ~11K (~2K LOC removed).
 - Middleware count: 9 → 8 (Transaction dropped).
 - Composer requires shrunk: `ext-pdo` removed; `require-dev`

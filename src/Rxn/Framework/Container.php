@@ -134,13 +134,33 @@ class Container implements ContainerInterface
         if (isset($this->bindings[$class_name])) {
             $target = $this->bindings[$class_name];
             // Class-string binding wins over is_callable (which would
-            // fire for any class that implements __invoke).
+            // fire for any class that implements __invoke). The
+            // recursion threads `$parameters` through so the
+            // concrete's autowire path applies the same cache-skip
+            // contract.
             if (is_string($target) && class_exists($target)) {
                 return $this->get($target, $parameters);
             }
             if (is_callable($target)) {
+                // Same contract as the autowire path below:
+                //
+                //   - $parameters === [] → cached singleton. Symmetric
+                //     with the class-string binding (which inherits
+                //     the concrete's singleton via recursion).
+                //   - $parameters !== [] → fresh instance, factory
+                //     re-invoked, cache untouched.
+                //
+                // The factory itself doesn't receive `$parameters`
+                // (its docstring contract: receive the container,
+                // pull deps). Apps that need parameterised factories
+                // implement that themselves inside the closure.
+                if ($parameters === [] && isset($this->instances[$class_name])) {
+                    return $this->instances[$class_name];
+                }
                 $instance = $target($this);
-                $this->addInstance($class_name, $instance);
+                if ($parameters === []) {
+                    $this->addInstance($class_name, $instance);
+                }
                 return $instance;
             }
             throw new ContainerException("Binding for $class_name is neither a class name nor a callable");

@@ -120,6 +120,39 @@ final class ContainerTest extends TestCase
         $this->assertSame($first, $third, 'cache must be unaffected by parameterised resolution');
     }
 
+    public function testGetWithParametersAlsoBypassesCacheForFactoryBindings(): void
+    {
+        // The same parameterised-resolution-no-cache contract that
+        // applies to the autowire path also has to hold for callable
+        // factory bindings. Without the symmetric guard, a
+        // `get($abstract, $params)` against a factory-bound abstract
+        // would: (a) run the factory normally (which doesn't see
+        // `$params`), (b) cache the result, (c) poison every future
+        // unparameterised `get($abstract)` for the rest of the
+        // process — same footgun the autowire path closed.
+        $c = new Container();
+        $factoryCalls = 0;
+        $c->bind(Clock::class, function () use (&$factoryCalls) {
+            $factoryCalls++;
+            return new SystemClock();
+        });
+
+        // First call (no params) — cached.
+        $first = $c->get(Clock::class);
+        $this->assertSame(1, $factoryCalls);
+
+        // Parameterised call — fresh, must NOT cache.
+        $second = $c->get(Clock::class, [0 => 'ignored-by-factory']);
+        $this->assertSame(2, $factoryCalls, 'parameterised call must re-run the factory');
+        $this->assertNotSame($first, $second, 'parameterised get() must not return cached singleton from factory');
+
+        // Subsequent unparameterised call — original cached
+        // instance, factory NOT invoked again.
+        $third = $c->get(Clock::class);
+        $this->assertSame(2, $factoryCalls, 'cache must be unpolluted by the parameterised call');
+        $this->assertSame($first, $third);
+    }
+
     public function testBindReturnsSelfForChaining(): void
     {
         $c = new Container();
