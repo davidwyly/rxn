@@ -11,6 +11,7 @@ use Rxn\Framework\Http\Attribute\NotBlank;
 use Rxn\Framework\Http\Attribute\Required;
 use Rxn\Framework\Http\Attribute\Url;
 use Rxn\Framework\Http\Binding\RequestDto;
+use Rxn\Framework\Http\Binding\Validates;
 
 /**
  * Emit a polyparity YAML spec from a Rxn `RequestDto`. The same
@@ -212,6 +213,15 @@ final class PolyparityExporter
                 . 'Add a mapping or document the DTO as PHP-only.',
             );
         }
+
+        if (is_subclass_of($attrName, Validates::class)) {
+            throw new \RuntimeException(
+                "PolyparityExporter: $attrName on property '$propName' is a custom validator. "
+                . 'Refusing to emit silently-divergent spec. '
+                . 'Add a polyparity mapping or keep this DTO PHP-only.'
+            );
+        }
+
         return null;
     }
 

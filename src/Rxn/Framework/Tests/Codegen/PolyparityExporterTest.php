@@ -183,6 +183,14 @@ final class PolyparityExporterTest extends TestCase
         $exporter->emit(Fixture\UnsupportedDto::class);
     }
 
+
+    public function testRefusesCustomValidatesAttribute(): void
+    {
+        $exporter = new PolyparityExporter();
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/CustomValidatesAttribute.*custom validator/i');
+        $exporter->emit(Fixture\CustomUnsupportedDto::class);
+    }
     public function testRejectsNonRequestDto(): void
     {
         $exporter = new PolyparityExporter();
